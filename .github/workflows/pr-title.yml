@@ -1,0 +1,34 @@
+# Valida que el título del PR siga Conventional Commits (se usa como mensaje del squash)
+# Validates that the PR title follows Conventional Commits (used as the squash message)
+name: PR title
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  semantic-title:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          requireScope: true
+          scopes: |
+            events
+            access
+            requests
+            incidents
+            problems
+            knowledge
+            frontend
+            gateway
+            deploy
+            contracts
+            docs
+            ci
+            repo

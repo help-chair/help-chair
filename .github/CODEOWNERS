@@ -1,0 +1,21 @@
+# Los code owners deben aprobar los PR de su carpeta / Code owners must approve PRs for their folder
+*                        @help-chair/team-platform
+
+/services/events/         @help-chair/team-events
+/services/access/         @help-chair/team-access
+/services/requests/       @help-chair/team-requests
+/services/incidents/      @help-chair/team-incidents
+/services/problems/       @help-chair/team-problems
+/services/knowledge/      @help-chair/team-problems
+/frontend/                @help-chair/team-frontend
+/platform/gateway/        @help-chair/team-platform
+/platform/deploy/         @help-chair/team-platform
+/contracts/events/        @help-chair/team-events
+/contracts/access/        @help-chair/team-access
+/contracts/requests/      @help-chair/team-requests
+/contracts/incidents/     @help-chair/team-incidents
+/contracts/problems/      @help-chair/team-problems
+/contracts/knowledge/     @help-chair/team-problems
+/contracts/messages/      @help-chair/team-platform
+/.github/                 @help-chair/team-platform
+/docs/                    @help-chair/team-platform

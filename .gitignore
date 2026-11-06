@@ -1,0 +1,24 @@
+# Secrets / Secretos
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# OS / Editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Logs / Builds (genérico; cada equipo amplía según su lenguaje)
+*.log
+node_modules/
+dist/
+build/
+bin/
+obj/
+__pycache__/
+*.pyc
+target/

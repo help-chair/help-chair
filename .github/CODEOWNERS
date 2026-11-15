@@ -1,21 +1,21 @@
 # Los code owners deben aprobar los PR de su carpeta / Code owners must approve PRs for their folder
 *                        @DonitaCosmica
 
-/services/events/        @DonitaCosmica
-/services/access/        @JohanPEBO
-/services/requests/      @Zteven
-/services/incidents/     @decko67
-/services/problems/      @Leon2411
-/services/knowledge/     @Leon2411
-/frontend/               @ALLexelsus7
-/platform/gateway/       @DonitaCosmica
-/platform/deploy/        @DonitaCosmica
-/contracts/events/       @DonitaCosmica
-/contracts/access/       @JohanPEBO
-/contracts/requests/     @Zteven
-/contracts/incidents/    @decko67
-/contracts/problems/     @Leon2411
-/contracts/knowledge/    @Leon2411
-/contracts/messages/     @DonitaCosmica
-/.github/                @DonitaCosmica
-/docs/                   @DonitaCosmica
+/services/events/        @DonitaCosmica @Alexis-sillyprogrammer
+/services/access/        @JohanPEBO @spartan117alan1
+/services/requests/      @Zteven @ivan0407mv
+/services/incidents/     @decko67 @DiegoMH890
+/services/problems/      @Leon2411 @PabloH126
+/services/knowledge/     @Leon2411 @PabloH126
+/frontend/               @ALLexelsus7 @DiegoMH890
+/platform/gateway/       @DonitaCosmica @decko67
+/platform/deploy/        @DonitaCosmica @decko67
+/contracts/events/       @DonitaCosmica @decko67
+/contracts/access/       @JohanPEBO @spartan117alan1
+/contracts/requests/     @Zteven @ivan0407mv
+/contracts/incidents/    @decko67 @DiegoMH890
+/contracts/problems/     @Leon2411 @PabloH126
+/contracts/knowledge/    @Leon2411 @PabloH126
+/contracts/messages/     @DonitaCosmica @decko67
+/.github/                @DonitaCosmica @Alexis-sillyprogrammer
+/docs/                   @DonitaCosmica @Alexis-sillyprogrammer

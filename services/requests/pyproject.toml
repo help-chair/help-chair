@@ -1,0 +1,49 @@
+[project]
+name = "hc-requests"
+version = "0.1.0"
+description = "Help Chair - servicio requests"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "django>=5.1,<6.0",
+    "djangorestframework>=3.15",
+    "drf-spectacular>=0.27",
+    "djangorestframework-simplejwt>=5.3",
+    "django-environ>=0.11",
+    "gunicorn>=22.0",
+    "psycopg[binary]>=3.2",
+    "whitenoise>=6.7",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-django>=4.8",
+    "pytest-cov>=5.0",
+    "factory-boy>=3.3",
+    "schemathesis>=3.30",
+    "openapi-spec-validator>=0.7",
+    "ruff>=0.8",
+    "pre-commit>=3.7",
+]
+
+[tool.uv]
+# Es una aplicación, no una librería: no se empaqueta ni se instala a sí misma.
+package = false
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings"
+python_files = ["test_*.py"]
+testpaths = ["tests"]
+addopts = "-q --cov=. --cov-report=term-missing:skip-covered"
+filterwarnings = ["ignore:No directory at:UserWarning"]
+
+[tool.coverage.run]
+omit = ["*/migrations/*", "manage.py", "config/wsgi.py", "tests/*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["migrations", ".venv", "staticfiles"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "DJ"]

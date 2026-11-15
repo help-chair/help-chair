@@ -11,6 +11,7 @@
 | **Imagen / Image** | `ghcr.io/help-chair/hc-frontend` |
 | **Contratos / Contracts** | `contracts/` |
 | **Guía de Despliegue / Ops Guide** | [`DEPLOYMENT.md`](DEPLOYMENT.md) |
+| **Diseño y Figma / UI Guide** | [`DESIGN.md`](DESIGN.md) |
 
 ---
 

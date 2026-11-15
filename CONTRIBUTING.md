@@ -103,28 +103,28 @@ No se usa *rebase and merge* en la interfaz de GitHub.
 - `contracts/` se versiona con el servicio que lo publica; un cambio incompatible exige `MAJOR`.
 - Para publicar: PR `develop` → `main`, y tras el merge se crean las etiquetas de los servicios que cambiaron.
 
-## 7. CI por carpeta
+## 7. CI/CD por carpeta (Jenkins)
 
-Cada equipo crea su workflow en `.github/workflows/<servicio>-ci.yml` (su carpeta, su lenguaje), filtrado por ruta. Ejemplo:
+El CI/CD corre en **Jenkins** (pipeline multibranch). Cada servicio tiene su `Jenkinsfile` en su carpeta y solo se ejecuta cuando cambian archivos de esa carpeta. Todo paso del pipeline existe también como comando `make` (`make lint test build`), para poder correrlo a mano si Jenkins falla.
 
-```yaml
-name: events-ci
-on:
-  pull_request:
-    paths: ['services/events/**', 'contracts/events/**', 'contracts/messages/**']
-  push:
-    branches: [develop]
-    paths: ['services/events/**']
-jobs:
-  build-test:
-    runs-on: ubuntu-latest
-    defaults: { run: { working-directory: services/events } }
-    steps:
-      - uses: actions/checkout@v4
-      # TODO: setup del lenguaje, pruebas y build de la imagen
+```groovy
+// services/events/Jenkinsfile  (la plantilla la entrega el equipo de Plataforma)
+pipeline {
+  agent any
+  stages {
+    stage('Lint y pruebas') {
+      when { changeset 'services/events/**' }
+      steps { dir('services/events') { sh 'make lint test' } }
+    }
+    stage('Construir imagen') {
+      when { changeset 'services/events/**' }
+      steps { dir('services/events') { sh 'make build' } }
+    }
+  }
+}
 ```
 
-> Los archivos de `.github/workflows/` son de Plataforma según `CODEOWNERS`; el PR de un workflow nuevo lo aprueba Plataforma.
+> El workflow `.github/workflows/pr-title.yml` (validación del título del PR) sigue en GitHub Actions. Los `Jenkinsfile` de cada servicio los aprueba su equipo; los de despliegue, Plataforma.
 
 ## 8. Hotfix
 

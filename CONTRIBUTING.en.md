@@ -103,28 +103,28 @@ Format: `type(scope): imperative description`
 - `contracts/` is versioned with the service that publishes it; a breaking change requires `MAJOR`.
 - To release: PR `develop` → `main`, then after merging create tags for the services that changed.
 
-## 7. Per-folder CI
+## 7. Per-folder CI/CD (Jenkins)
 
-Each team creates its workflow in `.github/workflows/<service>-ci.yml` (its folder, its language), path-filtered. Example:
+CI/CD runs on **Jenkins** (multibranch pipeline). Each service has its own `Jenkinsfile` in its folder and runs only when files in that folder change. Every pipeline step also exists as a `make` command (`make lint test build`), so it can be run by hand if Jenkins fails.
 
-```yaml
-name: events-ci
-on:
-  pull_request:
-    paths: ['services/events/**', 'contracts/events/**', 'contracts/messages/**']
-  push:
-    branches: [develop]
-    paths: ['services/events/**']
-jobs:
-  build-test:
-    runs-on: ubuntu-latest
-    defaults: { run: { working-directory: services/events } }
-    steps:
-      - uses: actions/checkout@v4
-      # TODO: language setup, tests and image build
+```groovy
+// services/events/Jenkinsfile  (the template is provided by the Platform team)
+pipeline {
+  agent any
+  stages {
+    stage('Lint and test') {
+      when { changeset 'services/events/**' }
+      steps { dir('services/events') { sh 'make lint test' } }
+    }
+    stage('Build image') {
+      when { changeset 'services/events/**' }
+      steps { dir('services/events') { sh 'make build' } }
+    }
+  }
+}
 ```
 
-> Files under `.github/workflows/` belong to Platform per `CODEOWNERS`; Platform approves PRs for new workflows.
+> The `.github/workflows/pr-title.yml` workflow (PR title validation) stays on GitHub Actions. Each service's `Jenkinsfile` is approved by its team; deployment ones by Platform.
 
 ## 8. Hotfix
 

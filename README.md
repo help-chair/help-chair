@@ -69,7 +69,6 @@ El diseño usa el vocabulario de ITIL v4 (**prácticas**, no procesos). La corre
 - **Aislamiento total por empresa:** un namespace de Kubernetes por stack; ningún stack se comunica con otro.
 - **Database per service:** cada servicio tiene su propia base de datos; nadie lee la BD de otro equipo.
 - **Contratos primero:** APIs (OpenAPI) y mensajes (broker) se definen y versionan en `contracts/`.
-- **Políglota controlado:** cada equipo elige su lenguaje, pero todos cumplen el *Contrato mínimo de servicio* (abajo).
 - **Independencia dentro del monorepo:** cada carpeta tiene su propio CI (filtrado por ruta), su propia imagen y su propio versionado.
 - **Eficiencia de recursos:** imágenes pequeñas, límites de CPU/RAM declarados y stacks inactivos hibernables.
 
@@ -99,13 +98,29 @@ Todo servicio, sin importar el lenguaje, debe:
 3. Trabaja **solo dentro de la carpeta de tu equipo**.
 4. Levanta el entorno local con `platform/deploy` *(en construcción)*.
 
-## 🗺️ Hoja de ruta (alto nivel)
+## 🛠️ Stack tecnológico
 
-- [ ] **Fase 0** — Repo, estándares, contratos iniciales.
-- [ ] **Fase 1** — MVP de un stack: Eventos → Peticiones / Incidencias / Problemas, Accesos y KB.
-- [ ] **Fase 2** — Gateway de subdominio, registro de empresas y aprovisionamiento automático.
-- [ ] **Fase 3** — Onboarding configurable, SLA y notificaciones.
-- [ ] **Fase 4** — Endurecimiento: observabilidad, optimización de recursos, Change Enablement.
+| Área | Tecnología |
+|---|---|
+| Backend (todos los servicios) | Python + Django + Django REST Framework, OpenAPI con `drf-spectacular` |
+| Base de datos | BD del equipo elegida en contenedor, una por servicio |
+| Frontend | React + Vite + TypeScript |
+| Contenedores | Podman (imágenes OCI) |
+| Orquestación | Kubernetes + Helm |
+| CI/CD | Jenkins (un `Jenkinsfile` por servicio) |
+| Nube | Azure, AWS o Google Cloud *(por decidir)* |
+
+## 🗺️ Plan de fases
+
+El proyecto se entrega en 5 fases de 5 días (13 de noviembre – 7 de diciembre de 2026). Detalle completo, entregables por equipo y alternativas en [`docs/ROADMAP.md`](docs/ROADMAP.md).
+
+| Fase | Fechas | Meta |
+|---|---|---|
+| 1 · Cimientos | 13 – 17 nov | Cada servicio corre en Podman con su BD; contratos v0 |
+| 2 · Núcleo de servicios | 18 – 22 nov | Cada servicio funciona solo; CI/CD publica imágenes; contratos v1 congelados |
+| 3 · Integración y despliegue de testing | 23 – 27 nov | Flujo completo desplegado en la nube (testing) con CD |
+| 4 · Multiempresa y robustez | 28 nov – 2 dic | Alta de empresa → stack aislado; seguridad, carga y accesibilidad |
+| 5 · Estabilización y entrega | 3 – 7 dic | Producción, documentación, demo y `v1.0.0` |
 
 ## 📄 Licencia
 

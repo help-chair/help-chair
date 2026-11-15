@@ -17,8 +17,8 @@
 <!-- Qué hace esta carpeta y qué NO hace -->
 
 ### Stack tecnológico
-- Lenguaje / framework: _por definir por el equipo_
-- Base de datos: _por definir por el equipo_ (propia de este servicio)
+- Lenguaje / framework: Python / Django
+- Base de datos: TimescaleDB
 
 ### Contrato mínimo de servicio
 - [ ] `Dockerfile` y usuario no root

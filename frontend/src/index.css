@@ -1,19 +1,40 @@
-:root {
-  font-family:
-    system-ui,
-    -apple-system,
-    'Segoe UI',
-    Roboto,
-    sans-serif;
-  line-height: 1.5;
-  color: #1a1a1a;
-  background: #ffffff;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Superficie y fondos */
+    --background: 210 40% 98%; /* Slate-50 */
+    --foreground: 222 47% 11%; /* Slate-900 */
+    --surface: 0 0% 100%; /* Blanco puro para tarjetas */
+    --surface-muted: 210 40% 96.1%; /* Slate-100 para fondos secundarios */
+
+    /* Colores de marca / UI */
+    --primary: 238 77% 59%; /* Indigo-600 */
+    --primary-foreground: 0 0% 100%; /* Blanco */
+    --primary-hover: 239 84% 67%; /* Indigo-500 */
+
+    /* Bordes y divisores */
+    --border: 214 32% 91%; /* Slate-200 */
+    --ring: 238 77% 59%;
+
+    /* Radio de bordes estándar */
+    --radius: 0.5rem; /* 8px (rounded-lg) */
+
+    /* Colores Semánticos ITIL v4 */
+    --itil-info: 217 91% 60%; /* Azul #2563eb - Informativo */
+    --itil-warning: 38 92% 50%; /* Ámbar #d97706 - Advertencias */
+    --itil-exception: 0 84% 60%; /* Rojo #dc2626 - Fallos / Incidencias */
+    --itil-success: 142 71% 45%; /* Verde #16a34a - Resuelto / SLAs */
+    --itil-request: 262 83% 58%; /* Violeta #7c3aed - Peticiones de catálogo */
+  }
 }
+
 body {
-  margin: 0;
-}
-main {
-  max-width: 48rem;
-  margin: 0 auto;
-  padding: 2rem 1rem;
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }

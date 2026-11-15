@@ -2,63 +2,135 @@
 
 [English below ↓](#english)
 
-> Frontend (Service Desk) de Help Chair. / Help Chair frontend (Service Desk).
+> Frontend (Service Desk) de Help Chair: punto único de contacto (SPOC) y Dashboard operacional de eventos, incidentes, peticiones y problemas. / Help Chair frontend (Service Desk): single point of contact (SPOC) and operational dashboard for events, incidents, requests, and problems.
 
 | | |
 |---|---|
-| **Equipo / Team** | Frontend |
+| **Equipo / Team** | Frontend (Equipo 6) |
 | **Práctica ITIL v4 / ITIL v4 practice** | Service Desk |
 | **Imagen / Image** | `ghcr.io/help-chair/hc-frontend` |
 | **Contratos / Contracts** | `contracts/` |
+| **Guía de Despliegue / Ops Guide** | [`DEPLOYMENT.md`](DEPLOYMENT.md) |
+
+---
 
 ## Español
 
 ### Responsabilidad
-<!-- Qué hace esta carpeta y qué NO hace -->
+- **Qué hace esta carpeta:**
+  - Implementa la interfaz SPA del Service Desk para agentes y administradores de la empresa.
+  - Ofrece el **Dashboard principal**, funcionando como centro de mando y visualizador del flujo de eventos (Monitoring Feed) generado por `services/events`.
+  - Proporciona navegación y acceso unificado hacia los microservicios de Incidencias, Peticiones, Problemas y Base de Conocimiento.
+  - Maneja la visualización de SLAs y estado de los servicios.
+- **Qué NO hace esta carpeta:**
+  - No gestiona base de datos propia ni persiste tickets directamente (cada microservicio backend es dueño de su BD).
+  - No procesa reglas de negocio complejas en el cliente; consume las APIs y contratos definidos en `contracts/`.
 
 ### Stack tecnológico
-- Lenguaje / framework: _por definir por el equipo_
-- Base de datos: _por definir por el equipo_ (propia de este servicio)
+- **Lenguaje y runtime:** TypeScript / Node.js 20+
+- **Framework frontend:** React 19 + Vite 6
+- **Estilos y Componentes:** Tailwind CSS + Lucide React (arquitectura orientada a shadcn/ui)
+- **Testing y Calidad:** Vitest + Testing Library + ESLint 9 + Prettier
+- **Servidor web de producción:** Nginx unprivileged (imagen Alpine no-root)
 
 ### Contrato mínimo de servicio
-- [ ] `Dockerfile` y usuario no root
-- [ ] `GET /health/live` y `GET /health/ready`
-- [ ] Configuración solo por variables de entorno (`.env.example`)
+- [x] `Dockerfile` multi-stage y usuario no root (UID 101)
+- [x] `GET /health/live` y `GET /health/ready` (respuestas JSON vía Nginx)
+- [x] Configuración solo por variables de entorno (`.env.example`)
 - [ ] Logs en JSON
-- [ ] API documentada con OpenAPI en `contracts/`; eventos según `contracts/messages/`
+- [x] Consumo de contratos OpenAPI documentados en `contracts/`
 - [ ] Imagen publicada en `ghcr.io/help-chair/hc-frontend`
-- [ ] `requests`/`limits` de recursos declarados
-- [ ] Cierre ordenado con `SIGTERM`
+- [x] `requests`/`limits` de recursos declarados (detallados en [`DEPLOYMENT.md`](DEPLOYMENT.md))
+- [x] Cierre ordenado con `SIGTERM`
 - [ ] Workflow de CI propio, filtrado por esta ruta (ver `../CONTRIBUTING.md`)
 
 ### Ejecución local
+
+#### Opción A: Con Docker (Recomendado para el equipo con Hot-Reloading)
+Permite levantar el entorno de desarrollo idéntico para todos los integrantes sin requerir instalar Node en el host:
 ```bash
 cp .env.example .env
-# TODO: comandos para levantar el servicio
+docker compose -f docker-compose.dev.yml up
 ```
+Abre en tu navegador: [http://localhost:5173](http://localhost:5173). Cualquier cambio en el código se reflejará al instante.
+
+#### Opción B: Ejecución directa con Node/npm
+```bash
+cp .env.example .env
+npm install
+npm run dev
+```
+
+### Variables de Entorno (`.env`)
+
+| Variable | Descripción | Valor por defecto |
+|---|---|---|
+| `VITE_API_GATEWAY_URL` | URL del gateway o punto de entrada API | `http://localhost:8000` |
+| `VITE_API_EVENTS_URL` | URL del microservicio de Eventos | `http://localhost:8001` |
+| `VITE_API_INCIDENTS_URL` | URL del microservicio de Incidencias | `http://localhost:8004` |
+| `VITE_API_REQUESTS_URL` | URL del microservicio de Peticiones | `http://localhost:8003` |
+| `VITE_API_PROBLEMS_URL` | URL del microservicio de Problemas | `http://localhost:8005` |
+| `VITE_USE_MOCKS` | Activa datos simulados cuando no haya backends | `true` |
+| `VITE_DEV_TENANT_ID` | Identificador de empresa en local | `empresa-demo` |
+
+### 🤖 Guía para Desarrolladores y Agentes de IA
+Al generar o modificar código en este frontend:
+1. **Componentes reutilizables:** Utiliza exclusivamente Tailwind CSS y la estructura modular en `src/components/ui/`. Evita instalar librerías pesadas adicionales.
+2. **Vocabulario ITIL v4 estricto:** 
+   - Eventos: *Informativo*, *Advertencia*, *Excepción*.
+   - Tickets: *Incidencias*, *Peticiones de Servicio*, *Problemas*.
+   - Prioridad calculada por *Impacto × Urgencia*.
+3. **Consumo de contratos:** Toda llamada a endpoints debe respetar los esquemas de `contracts/`.
+
+### Despliegue en Producción
+Para desplegar el contenedor en producción o integrarlo con Kubernetes, consulta la [Guía de Despliegue (`DEPLOYMENT.md`)](DEPLOYMENT.md).
 
 ### Reglas del monorepo
 Trabaja **solo dentro de esta carpeta**. Si necesitas tocar otra, abre un PR separado o coordínate con sus dueños. Guía: [`CONTRIBUTING.md`](../CONTRIBUTING.md).
 
 ---
 
+<a name="english"></a>
 ## English
 
 ### Responsibility
-<!-- What this folder does and does NOT do -->
+- **What this folder does:**
+  - Implements the Service Desk SPA for enterprise agents and administrators.
+  - Hosts the **Main Dashboard**, serving as the operational command centre and monitoring feed visualizer generated by `services/events`.
+  - Provides unified navigation and entry point to Incidents, Requests, Problems, and Knowledge Base microservices.
+  - Displays SLAs and service health metrics.
+- **What this folder does NOT do:**
+  - Does not manage an internal database or persist tickets directly (each backend service owns its DB).
+  - Does not execute complex business rules on the client; consumes contracts defined in `contracts/`.
 
 ### Tech stack
-- Language / framework: _to be defined by the team_
-- Database: _to be defined by the team_ (owned by this service)
+- **Language / runtime:** TypeScript / Node.js 20+
+- **Frontend framework:** React 19 + Vite 6
+- **Styling & Components:** Tailwind CSS + Lucide React (shadcn/ui compatible)
+- **Testing & Quality:** Vitest + Testing Library + ESLint 9 + Prettier
+- **Production web server:** Nginx unprivileged (Alpine non-root image)
 
 ### Minimum service contract
-See the checklist above.
+See the checklist in the Spanish section above.
 
 ### Running locally
+
+#### Option A: With Docker (Recommended for team with Hot-Reloading)
 ```bash
 cp .env.example .env
-# TODO: commands to start the service
+docker compose -f docker-compose.dev.yml up
 ```
+Open [http://localhost:5173](http://localhost:5173).
+
+#### Option B: Direct with Node/npm
+```bash
+cp .env.example .env
+npm install
+npm run dev
+```
+
+### Production Deployment
+See [`DEPLOYMENT.md`](DEPLOYMENT.md) for Docker Compose and Kubernetes instructions.
 
 ### Monorepo rules
 Work **only inside this folder**. If you must change another one, open a separate PR or coordinate with its owners. Guide: [`CONTRIBUTING.en.md`](../CONTRIBUTING.en.md).

@@ -3,7 +3,7 @@
 | ID | Decisión / Decision | Estado / Status |
 |---|---|---|
 | D-01 | **Monorepo** (reemplaza la decisión inicial de polyrepo, para evitar problemas de coordinación). Los servicios siguen siendo independientes: contenedor, BD y CI propios / **Monorepo** (replaces the initial polyrepo decision to avoid coordination problems). Services stay independent: own container, DB and CI | ✅ Aceptada (cambiada 4-nov-2026) |
-| D-02 | Cada equipo elige su lenguaje, sujeto al contrato mínimo de servicio / Each team picks its language, subject to the minimum service contract | ✅ Aceptada |
+| D-02 | **Todos los servicios en Django, frontend en React** (decisión del 14-nov-2026) / **All services in Django, frontend in React** | ✅ Aceptada (cambiada) |
 | D-03 | Database per service; cada equipo elige su motor / Database per service; each team picks its engine | ✅ Aceptada |
 | D-04 | Subdominio `{empresa}.helpchair.example` / Subdomain `{company}.helpchair.example` | ✅ Aceptada |
 | D-05 | KB como servicio propio del equipo de Problemas, consumida por API / KB as its own service owned by Problems, consumed via API | ✅ Aceptada |
@@ -18,3 +18,6 @@
 | D-14 | Licencia del proyecto / Project license | ⚪ Abierta |
 | D-15 | `CODEOWNERS` por carpeta + CI filtrado por ruta para mantener la independencia de cada equipo / Per-folder `CODEOWNERS` + path-filtered CI to keep each team independent | ✅ Aceptada |
 | D-16 | Versionado por servicio con etiquetas `<carpeta>/vX.Y.Z` e imagen `ghcr.io/help-chair/hc-<servicio>` / Per-service versioning with `<folder>/vX.Y.Z` tags and image `ghcr.io/help-chair/hc-<service>` | 🟡 Propuesta |
+| D-17 | Contenedores con Podman, orquestación con Kubernetes + Helm, CI/CD con Jenkins, despliegue en nube (Azure, AWS o Google Cloud) / Podman, Kubernetes + Helm, Jenkins, cloud deployment | ✅ Aceptada (nube por elegir) |
+| D-18 | Plan de 5 fases de 5 días con ambientes dev / testing / producción; ver `docs/ROADMAP.md` / 5-phase plan with dev / testing / production environments | ✅ Aceptada |
+| D-19 | Nube, Kubernetes administrado vs k3s, registro de imágenes y broker (NATS o RabbitMQ) / Cloud, managed Kubernetes vs k3s, image registry and broker | ⚪ Abierta (ver ROADMAP, sección Decisiones pendientes) |

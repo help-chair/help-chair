@@ -69,7 +69,6 @@ The design uses ITIL v4 vocabulary (**practices**, not processes). The full mapp
 - **Full isolation per company:** one Kubernetes namespace per stack; no stack talks to another.
 - **Database per service:** every service has its own database; nobody reads another team's DB.
 - **Contracts first:** APIs (OpenAPI) and messages (broker) are defined and versioned in `contracts/`.
-- **Controlled polyglot:** each team picks its language, but all must meet the *Minimum service contract* (below).
 - **Independence inside the monorepo:** each folder has its own path-filtered CI, its own image and its own versioning.
 - **Resource efficiency:** small images, declared CPU/RAM limits and hibernating idle stacks.
 
@@ -99,13 +98,29 @@ Every service, whatever the language, must:
 3. Work **only inside your team's folder**.
 4. Bring up the local environment with `platform/deploy` *(under construction)*.
 
-## 🗺️ Roadmap (high level)
+## 🛠️ Tech stack
 
-- [ ] **Phase 0** — Repo, standards, initial contracts.
-- [ ] **Phase 1** — Single-stack MVP: Events → Requests / Incidents / Problems, Access and KB.
-- [ ] **Phase 2** — Subdomain gateway, company registry and automatic provisioning.
-- [ ] **Phase 3** — Configurable onboarding, SLAs and notifications.
-- [ ] **Phase 4** — Hardening: observability, resource optimisation, Change Enablement.
+| Area | Technology |
+|---|---|
+| Backend (all services) | Python + Django + Django REST Framework, OpenAPI with `drf-spectacular` |
+| Database | DB selected by the team in a container, one per service |
+| Frontend | React + Vite + TypeScript |
+| Containers | Podman (OCI images) |
+| Orchestration | Kubernetes + Helm |
+| CI/CD | Jenkins (one `Jenkinsfile` per service) |
+| Cloud | Azure, AWS or Google Cloud *(to be decided)* |
+
+## 🗺️ Phase plan
+
+The project is delivered in 5 phases of 5 days each (13 November – 7 December 2026). Full detail, deliverables per team and fallbacks are in [`docs/ROADMAP.md`](docs/ROADMAP.md) *(Spanish; English version pending)*.
+
+| Phase | Dates | Goal |
+|---|---|---|
+| 1 · Foundations | Nov 13 – 17 | Every service runs in Podman with its DB; contracts v0 |
+| 2 · Service core | Nov 18 – 22 | Each service works on its own; CI/CD publishes images; contracts v1 frozen |
+| 3 · Integration and testing deployment | Nov 23 – 27 | Full flow deployed in the cloud (testing) with CD |
+| 4 · Multi-tenancy and hardening | Nov 28 – Dec 2 | Company sign-up → isolated stack; security, load and accessibility |
+| 5 · Stabilisation and delivery | Dec 3 – 7 | Production, documentation, demo and `v1.0.0` |
 
 ## 📄 License
 

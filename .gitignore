@@ -11,6 +11,7 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
+.venv
 
 # Logs / Builds (genérico; cada equipo amplía según su lenguaje)
 *.log

@@ -17,6 +17,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
+import { RequestsPage } from '@/features/requests/RequestsPage'
 
 interface EventItem {
   id: string
@@ -77,7 +78,7 @@ const mockEvents: EventItem[] = [
 ]
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'events'>('dashboard')
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'events' | 'requests'>('dashboard')
 
   return (
     <div className="flex h-screen bg-slate-100 text-slate-800">
@@ -145,16 +146,18 @@ export default function App() {
               </div>
               <ExternalLink size={14} className="text-slate-500" />
             </a>
-            <a
-              href="#requests"
-              className="flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
+            <button
+              onClick={() => setActiveTab('requests')}
+              aria-current={activeTab === 'requests' ? 'page' : undefined}
+              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                activeTab === 'requests'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+              }`}
             >
-              <div className="flex items-center gap-3">
-                <Inbox size={18} className="text-blue-400" />
-                <span>Peticiones</span>
-              </div>
-              <ExternalLink size={14} className="text-slate-500" />
-            </a>
+              <Inbox size={18} className={activeTab === 'requests' ? '' : 'text-purple-400'} />
+              Peticiones
+            </button>
             <a
               href="#problems"
               className="flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
@@ -195,7 +198,9 @@ export default function App() {
             <h2 className="text-lg font-semibold text-slate-800">
               {activeTab === 'dashboard'
                 ? 'Service Desk · Vista Operativa'
-                : 'Consola de Monitoreo de Eventos'}
+                : activeTab === 'requests'
+                  ? 'Gestión de Peticiones'
+                  : 'Consola de Monitoreo de Eventos'}
             </h2>
             <Badge variant="outline">Gateway del Stack</Badge>
           </div>
@@ -217,8 +222,10 @@ export default function App() {
           </div>
         </header>
 
+        {activeTab === 'requests' && <RequestsPage />}
+
         {/* Cuerpo del Dashboard */}
-        <div className="p-8 max-w-7xl mx-auto w-full space-y-6">
+        <div className="p-8 max-w-7xl mx-auto w-full space-y-6" hidden={activeTab === 'requests'}>
           {/* Banner de bienvenida / Estado */}
           <div className="bg-gradient-to-r from-indigo-700 to-slate-900 rounded-xl p-6 text-white shadow-sm flex items-center justify-between">
             <div className="space-y-1">

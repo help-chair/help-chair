@@ -10,12 +10,15 @@ Proyecto académico-profesional desarrollado en el **Centro de Enseñanza Técni
 
 ## 📌 ¿Qué es Help Chair?
 
-Help Chair es una plantilla de help desk que una empresa contrata como servicio. Al darse de alta:
+Help Chair es una plantilla de help desk que una empresa contrata como servicio. El ciclo de vida es:
 
-1. La empresa se registra y recibe un **subdominio propio** (por ejemplo `empresa12.helpchair.example`).
-2. El sistema crea un **stack nuevo y vacío** (contenedores y bases de datos propios) solo para esa empresa.
-3. El primer usuario es **administrador del stack** y configura su help desk mediante un asistente de *onboarding* (servicios, prioridades, SLA, departamentos, usuarios y roles).
-4. A partir de ahí, el help desk opera sobre eventos, peticiones, incidentes y problemas, **sin ningún contacto con los stacks de otras empresas**.
+1. Una empresa llega al **sitio público** (`help-chair.com`), conoce el producto y pulsa **Registrar mi empresa**.
+2. Completa un **registro mínimo** (empresa, subdominio y administrador), verifica su correo y recibe un **subdominio propio** (por ejemplo `empresa12.help-chair.com`).
+3. El sistema crea un **stack nuevo y vacío** (contenedores y bases de datos propios) solo para esa empresa.
+4. El administrador activa su cuenta, define su contraseña y configura su help desk con un asistente de *onboarding* (servicios, prioridades, SLA, departamentos, usuarios y roles).
+5. A partir de ahí, el help desk opera sobre eventos, peticiones, incidentes y problemas, **sin ningún contacto con los stacks de otras empresas**.
+
+> Más adelante se incorporará una licencia de pago; por ahora el registro es gratuito (campo `plan` reservado en el directorio).
 
 ## 🧭 Arquitectura en una imagen
 
@@ -23,7 +26,9 @@ Help Chair es una plantilla de help desk que una empresa contrata como servicio.
 
 ![Stack de una empresa](docs/diagrams/architecture-stack.png)
 
-Más detalle en [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+![Alta de una empresa](docs/diagrams/registration-flow.png)
+
+Más detalle en [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) y, para el alta de empresas, en [`docs/REGISTRO-EMPRESA.md`](docs/REGISTRO-EMPRESA.md).
 
 ## 🗂️ Estructura del monorepo
 
@@ -36,9 +41,9 @@ help-chair/
 │   ├── incidents/     # Equipo 4 · Gestión de Incidencias
 │   ├── problems/      # Equipo 5 · Gestión de Problemas
 │   └── knowledge/     # Equipo 5 · Base de Conocimiento
-├── frontend/          # Equipo 6 · Service Desk
+├── frontend/          # Equipo 6 · Sitio público + Service Desk (una sola SPA)
 ├── platform/
-│   ├── gateway/       # Equipo 7 · Gateway de subdominio + BD de empresas
+│   ├── gateway/       # Equipo 7 · Gateway de subdominio, registro de empresas + BD de empresas
 │   └── deploy/        # Equipo 7 · Kubernetes, Helm, docker-compose
 ├── contracts/         # APIs (OpenAPI) y mensajes entre servicios
 ├── docs/              # Arquitectura, ITIL, decisiones
@@ -55,8 +60,8 @@ help-chair/
 | 3 | Gestión de Peticiones | Service Request Management | `services/requests` |
 | 4 | Gestión de Incidencias | Incident Management | `services/incidents` |
 | 5 | Gestión de Problemas | Problem Management + Knowledge Management | `services/problems`, `services/knowledge` |
-| 6 | Frontend | Service Desk | `frontend` |
-| 7 | Plataforma | Habilitación técnica (gateway, tenants, K8s) | `platform/gateway`, `platform/deploy` |
+| 6 | Frontend | Service Desk + sitio público y registro | `frontend` |
+| 7 | Plataforma | Habilitación técnica (gateway, registro de empresas, tenants, K8s) | `platform/gateway`, `platform/deploy` |
 
 > Cada equipo es **dueño** de su carpeta (vía `CODEOWNERS`), de su base de datos y de su lenguaje/framework. Un monorepo **no** significa un monolito: cada servicio sigue siendo un contenedor independiente con su propia BD. La coordinación entre equipos se hace **solo mediante contratos** (`contracts/`).
 
@@ -112,14 +117,14 @@ Todo servicio, sin importar el lenguaje, debe:
 
 ## 🗺️ Plan de fases
 
-El proyecto se entrega en 5 fases de 5 días (13 de noviembre – 7 de diciembre de 2026). Detalle completo, entregables por equipo y alternativas en [`docs/ROADMAP.md`](docs/ROADMAP.md).
+El proyecto se entrega en 5 fases de 5 días (13 de noviembre – 7 de diciembre de 2026). Detalle completo, entregables por equipo y alternativas en [`docs/ROADMAP.md`](docs/ROADMAP.md) (incluye el sitio público y el registro de empresa).
 
 | Fase | Fechas | Meta |
 |---|---|---|
 | 1 · Cimientos | 13 – 17 nov | Cada servicio corre en Podman con su BD; contratos v0 |
-| 2 · Núcleo de servicios | 18 – 22 nov | Cada servicio funciona solo; CI/CD publica imágenes; contratos v1 congelados |
-| 3 · Integración y despliegue de testing | 23 – 27 nov | Flujo completo desplegado en la nube (testing) con CD |
-| 4 · Multiempresa y robustez | 28 nov – 2 dic | Alta de empresa → stack aislado; seguridad, carga y accesibilidad |
+| 2 · Núcleo de servicios | 18 – 22 nov | Cada servicio funciona solo; CI/CD publica imágenes; contratos v1 congelados (incluye registro de empresa) |
+| 3 · Integración y despliegue de testing | 23 – 27 nov | Flujo completo desplegado en la nube (testing) con CD; sitio público y registro funcionando |
+| 4 · Multiempresa y robustez | 28 nov – 2 dic | Alta desde la landing → stack aislado; seguridad, carga y accesibilidad |
 | 5 · Estabilización y entrega | 3 – 7 dic | Producción, documentación, demo y `v1.0.0` |
 
 ## 📄 Licencia

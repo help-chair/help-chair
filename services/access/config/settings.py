@@ -1,6 +1,7 @@
 """Ajustes del servicio access. Todo se configura por variables de entorno."""
 
 import sys
+from datetime import timedelta
 from pathlib import Path
 
 import environ
@@ -87,6 +88,20 @@ STORAGES = {
 
 REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ],
+}
+
+# Empresa dueña de este stack. Cada empresa corre su propio stack con su propia
+# base de datos, así que la empresa es configuración del despliegue y no una
+# tabla que haya que arrastrar en cada modelo.
+EMPRESA_ID = env("EMPRESA_ID", default="empresa-demo")
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=env.int("ACCESS_TOKEN_MINUTOS", default=15)),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=env.int("REFRESH_TOKEN_DIAS", default=1)),
+    "UPDATE_LAST_LOGIN": True,
 }
 
 SPECTACULAR_SETTINGS = {

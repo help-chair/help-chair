@@ -73,3 +73,33 @@ El frontend es **una sola SPA y una sola imagen** para `help-chair.com` (sitio p
 - **Secretos y contraseñas:** nunca se guardan en `localStorage`/`sessionStorage`. Solo el token de seguimiento del alta vive en `sessionStorage` (`features/public/tracking.ts`).
 - **Tokens de la URL** (`/verificar`, `/activar`) son de un solo uso: no los repitas en logs ni los reenvíes en una segunda llamada (cuidado con la doble ejecución de `StrictMode`, ver `VerifyPage.tsx`).
 - **Accesibilidad:** las páginas públicas también deben cumplir WCAG 2.1 AA (etiquetas, `role="alert"`/`aria-live` para mensajes, foco visible).
+
+---
+
+## 🏛️ 7. Arquitectura Modular del Service Desk (`src/features/`)
+
+El Service Desk sigue una **Feature-Driven Architecture** organizada estrictamente por prácticas ITIL v4:
+
+```text
+src/features/
+├── public/     # 🌐 Portal público: Landing, Registro de empresa y Status
+├── dashboard/  # 📊 Dashboard Central: Gateway del Service Desk y KPIs globales
+├── events/     # ⚡ Equipo 1: Gestión de Eventos y Monitoreo en tiempo real
+├── access/     # 🔐 Equipo 2: Gestión de Accesos, login de stack y usuarios/roles
+├── requests/   # 📥 Equipo 3: Gestión de Peticiones, catálogo y solicitudes
+├── incidents/  # 🚨 Equipo 4: Gestión de Incidencias, Kanban y matriz de prioridad
+├── problems/   # 🛡️ Equipo 5: Gestión de Problemas, causa raíz y KEDB
+└── knowledge/  # 📚 Equipo 5: Base de Conocimiento y autoservicio
+```
+
+### Reglas de Desarrollo de Módulos para Agentes:
+1. **Cascarón Común Inmutable (`src/components/layout/ServiceDeskLayout.tsx`):**
+   - El Sidebar, Header superior, badges del tenant y notificaciones viven en `ServiceDeskLayout`.
+   - **PROHIBIDO** reescribir o duplicar el Sidebar o Header dentro de las páginas de cada módulo.
+   - Tu módulo debe exportar un componente principal autónomo (ej. `export function IncidentsPage()`).
+2. **Conexión en `src/App.tsx`:**
+   - Para registrar o activar un módulo, se añade su clave al tipo `TabKey` en `ServiceDeskLayout.tsx` y se monta condicionalmente en `src/App.tsx`.
+3. **Formularios e Inputs:**
+   - Todo formulario debe usar los componentes estandarizados de `@/components/ui/form` (`Field`, `Input`, `Select`, `Textarea`), que ya cuentan con los estados visuales *Default*, *Focus*, *Error*, y accesibilidad WCAG (`aria-invalid`, `aria-describedby`).
+4. **Mocks y Contratos:**
+   - Mientras el microservicio backend publica su API oficial en `contracts/<servicio>/openapi.yaml`, define los datos simulados en un archivo local `data.ts` dentro de tu carpeta `features/<servicio>/`. Cuando el contrato exista, genera los tipos en `types.ts` a partir del OpenAPI.

@@ -2,4 +2,6 @@ dist
 coverage
 package-lock.json
 README.md
-README.md
+AGENTS.md
+DEPLOYMENT.md
+DESIGN.md

@@ -2,16 +2,17 @@
 
 [English below ↓](#english)
 
-> Frontend (Service Desk) de Help Chair: punto único de contacto (SPOC) y Dashboard operacional de eventos, incidentes, peticiones y problemas. / Help Chair frontend (Service Desk): single point of contact (SPOC) and operational dashboard for events, incidents, requests, and problems.
+> Frontend de Help Chair: **sitio público** (`help-chair.com`: landing, registro de empresa, entrar a mi empresa) y **Service Desk** (`empresaN.help-chair.com`): punto único de contacto (SPOC) y Dashboard operacional de eventos, incidentes, peticiones y problemas. Una sola SPA y una sola imagen. / Help Chair frontend: **public site** (landing, company sign-up, go to my company) and **Service Desk** (single point of contact and operational dashboard). One SPA, one image.
 
 | | |
 |---|---|
 | **Equipo / Team** | Frontend (Equipo 6) |
 | **Práctica ITIL v4 / ITIL v4 practice** | Service Desk |
 | **Imagen / Image** | `ghcr.io/help-chair/hc-frontend` |
-| **Contratos / Contracts** | `contracts/` |
+| **Contratos / Contracts** | `contracts/` (sitio público: `contracts/gateway/`) |
 | **Guía de Despliegue / Ops Guide** | [`DEPLOYMENT.md`](DEPLOYMENT.md) |
 | **Diseño y Figma / UI Guide** | [`DESIGN.md`](DESIGN.md) |
+| **Diseño del registro / Sign-up design** | [`../docs/REGISTRO-EMPRESA.md`](../docs/REGISTRO-EMPRESA.md) |
 
 ---
 
@@ -23,9 +24,27 @@
   - Ofrece el **Dashboard principal**, funcionando como centro de mando y visualizador del flujo de eventos (Monitoring Feed) generado por `services/events`.
   - Proporciona navegación y acceso unificado hacia los microservicios de Incidencias, Peticiones, Problemas y Base de Conocimiento.
   - Maneja la visualización de SLAs y estado de los servicios.
+  - Implementa el **sitio público**: landing, registro de empresa, verificación de correo, progreso del alta y «Entrar a mi empresa».
+  - Implementa la **activación de la cuenta del administrador** (`/activar`) en el subdominio de la empresa.
 - **Qué NO hace esta carpeta:**
   - No gestiona base de datos propia ni persiste tickets directamente (cada microservicio backend es dueño de su BD).
   - No procesa reglas de negocio complejas en el cliente; consume las APIs y contratos definidos en `contracts/`.
+  - No guarda contraseñas ni datos de la empresa: el registro y la activación viven en Plataforma y Accesos.
+
+### Sitio público y Service Desk en una sola imagen
+Al arrancar, la SPA decide qué mostrar según el dominio (`src/config/runtime.ts`):
+
+| Dominio | Qué muestra | Rutas |
+|---|---|---|
+| `help-chair.com` (el `BASE_DOMAIN`) | Sitio público | `/`, `/registro`, `/verificar?token=`, `/estado/:id`, `/entrar` |
+| `empresaN.help-chair.com` | Service Desk | `/` (dashboard) y `/activar?token=` |
+| Host desconocido | Desarrollo: Service Desk · Producción: sitio público | — |
+
+- **Configuración de tiempo de ejecución:** el contenedor genera `/config.json` al arrancar con `BASE_DOMAIN`. No hay URLs ni dominios incrustados al compilar.
+- **API con rutas relativas** (`/api/...`): en desarrollo las reenvía el proxy de Vite (`vite.config.ts`); en producción, el gateway/ingress según el `Host`. No hay CORS.
+- **Carga diferida:** el sitio público, la activación y el Service Desk son bloques separados.
+- **Enrutador propio** (`src/lib/routing.ts`, sin dependencias nuevas). Para pantallas nuevas del sitio público agrega la ruta en `features/public/PublicSite.tsx`.
+- En desarrollo cambia de sitio sin tocar DNS: `http://localhost:5173/?site=public` (o `?site=desk`).
 
 ### Stack tecnológico
 - **Lenguaje y runtime:** TypeScript / Node.js 20+
@@ -37,7 +56,7 @@
 ### Contrato mínimo de servicio
 - [x] `Dockerfile` multi-stage y usuario no root (UID 101)
 - [x] `GET /health/live` y `GET /health/ready` (respuestas JSON vía Nginx)
-- [x] Configuración solo por variables de entorno (`.env.example`)
+- [x] Configuración solo por variables de entorno (`BASE_DOMAIN` al arrancar; `.env.example` para desarrollo)
 - [ ] Logs en JSON
 - [x] Consumo de contratos OpenAPI documentados en `contracts/`
 - [ ] Imagen publicada en `ghcr.io/help-chair/hc-frontend`
@@ -53,7 +72,7 @@ Permite levantar el entorno de desarrollo idéntico para todos los integrantes s
 cp .env.example .env
 docker compose -f docker-compose.dev.yml up
 ```
-Abre en tu navegador: [http://localhost:5173](http://localhost:5173). Cualquier cambio en el código se reflejará al instante.
+Abre en tu navegador: [http://localhost:5173](http://localhost:5173). Cualquier cambio en el código se reflejará al instante. Con Podman, usa `podman compose` y cambia `host.docker.internal` por `host.containers.internal` en el archivo.
 
 #### Opción B: Ejecución directa con Node/npm
 ```bash
@@ -62,17 +81,37 @@ npm install
 npm run dev
 ```
 
-### Variables de Entorno (`.env`)
+#### Probar el sitio público sin backend
+El contrato del gateway se puede simular con Prism:
+```bash
+npm run mock:gateway          # terminal 1: mock en http://localhost:8000
+# .env → VITE_GATEWAY_MOCK=true
+npm run dev                   # terminal 2
+```
+Abre [http://localhost:5173/?site=public](http://localhost:5173/?site=public). El mock devuelve datos de ejemplo, no un flujo real.
+
+### Variables de Entorno
+
+**Desarrollo (`.env`).** Son los destinos del proxy de Vite; el cliente no los lee:
 
 | Variable | Descripción | Valor por defecto |
 |---|---|---|
-| `VITE_API_GATEWAY_URL` | URL del gateway o punto de entrada API | `http://localhost:8000` |
-| `VITE_API_EVENTS_URL` | URL del microservicio de Eventos | `http://localhost:8001` |
-| `VITE_API_INCIDENTS_URL` | URL del microservicio de Incidencias | `http://localhost:8004` |
-| `VITE_API_REQUESTS_URL` | URL del microservicio de Peticiones | `http://localhost:8003` |
-| `VITE_API_PROBLEMS_URL` | URL del microservicio de Problemas | `http://localhost:8005` |
+| `VITE_API_GATEWAY_URL` | Gateway (API pública de registro) | `http://localhost:8000` |
+| `VITE_API_EVENTS_URL` | Microservicio de Eventos | `http://localhost:8001` |
+| `VITE_API_ACCESS_URL` | Microservicio de Accesos | `http://localhost:8002` |
+| `VITE_API_REQUESTS_URL` | Microservicio de Peticiones | `http://localhost:8003` |
+| `VITE_API_INCIDENTS_URL` | Microservicio de Incidencias | `http://localhost:8004` |
+| `VITE_API_PROBLEMS_URL` | Microservicio de Problemas | `http://localhost:8005` |
+| `VITE_API_KNOWLEDGE_URL` | Base de Conocimiento | `http://localhost:8006` |
+| `VITE_GATEWAY_MOCK` | `true` si el gateway es el mock de Prism | `false` |
 | `VITE_USE_MOCKS` | Activa datos simulados cuando no haya backends | `true` |
 | `VITE_DEV_TENANT_ID` | Identificador de empresa en local | `empresa-demo` |
+
+**Producción (al arrancar el contenedor):**
+
+| Variable | Descripción | Valor por defecto |
+|---|---|---|
+| `BASE_DOMAIN` | Dominio base (`help-chair.com`); define qué hosts son sitio público y cuáles son empresas | `localhost` |
 
 ### 🤖 Guía para Desarrolladores y Agentes de IA
 Al generar o modificar código en este frontend:
@@ -82,6 +121,7 @@ Al generar o modificar código en este frontend:
    - Tickets: *Incidencias*, *Peticiones de Servicio*, *Problemas*.
    - Prioridad calculada por *Impacto × Urgencia*.
 3. **Consumo de contratos:** Toda llamada a endpoints debe respetar los esquemas de `contracts/`.
+4. **Rutas y dominios:** ver las reglas de la sección 6 de [`AGENTS.md`](AGENTS.md).
 
 ### Despliegue en Producción
 Para desplegar el contenedor en producción o integrarlo con Kubernetes, consulta la [Guía de Despliegue (`DEPLOYMENT.md`)](DEPLOYMENT.md).
@@ -100,9 +140,26 @@ Trabaja **solo dentro de esta carpeta**. Si necesitas tocar otra, abre un PR sep
   - Hosts the **Main Dashboard**, serving as the operational command centre and monitoring feed visualizer generated by `services/events`.
   - Provides unified navigation and entry point to Incidents, Requests, Problems, and Knowledge Base microservices.
   - Displays SLAs and service health metrics.
+  - Implements the **public site**: landing, company sign-up, email verification, sign-up progress and "Go to my company".
+  - Implements the **administrator account activation** (`/activar`) on the company's subdomain.
 - **What this folder does NOT do:**
   - Does not manage an internal database or persist tickets directly (each backend service owns its DB).
   - Does not execute complex business rules on the client; consumes contracts defined in `contracts/`.
+  - Does not store passwords or company data: sign-up and activation live in Platform and Access.
+
+### Public site and Service Desk in one image
+On start-up the SPA picks what to show from the domain (`src/config/runtime.ts`):
+
+| Domain | Shows | Routes |
+|---|---|---|
+| `help-chair.com` (the `BASE_DOMAIN`) | Public site | `/`, `/registro`, `/verificar?token=`, `/estado/:id`, `/entrar` |
+| `companyN.help-chair.com` | Service Desk | `/` (dashboard) and `/activar?token=` |
+| Unknown host | Development: Service Desk · Production: public site | — |
+
+- **Runtime configuration:** the container generates `/config.json` on start with `BASE_DOMAIN`. No URL or domain is baked in at build time.
+- **Relative API paths** (`/api/...`): the Vite proxy forwards them in development; the gateway/ingress does it in production by `Host`. No CORS.
+- **Lazy loading:** public site, activation and Service Desk are separate chunks.
+- In development switch sites without DNS: `http://localhost:5173/?site=public` (or `?site=desk`).
 
 ### Tech stack
 - **Language / runtime:** TypeScript / Node.js 20+
@@ -121,7 +178,7 @@ See the checklist in the Spanish section above.
 cp .env.example .env
 docker compose -f docker-compose.dev.yml up
 ```
-Open [http://localhost:5173](http://localhost:5173).
+Open [http://localhost:5173](http://localhost:5173). With Podman use `podman compose` and replace `host.docker.internal` with `host.containers.internal` in the file.
 
 #### Option B: Direct with Node/npm
 ```bash
@@ -130,8 +187,16 @@ npm install
 npm run dev
 ```
 
+#### Try the public site without a backend
+```bash
+npm run mock:gateway          # terminal 1: Prism mock at http://localhost:8000
+# .env → VITE_GATEWAY_MOCK=true
+npm run dev                   # terminal 2
+```
+Open [http://localhost:5173/?site=public](http://localhost:5173/?site=public).
+
 ### Production Deployment
-See [`DEPLOYMENT.md`](DEPLOYMENT.md) for Docker Compose and Kubernetes instructions.
+See [`DEPLOYMENT.md`](DEPLOYMENT.md) for Docker Compose and Kubernetes instructions. Production configuration is a single variable, `BASE_DOMAIN`, read when the container starts.
 
 ### Monorepo rules
 Work **only inside this folder**. If you must change another one, open a separate PR or coordinate with its owners. Guide: [`CONTRIBUTING.en.md`](../CONTRIBUTING.en.md).

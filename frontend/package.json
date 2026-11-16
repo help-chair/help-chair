@@ -16,7 +16,8 @@
     "typecheck": "tsc -b --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "mock:gateway": "npx --yes @stoplight/prism-cli mock ../contracts/gateway/openapi.yaml -p 8000"
   },
   "dependencies": {
     "clsx": "^2.1.1",

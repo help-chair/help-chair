@@ -98,7 +98,7 @@ export default function App() {
             </div>
             <div className="mt-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-800 text-indigo-300 border border-slate-700">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-              empresa1.helpchair.example
+              {window.location.host}
             </div>
           </div>
 

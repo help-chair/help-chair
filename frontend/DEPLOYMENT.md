@@ -1,8 +1,8 @@
-# Guía de Despliegue y Operaciones · Help Chair Frontend (Service Desk)
+# Guía de Despliegue y Operaciones · Help Chair Frontend
 
 [English version below ↓](#english-version)
 
-Esta guía documenta cómo desplegar, configurar y verificar en producción el contenedor de **Frontend (Service Desk)** de Help Chair.
+Esta guía documenta cómo desplegar, configurar y verificar en producción el contenedor de **Frontend** de Help Chair: el **sitio público** (`help-chair.com`) y el **Service Desk** (`empresaN.help-chair.com`) salen de la **misma imagen**.
 
 ---
 
@@ -15,49 +15,49 @@ Esta guía documenta cómo desplegar, configurar y verificar en producción el c
 - **Puerto expuesto:** `8080` (HTTP).
 - **Consumo de recursos estimado:** ~15MB RAM, < 0.1 CPU en reposo.
 
-### 2. Endpoints de Salud (Health Checks)
+### 2. Configuración (una sola imagen para todo)
 
-Cumpliendo con la arquitectura de Help Chair, el contenedor expone:
+La imagen **no incrusta ninguna URL ni dominio** al construirse. Al arrancar, el script `docker/40-hc-config.sh` genera `/config.json` a partir de una variable:
+
+| Variable | Descripción | Por defecto |
+|---|---|---|
+| `BASE_DOMAIN` | Dominio base del producto (p. ej. `help-chair.com`). El dominio exacto y `www.` son el sitio público; `<empresa>.<BASE_DOMAIN>` es el Service Desk de esa empresa | `localhost` |
+
+- Solo se aceptan letras, números, puntos y guiones; cualquier otro valor detiene el arranque.
+- `/config.json` se sirve con `Cache-Control: no-store`.
+- Las variables `VITE_*` **no se usan en producción**: Vite las incrusta al compilar y la imagen ya viene compilada.
+
+### 3. Enrutamiento de `/api` (importante)
+
+El contenedor solo sirve los archivos estáticos. **No atiende `/api/*`**: el cliente llama a rutas relativas y las resuelve el gateway/ingress según el `Host`:
+
+| Host | `/api/...` va a |
+|---|---|
+| `help-chair.com` | Registro de empresas del gateway (`/api/public/v1/*`) |
+| `empresaN.help-chair.com` | El stack de la empresa (`/api/<servicio>/...`) |
+
+Por eso este contenedor siempre debe ir detrás del ingress/gateway de Plataforma.
+
+### 4. Endpoints de Salud (Health Checks)
 
 - **Liveness:** `GET http://<host>:8080/health/live`  
-  _Respuesta:_ `{"status":"UP","check":"liveness"}` (Código HTTP 200).
+  _Respuesta:_ `{"status":"ok"}` (Código HTTP 200).
 - **Readiness:** `GET http://<host>:8080/health/ready`  
-  _Respuesta:_ `{"status":"UP","check":"readiness"}` (Código HTTP 200).
+  _Respuesta:_ `{"status":"ok"}` (Código HTTP 200).
 
-### 3. Despliegue con Docker Compose (Producción / Staging)
-
-Para desplegar la aplicación en un servidor o máquina virtual para una empresa cliente:
-
-1. Crea un archivo `docker-compose.yml`:
-
-```yaml
-services:
-  service-desk:
-    image: ghcr.io/help-chair/hc-frontend:1.0.0
-    container_name: helpchair-frontend
-    restart: unless-stopped
-    ports:
-      - '80:8080'
-    healthcheck:
-      test: ['CMD', 'wget', '-qO-', 'http://localhost:8080/health/live']
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 5s
-    environment:
-      - VITE_API_GATEWAY_URL=https://gateway.helpchair.example
-      - VITE_USE_MOCKS=false
-```
-
-2. Inicia el contenedor:
+### 5. Prueba rápida con un solo contenedor
 
 ```bash
-docker compose up -d
+podman run --rm -p 8080:8080 -e BASE_DOMAIN=help-chair.com ghcr.io/help-chair/hc-frontend:dev
+curl localhost:8080/config.json        # {"BASE_DOMAIN":"help-chair.com"}
+curl localhost:8080/health/live
 ```
 
-### 4. Despliegue en Kubernetes (Stack por Empresa)
+Sin gateway las llamadas a `/api` devuelven 404 (es lo esperado).
 
-Dentro del namespace asignado a la empresa (`tenant-<nombre>`), el manifiesto típico es:
+### 6. Despliegue en Kubernetes (Stack por Empresa)
+
+El mismo Deployment sirve al sitio público y a cada empresa; solo cambia el Ingress. Manifiesto típico:
 
 ```yaml
 apiVersion: apps/v1
@@ -87,6 +87,9 @@ spec:
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
+          env:
+            - name: BASE_DOMAIN
+              value: help-chair.com
           resources:
             requests:
               cpu: 50m
@@ -120,6 +123,8 @@ spec:
     app.kubernetes.io/name: hc-frontend
 ```
 
+> Plataforma define el Ingress: `help-chair.com` → frontend + `/api/public/*` al gateway; `*.help-chair.com` → frontend + `/api/*` al stack de la empresa. Ver `docs/REGISTRO-EMPRESA.md`.
+
 ---
 
 <a name="english-version"></a>
@@ -133,15 +138,32 @@ spec:
 - **Exposed port:** `8080` (HTTP).
 - **Estimated resources:** ~15MB RAM, < 0.1 CPU at rest.
 
-### 2. Health Checks
+### 2. Configuration (one image for everything)
 
-- **Liveness:** `GET http://<host>:8080/health/live` (HTTP 200).
-- **Readiness:** `GET http://<host>:8080/health/ready` (HTTP 200).
+The image **bakes in no URL or domain** at build time. On start, `docker/40-hc-config.sh` writes `/config.json` from one variable:
 
-### 3. Production Quickstart
+| Variable | Description | Default |
+|---|---|---|
+| `BASE_DOMAIN` | Product base domain (e.g. `help-chair.com`). The exact domain and `www.` are the public site; `<company>.<BASE_DOMAIN>` is that company's Service Desk | `localhost` |
+
+`VITE_*` variables are **not used in production** (Vite bakes them in at build time).
+
+### 3. `/api` routing
+
+The container only serves static files. `/api/*` is resolved by the gateway/ingress by `Host` (public sign-up API on `help-chair.com`; the company stack on `companyN.help-chair.com`). It must always run behind Platform's ingress/gateway.
+
+### 4. Health Checks
+
+- **Liveness:** `GET http://<host>:8080/health/live` → `{"status":"ok"}` (HTTP 200).
+- **Readiness:** `GET http://<host>:8080/health/ready` → `{"status":"ok"}` (HTTP 200).
+
+### 5. Quickstart
 
 ```bash
-docker run -d --name hc-frontend -p 80:8080 ghcr.io/help-chair/hc-frontend:1.0.0
+podman run --rm -p 8080:8080 -e BASE_DOMAIN=help-chair.com ghcr.io/help-chair/hc-frontend:dev
+curl localhost:8080/config.json
 ```
 
-Verify status at `http://localhost/health/live`.
+### 6. Kubernetes
+
+Use the Deployment above (Spanish section); set `BASE_DOMAIN` as an environment variable. The same Deployment serves the public site and every company; only the Ingress differs.

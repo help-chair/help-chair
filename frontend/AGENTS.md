@@ -58,3 +58,18 @@ Antes de crear elementos HTML crudos o estilos repetitivos, utiliza los componen
   - Si es un pedido de catálogo/usuario -> **Petición de Servicio** (`Service Request`).
   - Si es un error recurrente o causa raíz desconocida -> **Problema** (`Problem`).
 - Los eventos del monitor son **Informativo**, **Advertencia** o **Excepción**.
+
+---
+
+## 🌐 6. Sitio público, dominios y API
+
+El frontend es **una sola SPA y una sola imagen** para `help-chair.com` (sitio público) y `empresaN.help-chair.com` (Service Desk). Diseño: `docs/REGISTRO-EMPRESA.md`.
+
+- **Nunca escribas un dominio ni una URL de API en el código.** El dominio base viene de `getRuntimeConfig().baseDomain` (`src/config/runtime.ts`); la URL de una empresa se arma con `tenantUrl(subdominio)`.
+- **La API se llama con rutas relativas** (`/api/public/v1/...`, `/api/<servicio>/...`) desde `src/api/`. Prohibido `fetch` con URL absoluta y prohibido leer `VITE_API_*` en el código de la app (solo las usa el proxy de `vite.config.ts`).
+- **Rutas:** usa `src/lib/routing.ts` y `<Link>` de `@/components/Link`. No agregues `react-router` ni otra librería de enrutado sin acordarlo con el equipo.
+  - Sitio público: se registran en `features/public/PublicSite.tsx`.
+  - Service Desk: se montan desde `Root.tsx`.
+- **Secretos y contraseñas:** nunca se guardan en `localStorage`/`sessionStorage`. Solo el token de seguimiento del alta vive en `sessionStorage` (`features/public/tracking.ts`).
+- **Tokens de la URL** (`/verificar`, `/activar`) son de un solo uso: no los repitas en logs ni los reenvíes en una segunda llamada (cuidado con la doble ejecución de `StrictMode`, ver `VerifyPage.tsx`).
+- **Accesibilidad:** las páginas públicas también deben cumplir WCAG 2.1 AA (etiquetas, `role="alert"`/`aria-live` para mensajes, foco visible).

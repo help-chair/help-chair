@@ -22,9 +22,11 @@ export function CardHeader({ className, ...props }: React.HTMLAttributes<HTMLDiv
   )
 }
 
-export function CardTitle({ className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
+export function CardTitle({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <h3
+    <div
+      role="heading"
+      aria-level={3}
       className={cn('font-semibold leading-none tracking-tight text-slate-900', className)}
       {...props}
     />

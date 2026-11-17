@@ -91,6 +91,8 @@ REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ],
+    # Forma de error del contrato: {codigo, detalle, campos}.
+    "EXCEPTION_HANDLER": "core.errors.manejador_de_errores",
 }
 
 # Empresa dueña de este stack. Cada empresa corre su propio stack con su propia

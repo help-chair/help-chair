@@ -2,7 +2,7 @@
 
 [English below ↓](#english)
 
-> Gateway de subdominio y directorio de empresas (tenants). / Subdomain gateway and company (tenant) directory.
+> Gateway de subdominio, registro público de empresas y directorio de empresas (tenants). / Subdomain gateway, public company sign-up and company (tenant) directory.
 
 | | |
 |---|---|
@@ -14,11 +14,20 @@
 ## Español
 
 ### Responsabilidad
-<!-- Qué hace esta carpeta y qué NO hace -->
+**Hace:**
+- Resuelve la empresa a partir del `Host` (`empresaN.help-chair.com`) y enruta al stack correcto.
+- Expone la **API pública de registro** (`/api/public/v1`, contrato en `contracts/gateway/`): disponibilidad de subdominio, alta, verificación de correo, estado del alta y búsqueda de empresa por correo.
+- Mantiene el **directorio de empresas**: estado del alta (`pendiente_verificacion`, `aprovisionando`, `activa`, `suspendida`, `error`), `plan`, dominios de correo y metadatos básicos.
+- Envía los correos de verificación y activación y pide el aprovisionamiento del stack al verificar el correo.
+- Aplica límites de uso, nombres reservados y el cupo `MAX_TENANTS`.
+
+**No hace:** no autentica usuarios ni guarda contraseñas (lo hace Accesos dentro del stack) y no guarda la configuración del help desk (servicios, SLA, usuarios).
+
+Diseño completo: [`docs/REGISTRO-EMPRESA.md`](../../docs/REGISTRO-EMPRESA.md).
 
 ### Stack tecnológico
-- Lenguaje / framework: _por definir por el equipo_
-- Base de datos: _por definir por el equipo_ (propia de este servicio)
+- Lenguaje / framework: Python / Django (D-02)
+- Base de datos: PostgreSQL (directorio de empresas, propia de este servicio)
 
 ### Contrato mínimo de servicio
 - [ ] `Dockerfile` y usuario no root
@@ -45,7 +54,16 @@ Trabaja **solo dentro de esta carpeta**. Si necesitas tocar otra, abre un PR sep
 ## English
 
 ### Responsibility
-<!-- What this folder does and does NOT do -->
+**Does:**
+- Resolves the company from the `Host` (`companyN.help-chair.com`) and routes to the right stack.
+- Exposes the **public sign-up API** (`/api/public/v1`, contract in `contracts/gateway/`): subdomain availability, sign-up, email verification, sign-up status and company lookup by email.
+- Maintains the **company directory**: sign-up state, `plan`, email domains and basic metadata.
+- Sends verification and activation emails and requests stack provisioning once the email is verified.
+- Applies rate limits, reserved names and the `MAX_TENANTS` quota.
+
+**Does not:** authenticate users or store passwords (Access does that inside the stack) or store help desk configuration (services, SLAs, users).
+
+Full design: [`docs/REGISTRO-EMPRESA.md`](../../docs/REGISTRO-EMPRESA.md) (Spanish).
 
 ### Tech stack
 - Language / framework: _to be defined by the team_

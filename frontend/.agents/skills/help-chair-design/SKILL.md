@@ -80,3 +80,5 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 1. **No inventar estilos aislados:** Si necesitas un componente nuevo (ej. un `Modal` o un `Select`), créalo primero dentro de `src/components/ui/` con Tailwind y expórtalo.
 2. **Iconografía:** Usa exclusivamente `lucide-react` con tamaño `size={16}` para botones/badges y `size={20}` a `size={24}` para tarjetas de métricas.
 3. **Responsive & Mobile-ready:** Diseña con `grid grid-cols-1 md:grid-cols-4` para paneles de métricas y scroll horizontal `overflow-x-auto` para tablas de datos.
+4. **Arquitectura Modular de Features:** Cada práctica ITIL implementa su vista en `src/features/<modulo>/` consumiendo el cascarón compartido `src/components/layout/ServiceDeskLayout.tsx`. Nunca dupliques el `Sidebar` o `Header`.
+5. **Evidencias y Capturas de Figma:** Guarda las capturas de diseño en `frontend/docs/<modulo>/` usando nombres en minúsculas y kebab-case (sin acentos, espacios ni caracteres especiales). No coloques código ni proyectos anidados en `frontend/docs/`.

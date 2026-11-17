@@ -1,0 +1,250 @@
+openapi: 3.0.3
+info:
+  title: Help Chair - Gateway (API pública de registro de empresas)
+  version: 0.1.0
+  description: |
+    Contrato v0 (borrador, Fase 1). Dueño: Equipo 7 (Plataforma). Consumidor: Equipo 6 (Frontend, sitio público).
+
+    Opción A: el registro pide solo lo mínimo. Servicios, importancia, SLA, departamentos y usuarios
+    se configuran después, en el onboarding dentro del stack de la empresa.
+
+    - Se sirve en el dominio público (help-chair.com) bajo `/api/public/v1`.
+    - No hay autenticación de usuario: la protección es limitación de tasa, verificación de correo
+      y un token de seguimiento por solicitud.
+    - La contraseña del administrador NUNCA pasa por este contrato: se define dentro del stack
+      con un enlace de activación de un solo uso.
+    - Estados de la empresa: pendiente_verificacion -> aprovisionando -> activa (también: suspendida, error).
+servers:
+  - url: https://help-chair.com/api/public/v1
+  - url: http://localhost:8000/api/public/v1
+    description: Entorno local
+tags:
+  - name: registro
+paths:
+  /subdomains/{subdominio}/availability:
+    get:
+      tags: [registro]
+      operationId: checkSubdomainAvailability
+      summary: Consulta si un subdominio está libre
+      parameters:
+        - name: subdominio
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/Subdominio' }
+      responses:
+        '200':
+          description: Resultado de la consulta
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Disponibilidad' }
+        '429': { $ref: '#/components/responses/DemasiadasSolicitudes' }
+  /companies:
+    post:
+      tags: [registro]
+      operationId: registerCompany
+      summary: Solicita el alta de una empresa
+      description: |
+        Crea la solicitud en estado `pendiente_verificacion` y envía un correo de verificación al
+        administrador. El stack NO se crea hasta que el correo se verifica.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AltaEmpresa' }
+      responses:
+        '202':
+          description: Solicitud aceptada; falta verificar el correo
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SolicitudCreada' }
+        '409':
+          description: Subdominio no disponible
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '422':
+          description: Datos inválidos
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '429': { $ref: '#/components/responses/DemasiadasSolicitudes' }
+  /companies/verify:
+    post:
+      tags: [registro]
+      operationId: verifyCompanyEmail
+      summary: Verifica el correo del administrador e inicia el aprovisionamiento
+      description: Es POST (no GET) para que los escáneres de enlaces del correo no verifiquen por accidente.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token: { type: string, description: 'Token del enlace de verificación (un solo uso, expira en 24 h)' }
+      responses:
+        '200':
+          description: Correo verificado; la empresa pasa a `aprovisionando`
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EstadoEmpresa' }
+        '400':
+          description: Token inválido, usado o expirado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '429': { $ref: '#/components/responses/DemasiadasSolicitudes' }
+  /companies/{id}/status:
+    get:
+      tags: [registro]
+      operationId: getCompanyStatus
+      summary: Estado del alta (la pantalla de progreso lo consulta cada pocos segundos)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: X-Tracking-Token
+          in: header
+          required: true
+          description: Token de seguimiento devuelto al crear la solicitud
+          schema: { type: string }
+      responses:
+        '200':
+          description: Estado actual
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EstadoEmpresa' }
+        '404':
+          description: Solicitud inexistente o token incorrecto (misma respuesta en ambos casos)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '429': { $ref: '#/components/responses/DemasiadasSolicitudes' }
+  /lookup:
+    post:
+      tags: [registro]
+      operationId: lookupCompany
+      summary: Encuentra el subdominio de una empresa a partir del correo del usuario
+      description: |
+        Solo resuelve dominios de correo corporativos registrados. Para proveedores públicos
+        (gmail.com, outlook.com, etc.) responde 404 y el usuario escribe su subdominio a mano.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [correo]
+              properties:
+                correo: { type: string, format: email }
+      responses:
+        '200':
+          description: Empresa encontrada
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [subdominio, url]
+                properties:
+                  subdominio: { type: string, example: empresa15 }
+                  url: { type: string, format: uri, example: 'https://empresa15.help-chair.com' }
+        '404':
+          description: Sin coincidencia (respuesta genérica, no revela si el dominio existe)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '429': { $ref: '#/components/responses/DemasiadasSolicitudes' }
+components:
+  responses:
+    DemasiadasSolicitudes:
+      description: Límite de solicitudes excedido
+      headers:
+        Retry-After: { schema: { type: integer }, description: Segundos de espera }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+  schemas:
+    Subdominio:
+      type: string
+      pattern: '^[a-z0-9]([a-z0-9-]{1,28}[a-z0-9])$'
+      minLength: 3
+      maxLength: 30
+      description: Minúsculas, números y guiones. No puede ser un nombre reservado (www, api, admin, app, mail...).
+      example: empresa15
+    Disponibilidad:
+      type: object
+      required: [disponible]
+      properties:
+        disponible: { type: boolean }
+        motivo:
+          type: string
+          enum: [ocupado, reservado, invalido]
+          description: Presente solo si `disponible` es false
+    AltaEmpresa:
+      type: object
+      required: [empresa, administrador, acepta_terminos]
+      properties:
+        empresa:
+          type: object
+          required: [nombre, subdominio]
+          properties:
+            nombre: { type: string, maxLength: 120, example: Acme S.A. de C.V. }
+            subdominio: { $ref: '#/components/schemas/Subdominio' }
+            sector: { type: string, maxLength: 60, description: Opcional, example: manufactura }
+            tamano:
+              type: string
+              enum: ['1-10', '11-50', '51-200', '201-1000', '1000+']
+              description: Opcional. Número de empleados (rango).
+            pais: { type: string, minLength: 2, maxLength: 2, description: 'Código ISO 3166-1 alfa-2', example: MX }
+        administrador:
+          type: object
+          required: [nombre, correo]
+          properties:
+            nombre: { type: string, maxLength: 120 }
+            correo: { type: string, format: email }
+        acepta_terminos: { type: boolean, enum: [true] }
+    SolicitudCreada:
+      type: object
+      required: [id, subdominio, estado, token_seguimiento]
+      properties:
+        id: { type: string, format: uuid }
+        subdominio: { type: string }
+        estado: { $ref: '#/components/schemas/Estado' }
+        token_seguimiento:
+          type: string
+          description: Se envía en `X-Tracking-Token` al consultar el estado. Se entrega una sola vez.
+    Estado:
+      type: string
+      enum: [pendiente_verificacion, aprovisionando, activa, suspendida, error]
+    EstadoEmpresa:
+      type: object
+      required: [id, subdominio, estado]
+      properties:
+        id: { type: string, format: uuid }
+        subdominio: { type: string }
+        estado: { $ref: '#/components/schemas/Estado' }
+        url:
+          type: string
+          format: uri
+          nullable: true
+          description: URL del Service Desk; solo cuando `estado` = activa
+        mensaje: { type: string, nullable: true, description: Texto para mostrar al usuario }
+        enlace_activacion:
+          type: string
+          format: uri
+          nullable: true
+          description: |
+            Solo si Plataforma activa el plan B sin SMTP (se muestra una sola vez en la pantalla de
+            progreso). En operación normal siempre es null y el enlace llega por correo.
+    Error:
+      type: object
+      required: [codigo, detalle]
+      properties:
+        codigo: { type: string, example: subdominio_ocupado }
+        detalle: { type: string }
+        campos:
+          type: object
+          additionalProperties: { type: string }
+          description: Errores por campo (422)

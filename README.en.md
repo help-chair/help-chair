@@ -10,12 +10,15 @@ Academic-professional project developed at the **Centro de Enseñanza Técnica I
 
 ## 📌 What is Help Chair?
 
-Help Chair is a help desk template that companies subscribe to as a service. Once a company signs up:
+Help Chair is a help desk template that companies subscribe to as a service. The life cycle is:
 
-1. It is registered and gets its own **subdomain** (e.g. `company12.helpchair.example`).
-2. The system creates a **new, empty stack** (dedicated containers and databases) just for that company.
-3. The first user becomes the **stack administrator** and configures the help desk through an *onboarding* wizard (services, priorities, SLAs, departments, users and roles).
-4. From then on the help desk works with events, requests, incidents and problems, with **no contact with other companies' stacks**.
+1. A company lands on the **public site** (`help-chair.com`), learns about the product and chooses **Register my company**.
+2. It completes a **minimal sign-up** (company, subdomain and administrator), verifies its email and gets its own **subdomain** (e.g. `company12.help-chair.com`).
+3. The system creates a **new, empty stack** (dedicated containers and databases) just for that company.
+4. The administrator activates the account, sets a password and configures the help desk through an *onboarding* wizard (services, priorities, SLAs, departments, users and roles).
+5. From then on the help desk works with events, requests, incidents and problems, with **no contact with other companies' stacks**.
+
+> A paid licence will be added later; for now sign-up is free (a `plan` field is reserved in the directory).
 
 ## 🧭 Architecture at a glance
 
@@ -23,7 +26,9 @@ Help Chair is a help desk template that companies subscribe to as a service. Onc
 
 ![Single company stack](docs/diagrams/architecture-stack.png)
 
-More detail in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+![Company sign-up](docs/diagrams/registration-flow.png)
+
+More detail in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) and, for company sign-up, in [`docs/REGISTRO-EMPRESA.md`](docs/REGISTRO-EMPRESA.md) *(Spanish; summary in English at the end)*.
 
 ## 🗂️ Monorepo structure
 
@@ -36,9 +41,9 @@ help-chair/
 │   ├── incidents/     # Team 4 · Incident Management
 │   ├── problems/      # Team 5 · Problem Management
 │   └── knowledge/     # Team 5 · Knowledge Base
-├── frontend/          # Team 6 · Service Desk
+├── frontend/          # Team 6 · Public site + Service Desk (one SPA)
 ├── platform/
-│   ├── gateway/       # Team 7 · Subdomain gateway + companies DB
+│   ├── gateway/       # Team 7 · Subdomain gateway, company sign-up + companies DB
 │   └── deploy/        # Team 7 · Kubernetes, Helm, docker-compose
 ├── contracts/         # APIs (OpenAPI) and inter-service messages
 ├── docs/              # Architecture, ITIL, decisions
@@ -55,8 +60,8 @@ help-chair/
 | 3 | Request Management | Service Request Management | `services/requests` |
 | 4 | Incident Management | Incident Management | `services/incidents` |
 | 5 | Problem Management | Problem Management + Knowledge Management | `services/problems`, `services/knowledge` |
-| 6 | Frontend | Service Desk | `frontend` |
-| 7 | Platform | Technical enablement (gateway, tenants, K8s) | `platform/gateway`, `platform/deploy` |
+| 6 | Frontend | Service Desk + public site and sign-up | `frontend` |
+| 7 | Platform | Technical enablement (gateway, company sign-up, tenants, K8s) | `platform/gateway`, `platform/deploy` |
 
 > Each team **owns** its folder (via `CODEOWNERS`), its database and its language/framework. A monorepo is **not** a monolith: every service is still an independent container with its own DB. Teams coordinate **only through contracts** (`contracts/`).
 
@@ -104,7 +109,7 @@ Every service, whatever the language, must:
 |---|---|
 | Backend (all services) | Python + Django + Django REST Framework, OpenAPI with `drf-spectacular` |
 | Database | DB selected by the team in a container, one per service |
-| Frontend | React + Vite + TypeScript |
+| Frontend | React + Vite + TypeScript (one image for the public site and the Service Desk) |
 | Containers | Podman (OCI images) |
 | Orchestration | Kubernetes + Helm |
 | CI/CD | Jenkins (one `Jenkinsfile` per service) |
@@ -112,14 +117,14 @@ Every service, whatever the language, must:
 
 ## 🗺️ Phase plan
 
-The project is delivered in 5 phases of 5 days each (13 November – 7 December 2026). Full detail, deliverables per team and fallbacks are in [`docs/ROADMAP.md`](docs/ROADMAP.md) *(Spanish; English version pending)*.
+The project is delivered in 5 phases of 5 days each (13 November – 7 December 2026). Full detail, deliverables per team and fallbacks are in [`docs/ROADMAP.md`](docs/ROADMAP.md) *(Spanish; English version pending; includes the public site and company sign-up)*.
 
 | Phase | Dates | Goal |
 |---|---|---|
 | 1 · Foundations | Nov 13 – 17 | Every service runs in Podman with its DB; contracts v0 |
-| 2 · Service core | Nov 18 – 22 | Each service works on its own; CI/CD publishes images; contracts v1 frozen |
-| 3 · Integration and testing deployment | Nov 23 – 27 | Full flow deployed in the cloud (testing) with CD |
-| 4 · Multi-tenancy and hardening | Nov 28 – Dec 2 | Company sign-up → isolated stack; security, load and accessibility |
+| 2 · Service core | Nov 18 – 22 | Each service works on its own; CI/CD publishes images; contracts v1 frozen (includes company sign-up) |
+| 3 · Integration and testing deployment | Nov 23 – 27 | Full flow deployed in the cloud (testing) with CD; public site and sign-up working |
+| 4 · Multi-tenancy and hardening | Nov 28 – Dec 2 | Sign-up from the landing page → isolated stack; security, load and accessibility |
 | 5 · Stabilisation and delivery | Dec 3 – 7 | Production, documentation, demo and `v1.0.0` |
 
 ## 📄 License

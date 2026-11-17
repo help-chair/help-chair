@@ -2,12 +2,18 @@
 # Entorno de desarrollo para el equipo de Frontend
 # Uso: docker compose -f docker-compose.dev.yml up
 # Permite Hot-Reloading en tiempo real sin reconstruir imágenes.
+#
+# El cliente usa rutas relativas (/api/...) y el proxy de Vite las reenvía a los servicios
+# que corren en tu máquina. Dentro del contenedor "localhost" es el propio contenedor, por eso
+# los destinos usan host.docker.internal (con Podman: host.containers.internal).
 # ==============================================================================
 services:
   frontend-dev:
     image: node:20-alpine
     container_name: hc-frontend-dev
     working_dir: /app
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
     volumes:
       # Monta la carpeta local para reflejar cambios en caliente
       - .:/app
@@ -17,10 +23,15 @@ services:
       - '5173:5173'
     environment:
       - NODE_ENV=development
-      - VITE_API_GATEWAY_URL=http://localhost:8000
-      - VITE_API_EVENTS_URL=http://localhost:8001
-      - VITE_API_INCIDENTS_URL=http://localhost:8004
-      - VITE_API_REQUESTS_URL=http://localhost:8003
-      - VITE_API_PROBLEMS_URL=http://localhost:8005
+      # Destinos del proxy de desarrollo (ver vite.config.ts)
+      - VITE_API_GATEWAY_URL=http://host.docker.internal:8000
+      - VITE_API_EVENTS_URL=http://host.docker.internal:8001
+      - VITE_API_ACCESS_URL=http://host.docker.internal:8002
+      - VITE_API_REQUESTS_URL=http://host.docker.internal:8003
+      - VITE_API_INCIDENTS_URL=http://host.docker.internal:8004
+      - VITE_API_PROBLEMS_URL=http://host.docker.internal:8005
+      - VITE_API_KNOWLEDGE_URL=http://host.docker.internal:8006
+      # true = el gateway es el mock de Prism (npm run mock:gateway), que no usa el prefijo /api/public/v1
+      - VITE_GATEWAY_MOCK=false
       - VITE_USE_MOCKS=true
     command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 5173"

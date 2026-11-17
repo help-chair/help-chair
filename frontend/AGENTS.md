@@ -58,3 +58,72 @@ Antes de crear elementos HTML crudos o estilos repetitivos, utiliza los componen
   - Si es un pedido de catálogo/usuario -> **Petición de Servicio** (`Service Request`).
   - Si es un error recurrente o causa raíz desconocida -> **Problema** (`Problem`).
 - Los eventos del monitor son **Informativo**, **Advertencia** o **Excepción**.
+
+---
+
+## 🌐 6. Sitio público, dominios y API
+
+El frontend es **una sola SPA y una sola imagen** para `help-chair.com` (sitio público) y `empresaN.help-chair.com` (Service Desk). Diseño: `docs/REGISTRO-EMPRESA.md`.
+
+- **Nunca escribas un dominio ni una URL de API en el código.** El dominio base viene de `getRuntimeConfig().baseDomain` (`src/config/runtime.ts`); la URL de una empresa se arma con `tenantUrl(subdominio)`.
+- **La API se llama con rutas relativas** (`/api/public/v1/...`, `/api/<servicio>/...`) desde `src/api/`. Prohibido `fetch` con URL absoluta y prohibido leer `VITE_API_*` en el código de la app (solo las usa el proxy de `vite.config.ts`).
+- **Rutas:** usa `src/lib/routing.ts` y `<Link>` de `@/components/Link`. No agregues `react-router` ni otra librería de enrutado sin acordarlo con el equipo.
+  - Sitio público: se registran en `features/public/PublicSite.tsx`.
+  - Service Desk: se montan desde `Root.tsx`.
+- **Secretos y contraseñas:** nunca se guardan en `localStorage`/`sessionStorage`. Solo el token de seguimiento del alta vive en `sessionStorage` (`features/public/tracking.ts`).
+- **Tokens de la URL** (`/verificar`, `/activar`) son de un solo uso: no los repitas en logs ni los reenvíes en una segunda llamada (cuidado con la doble ejecución de `StrictMode`, ver `VerifyPage.tsx`).
+- **Accesibilidad:** las páginas públicas también deben cumplir WCAG 2.1 AA (etiquetas, `role="alert"`/`aria-live` para mensajes, foco visible).
+
+---
+
+## 🏛️ 7. Arquitectura Modular del Service Desk (`src/features/`)
+
+El Service Desk sigue una **Feature-Driven Architecture** organizada estrictamente por prácticas ITIL v4:
+
+```text
+src/features/
+├── public/     # 🌐 Portal público: Landing, Registro de empresa y Status
+├── dashboard/  # 📊 Dashboard Central: Gateway del Service Desk y KPIs globales
+├── events/     # ⚡ Equipo 1: Gestión de Eventos y Monitoreo en tiempo real
+├── access/     # 🔐 Equipo 2: Gestión de Accesos, login de stack y usuarios/roles
+├── requests/   # 📥 Equipo 3: Gestión de Peticiones, catálogo y solicitudes
+├── incidents/  # 🚨 Equipo 4: Gestión de Incidencias, Kanban y matriz de prioridad
+├── problems/   # 🛡️ Equipo 5: Gestión de Problemas, causa raíz y KEDB
+└── knowledge/  # 📚 Equipo 5: Base de Conocimiento y autoservicio
+```
+
+### Reglas de Desarrollo de Módulos para Agentes:
+1. **Cascarón Común Inmutable (`src/components/layout/ServiceDeskLayout.tsx`):**
+   - El Sidebar, Header superior, badges del tenant y notificaciones viven en `ServiceDeskLayout`.
+   - **PROHIBIDO** reescribir o duplicar el Sidebar o Header dentro de las páginas de cada módulo.
+   - Tu módulo debe exportar un componente principal autónomo (ej. `export function IncidentsPage()`).
+2. **Conexión en `src/App.tsx`:**
+   - Para registrar o activar un módulo, se añade su clave al tipo `TabKey` en `ServiceDeskLayout.tsx` y se monta condicionalmente en `src/App.tsx`.
+3. **Formularios e Inputs:**
+   - Todo formulario debe usar los componentes estandarizados de `@/components/ui/form` (`Field`, `Input`, `Select`, `Textarea`), que ya cuentan con los estados visuales *Default*, *Focus*, *Error*, y accesibilidad WCAG (`aria-invalid`, `aria-describedby`).
+4. **Mocks y Contratos:**
+   - Mientras el microservicio backend publica su API oficial en `contracts/<servicio>/openapi.yaml`, define los datos simulados en un archivo local `data.ts` dentro de tu carpeta `features/<servicio>/`. Cuando el contrato exista, genera los tipos en `types.ts` a partir del OpenAPI.
+
+---
+
+## 📸 8. Evidencias de Diseño y Capturas de Figma (`frontend/docs/`)
+
+Para mantener el orden del monorepo y evitar conflictos entre sistemas operativos (Linux y Windows):
+
+- **Ubicación obligatoria:** Las capturas de pantalla, flujos exportados y evidencias de diseño en Figma deben guardarse exclusivamente dentro de `frontend/docs/<practica>/`:
+  ```text
+  frontend/docs/
+  ├── access/       # Capturas del módulo de Accesos (Equipo 2)
+  ├── dashboard/    # Capturas del Dashboard central / Home
+  ├── events/       # Capturas del Monitor de Gestión de Eventos (Equipo 1)
+  ├── incidents/    # Capturas de la Gestión de Incidencias (Equipo 4)
+  ├── knowledge/    # Capturas de la Base de Conocimiento (Equipo 5)
+  ├── problems/     # Capturas de la Gestión de Problemas (Equipo 5)
+  ├── public/       # Capturas del Portal Público / Landing / Registro
+  └── requests/     # Capturas de la Gestión de Peticiones (Equipo 3)
+  ```
+- **Convención de nombres de archivo:**
+  - Nombres estrictamente en **minúsculas** en formato kebab-case (ejemplo: `dashboard-incidentes.png`, `modal-nuevo-ticket.png`).
+  - **PROHIBIDO** usar espacios, mayúsculas, tildes o caracteres especiales (evita rutas como `Diseño/`, `Captura 1.png` o caracteres ilegales en Windows/Git como `<` o `>`).
+  - Esta carpeta es **únicamente para evidencias gráficas y documentación complementaria**. Queda terminantemente **PROHIBIDO** colocar proyectos de Vite, archivos `package.json` o código ejecutable dentro de `frontend/docs/`.
+

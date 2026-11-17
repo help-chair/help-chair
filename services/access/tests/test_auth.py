@@ -8,8 +8,8 @@ import pytest
 from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.tokens import AccessToken
 
-LOGIN = "/api/auth/login"
-REFRESH = "/api/auth/refresh"
+LOGIN = "/api/access/v1/login"
+REFRESH = "/api/access/v1/refresh"
 CLAVE = "clave-de-prueba-123"
 
 

@@ -63,14 +63,14 @@ curl http://localhost:8002/health/ready
 |---|---|---|
 | `GET` | `/health/live` | El proceso responde. |
 | `GET` | `/health/ready` | El proceso responde y la base es alcanzable. |
-| `POST` | `/api/auth/login` | Valida credenciales y entrega `access` y `refresh`. |
-| `POST` | `/api/auth/refresh` | Entrega un `access` nuevo a partir de un `refresh` válido. |
+| `POST` | `/api/access/v1/login` | Valida credenciales y entrega `access` y `refresh`. |
+| `POST` | `/api/access/v1/refresh` | Entrega un `access` nuevo a partir de un `refresh` válido. |
 | `GET` | `/api/docs/` | Documentación navegable (Swagger). |
 
 Ejemplo de inicio de sesión:
 
 ```bash
-curl -X POST http://localhost:8002/api/auth/login \
+curl -X POST http://localhost:8002/api/access/v1/login \
   -H 'Content-Type: application/json' \
   -d '{"username": "ana", "password": "clave-de-prueba-123"}'
 ```

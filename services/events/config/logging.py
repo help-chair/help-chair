@@ -1,4 +1,4 @@
-"""Logs en JSON por stdout (contrato mínimo de servicio)."""
+"""DEBUG - Logs en JSON por stdout (contrato mínimo de servicio)."""
 
 import json
 import logging

@@ -102,7 +102,17 @@ SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=env.int("ACCESS_TOKEN_MINUTOS", default=15)),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=env.int("REFRESH_TOKEN_DIAS", default=1)),
     "UPDATE_LAST_LOGIN": True,
+    # El contrato nombra `sub` al identificador del usuario y pide `iss`.
+    "USER_ID_FIELD": "id",
+    "USER_ID_CLAIM": "sub",
+    "ISSUER": env("JWT_ISSUER", default="help-chair-access"),
 }
+
+# Modelo de usuario propio: se identifica por correo, como dice el contrato.
+AUTH_USER_MODEL = "core.Usuario"
+
+# Intentos fallidos de inicio de sesión antes de bloquear la cuenta.
+INTENTOS_ANTES_DE_BLOQUEAR = env.int("INTENTOS_ANTES_DE_BLOQUEAR", default=5)
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "Help Chair - access",

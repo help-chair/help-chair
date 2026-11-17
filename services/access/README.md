@@ -40,6 +40,8 @@
 ```bash
 cd services/access
 make setup                  # crea .env y el entorno virtual
+make migrate                # crea las tablas
+make seed                   # carga el catálogo de roles
 make test                   # pruebas con cobertura
 make run                    # http://localhost:8002
 ```
@@ -72,16 +74,32 @@ Ejemplo de inicio de sesión:
 ```bash
 curl -X POST http://localhost:8002/api/access/v1/login \
   -H 'Content-Type: application/json' \
-  -d '{"username": "ana", "password": "clave-de-prueba-123"}'
+  -d '{"correo": "ana@empresa-demo.mx", "password": "clave-de-prueba-123"}'
 ```
 
-El token de acceso lleva los claims que exige el plan:
+El token de acceso lleva los claims que declara el contrato:
 
 | Claim | Contenido |
 |---|---|
+| `sub` | Identificador del usuario. |
 | `empresa` | Valor de `EMPRESA_ID`, la empresa dueña del stack. |
-| `rol` | Rol del usuario. |
-| `exp` | Expiración, por omisión 15 minutos. |
+| `rol` | Rol del usuario: `administrador`, `agente_n2`, `agente_n1` o `usuario_final`. |
+| `permisos` | Permisos efectivos del rol; con esto el frontend dibuja la navegación. |
+| `iss` | Emisor del token. |
+| `iat` / `exp` | Emisión y expiración; el acceso dura 15 minutos por omisión. |
+
+### Modelos
+
+| Modelo | Para qué |
+|---|---|
+| `Departamento` | Área de la empresa a la que pertenece un usuario. |
+| `Rol` | Catálogo fijo de roles con sus permisos. Se carga con `make seed`. |
+| `Usuario` | Persona que entra al help desk. Se identifica por **correo**, no por nombre de usuario. |
+| `Perfil` | Datos de la persona que no hacen falta para autenticarla (puesto, teléfono, onboarding). |
+
+Un usuario tiene uno de cuatro estados: `activo`, `invitado` (creado sin contraseña, pendiente de activar), `bloqueado` (por intentos fallidos) y `suspendido` (dado de baja). **Solo un usuario `activo` obtiene token.**
+
+Los permisos no se preguntan por rol sino por permiso (`tickets:ver`, `tickets:atender`, `tickets:escalar`, `empresa:configurar`, `usuarios:administrar`), para que un cambio de roles no rompa a los servicios que los consumen.
 
 Para exportar el contrato después de cambiar la API:
 

@@ -1,0 +1,13 @@
+pipeline {
+  agent any
+  stages {
+    stage('Lint y pruebas') {
+      when { changeset 'services/events/**' }
+      steps { dir('services/events') { sh 'make lint test' } }
+    }
+    stage('Construir imagen') {
+      when { changeset 'services/events/**' }
+      steps { dir('services/events') { sh 'make build' } }
+    }
+  }
+}

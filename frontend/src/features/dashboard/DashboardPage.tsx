@@ -5,18 +5,23 @@ import {
   CheckCircle2,
   Flame,
   Inbox,
+  KeyRound,
   LifeBuoy,
   ShieldAlert,
 } from 'lucide-react'
+import type { TabKey } from '@/components/layout/ServiceDeskLayout'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { INITIAL_EVENTS } from '@/features/events/data'
 
 interface DashboardPageProps {
-  onNavigate: (tab: 'dashboard' | 'events' | 'requests' | 'incidents' | 'problems' | 'knowledge') => void
+  onNavigate: (tab: TabKey) => void
+  /** Secciones que permite el rol de la sesión; si falta, se muestran todos los accesos. */
+  secciones?: TabKey[]
 }
 
-export function DashboardPage({ onNavigate }: DashboardPageProps) {
+export function DashboardPage({ onNavigate, secciones }: DashboardPageProps) {
+  const puedeVer = (seccion: TabKey) => secciones === undefined || secciones.includes(seccion)
   const recentEvents = INITIAL_EVENTS.slice(0, 3)
 
   return (
@@ -177,6 +182,19 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               </div>
               <ArrowRight size={16} className="text-slate-400" />
             </button>
+
+            {puedeVer('access') && (
+              <button
+                onClick={() => onNavigate('access')}
+                className="w-full flex items-center justify-between p-3 rounded-lg border border-border hover:bg-slate-50 text-left transition-colors text-sm"
+              >
+                <div className="flex items-center gap-3">
+                  <KeyRound size={18} className="text-indigo-600" />
+                  <span className="font-medium text-slate-800">Gestión de Accesos</span>
+                </div>
+                <ArrowRight size={16} className="text-slate-400" />
+              </button>
+            )}
           </div>
         </Card>
 

@@ -1,5 +1,11 @@
 import { useState } from 'react'
+import { logout as cerrarSesionEnAccesos, setAccessToken } from '@/api/access'
 import { ServiceDeskLayout, type TabKey } from '@/components/layout/ServiceDeskLayout'
+import LoginPage from '@/features/access/LoginPage'
+import { UsersPage } from '@/features/access/UsersPage'
+import { seccionInicial, seccionesVisibles } from '@/features/access/navegacion'
+import { NOMBRE_ROL } from '@/features/access/roles'
+import type { Sesion } from '@/features/access/types'
 import { DashboardPage } from '@/features/dashboard/DashboardPage'
 import { EventsPage } from '@/features/events/EventsPage'
 import { RequestsPage } from '@/features/requests/RequestsPage'
@@ -9,15 +15,51 @@ import { KnowledgePage } from '@/features/knowledge/KnowledgePage'
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabKey>('dashboard')
+  const [sesion, setSesion] = useState<Sesion | null>(null)
+
+  // Sin sesión no se muestra el Service Desk. El token vive en memoria (ver api/access.ts),
+  // así que al recargar la página se vuelve a pedir el inicio de sesión.
+  if (!sesion) {
+    return (
+      <LoginPage
+        onAuthenticated={(nueva) => {
+          setSesion(nueva)
+          setActiveTab(seccionInicial(nueva.usuario.permisos))
+        }}
+      />
+    )
+  }
+
+  // Navegación según rol: el menú y el contenido se limitan a lo que permite el rol.
+  const secciones = seccionesVisibles(sesion.usuario.permisos)
+  const tabActual = secciones.includes(activeTab)
+    ? activeTab
+    : seccionInicial(sesion.usuario.permisos)
+
+  function salir() {
+    if (sesion) void cerrarSesionEnAccesos(sesion.refresco).catch(() => undefined)
+    setAccessToken(null)
+    setSesion(null)
+    setActiveTab('dashboard')
+  }
 
   return (
-    <ServiceDeskLayout activeTab={activeTab} onSelectTab={setActiveTab}>
-      {activeTab === 'dashboard' && <DashboardPage onNavigate={setActiveTab} />}
-      {activeTab === 'events' && <EventsPage />}
-      {activeTab === 'requests' && <RequestsPage />}
-      {activeTab === 'incidents' && <IncidentsPage />}
-      {activeTab === 'problems' && <ProblemsPage />}
-      {activeTab === 'knowledge' && <KnowledgePage />}
+    <ServiceDeskLayout
+      activeTab={tabActual}
+      onSelectTab={setActiveTab}
+      usuario={{ nombre: sesion.usuario.nombre, rol: NOMBRE_ROL[sesion.usuario.rol] }}
+      secciones={secciones}
+      onLogout={salir}
+    >
+      {tabActual === 'dashboard' && (
+        <DashboardPage onNavigate={setActiveTab} secciones={secciones} />
+      )}
+      {tabActual === 'events' && <EventsPage />}
+      {tabActual === 'requests' && <RequestsPage />}
+      {tabActual === 'access' && <UsersPage usuario={sesion.usuario} />}
+      {tabActual === 'incidents' && <IncidentsPage />}
+      {tabActual === 'problems' && <ProblemsPage />}
+      {tabActual === 'knowledge' && <KnowledgePage />}
     </ServiceDeskLayout>
   )
 }

@@ -15,13 +15,31 @@ info:
       enlace de activación de un solo uso.
     - El estado del onboarding (`onboarding_completed`) vive en el perfil del administrador (D-25).
 
-    **Token de sesión (JWT, firma asimétrica RS256).** Los demás servicios lo validan con la clave
-    pública de `/api/access/v1/.well-known/jwks.json`; nunca llaman a Accesos para validar.
-    Claims: `sub` (id de usuario), `empresa` (subdominio), `rol`, `permisos`, `iat`, `exp`, `iss`.
+    **Token de sesión (JWT).** Claims: `sub` (id de usuario), `empresa` (subdominio), `rol`,
+    `permisos`, `iat`, `exp`, `iss`. En la v0 se firma con HS256, con la clave del stack. La firma
+    asimétrica RS256 y la clave pública de `/api/access/v1/.well-known/jwks.json`, con la que los
+    demás servicios validarán el token sin llamar a Accesos, llegan en la Fase 3.
 
     **Eventos de seguridad.** Cada intento de autenticación publica un evento hacia Eventos por el
     broker (`login_exitoso`, `login_fallido`, `cuenta_bloqueada`, `usuario_invitado`, `rol_cambiado`),
     con el sobre común de `contracts/messages/`. No forman parte de esta API REST.
+
+    **Estado de implementación (v0, cierre de la Fase 1).** Hoy solo responden las dos primeras rutas.
+    Las demás están descritas para que Frontend y Plataforma programen contra ellas, y se implementan
+    en la fase que indica `docs/ROADMAP.md`. Pedir una ruta pendiente devuelve 404.
+
+    | Ruta | Estado |
+    |---|---|
+    | `POST /login` · `POST /refresh` | implementadas |
+    | `POST /logout` | Fase 2 (necesita lista de tokens revocados) |
+    | `GET`/`POST /usuarios`, `/usuarios/{id}`, `/usuarios/{id}/desbloquear` | Fase 2 |
+    | `GET /roles` · `GET`/`POST /departamentos` | Fase 2 |
+    | `POST /activate` · `POST /internal/v1/bootstrap-admin` | Fase 3 |
+    | `GET /me` · `PATCH /me/onboarding` | Fase 3 |
+    | `GET /.well-known/jwks.json` | Fase 3 (llega con la firma RS256) |
+
+    Los límites de uso (429) y el bloqueo automático por intentos fallidos también entran en la Fase 2:
+    el modelo ya guarda el contador, pero el login todavía no lo consulta.
 servers:
   - url: https://{subdominio}.help-chair.com
     description: Stack de una empresa
@@ -470,7 +488,8 @@ components:
       minLength: 12
       maxLength: 128
       description: |
-        Política mínima: 12 caracteres. Se guarda con hash (Argon2id); nunca se devuelve ni se registra
+        Política mínima: 12 caracteres. Se guarda con el hash de Django (PBKDF2 por omisión; Argon2id
+        queda como mejora de la Fase 2); nunca se devuelve ni se registra
         en bitácoras. El nombre del campo es `password` porque así lo consume ya el frontend.
     Credenciales:
       type: object
@@ -482,8 +501,14 @@ components:
       type: object
       required: [acceso, refresco, token_tipo, expira_en, usuario]
       properties:
-        acceso: { type: string, description: 'JWT de acceso (RS256)' }
-        refresco: { type: string, description: 'Token de refresco opaco, de un solo uso' }
+        acceso:
+          type: string
+          description: 'JWT de acceso. HS256 en la v0; RS256 a partir de la Fase 3.'
+        refresco:
+          type: string
+          description: >-
+            Token de refresco. En la v0 es un JWT reutilizable hasta que expira y `/refresh` lo
+            devuelve tal cual. La rotación de un solo uso y la revocación entran en la Fase 2.
         token_tipo: { type: string, enum: [Bearer] }
         expira_en: { type: integer, description: Vigencia del token de acceso en segundos, example: 900 }
         usuario: { $ref: '#/components/schemas/UsuarioActual' }

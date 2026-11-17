@@ -27,5 +27,5 @@ export default function PublicSite({ path }: { path: string }) {
       </div>
     )
 
-  return <PublicLayout>{page}</PublicLayout>
+  return <PublicLayout landing={path === '/'}>{page}</PublicLayout>
 }

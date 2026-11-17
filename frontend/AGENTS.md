@@ -103,3 +103,27 @@ src/features/
    - Todo formulario debe usar los componentes estandarizados de `@/components/ui/form` (`Field`, `Input`, `Select`, `Textarea`), que ya cuentan con los estados visuales *Default*, *Focus*, *Error*, y accesibilidad WCAG (`aria-invalid`, `aria-describedby`).
 4. **Mocks y Contratos:**
    - Mientras el microservicio backend publica su API oficial en `contracts/<servicio>/openapi.yaml`, define los datos simulados en un archivo local `data.ts` dentro de tu carpeta `features/<servicio>/`. Cuando el contrato exista, genera los tipos en `types.ts` a partir del OpenAPI.
+
+---
+
+## 📸 8. Evidencias de Diseño y Capturas de Figma (`frontend/docs/`)
+
+Para mantener el orden del monorepo y evitar conflictos entre sistemas operativos (Linux y Windows):
+
+- **Ubicación obligatoria:** Las capturas de pantalla, flujos exportados y evidencias de diseño en Figma deben guardarse exclusivamente dentro de `frontend/docs/<practica>/`:
+  ```text
+  frontend/docs/
+  ├── access/       # Capturas del módulo de Accesos (Equipo 2)
+  ├── dashboard/    # Capturas del Dashboard central / Home
+  ├── events/       # Capturas del Monitor de Gestión de Eventos (Equipo 1)
+  ├── incidents/    # Capturas de la Gestión de Incidencias (Equipo 4)
+  ├── knowledge/    # Capturas de la Base de Conocimiento (Equipo 5)
+  ├── problems/     # Capturas de la Gestión de Problemas (Equipo 5)
+  ├── public/       # Capturas del Portal Público / Landing / Registro
+  └── requests/     # Capturas de la Gestión de Peticiones (Equipo 3)
+  ```
+- **Convención de nombres de archivo:**
+  - Nombres estrictamente en **minúsculas** en formato kebab-case (ejemplo: `dashboard-incidentes.png`, `modal-nuevo-ticket.png`).
+  - **PROHIBIDO** usar espacios, mayúsculas, tildes o caracteres especiales (evita rutas como `Diseño/`, `Captura 1.png` o caracteres ilegales en Windows/Git como `<` o `>`).
+  - Esta carpeta es **únicamente para evidencias gráficas y documentación complementaria**. Queda terminantemente **PROHIBIDO** colocar proyectos de Vite, archivos `package.json` o código ejecutable dentro de `frontend/docs/`.
+

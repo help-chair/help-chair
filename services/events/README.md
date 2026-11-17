@@ -62,3 +62,40 @@ cp .env.example .env
 
 ### Monorepo rules
 Work **only inside this folder**. If you must change another one, open a separate PR or coordinate with its owners. Guide: [`CONTRIBUTING.en.md`](../../CONTRIBUTING.en.md).
+
+### Rutas y apps del servicio
+
+| Ruta | App | Descripción |
+|---|---|---|
+| `GET /health/live` | `core` | Liveness: el proceso responde (`{"status": "ok"}`). |
+| `GET /health/ready` | `core` | Readiness: ejecuta `SELECT 1` en la BD. Devuelve `{"status": "ok", "database": "up"}` o `503` con `"database": "down"`. |
+| `/api/v1/` | `events` | API de eventos. Montada desde `events/urls.py` (aún sin endpoints). |
+| `/api/schema/`, `/api/docs/` | `config` | Esquema OpenAPI y Swagger UI (drf-spectacular). |
+| `/admin/` | `config` | Admin de Django. |
+
+- `core`: salud del servicio (`core/urls.py`, `core/views.py`).
+- `events`: lógica de eventos, registrada en `INSTALLED_APPS` (`config/settings.py`) y enrutada en `config/urls.py` con `include("events.urls")`.
+
+### Configuración (`SECRET_KEY`)
+
+1. Copia `.env.example` a `.env`.
+2. Define `SECRET_KEY` en tu `.env` (genera una con `tests/secretkey_gen.py` o con `python -c "from django.core.management.utils import get_random_secret_key as g; print(g())"`).
+3. Sin `SECRET_KEY` el servicio no arranca (`ImproperlyConfigured`), salvo con `DEBUG=true` o bajo pytest, donde se usa una clave insegura de desarrollo.
+
+No subas tu clave real al repositorio: el `.env` está ignorado por git.
+
+### Ejecución local sin `make` (Windows / PowerShell)
+
+Desde `services/events`:
+
+```powershell
+cp .env.example .env
+uv sync
+uv run python manage.py migrate --noinput
+uv run python manage.py runserver 0.0.0.0:8001   # equivalente a `make run`
+uv run pytest                                    # equivalente a `make test`
+```
+
+- Sin `DATABASE_URL` se usa SQLite (`db.sqlite3`), no hace falta PostgreSQL en desarrollo.
+- El puerto por defecto es `8001` (en el Makefile: `make run PORT=8080`).
+

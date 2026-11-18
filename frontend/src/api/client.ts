@@ -47,13 +47,26 @@ export async function apiGet<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export async function apiPost<T>(path: string, body: unknown, init?: RequestInit): Promise<T> {
+  return send<T>('POST', path, body, init)
+}
+
+export async function apiPatch<T>(path: string, body: unknown, init?: RequestInit): Promise<T> {
+  return send<T>('PATCH', path, body, init)
+}
+
+async function send<T>(
+  method: 'POST' | 'PATCH',
+  path: string,
+  body: unknown,
+  init?: RequestInit,
+): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
-    method: 'POST',
+    method,
     headers: { Accept: 'application/json', 'Content-Type': 'application/json', ...init?.headers },
     body: JSON.stringify(body),
   })
-  if (!response.ok) throw await toApiError('POST', path, response)
+  if (!response.ok) throw await toApiError(method, path, response)
   if (response.status === 204) return undefined as T
   return (await response.json()) as T
 }

@@ -18,7 +18,8 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "mock:gateway": "npx --yes @stoplight/prism-cli mock ../contracts/gateway/openapi.yaml -p 8000",
-    "mock:access": "npx --yes @stoplight/prism-cli mock ../contracts/access/openapi.yaml -p 8002"
+    "mock:access": "npx --yes @stoplight/prism-cli mock ../contracts/access/openapi.yaml -p 8002",
+    "check:contracts": "node scripts/check-contracts.mjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",

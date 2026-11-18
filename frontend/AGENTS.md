@@ -147,4 +147,25 @@ Todo desarrollo en el frontend debe apegarse a los estándares de experiencia y 
    - Modales con `role="dialog"`, `aria-modal="true"` y cierre con tecla `Escape`.
    - Tablas con scroll horizontal responsivo (`overflow-x-auto` y `min-w-[640px]`) para no romper pantallas móviles o tablets.
 
+---
+
+## 🔄 10. Sincronización Quirúrgica de Contratos (`contracts/`)
+
+Para asegurar la coherencia entre el frontend y los backends sin desperdiciar tokens ni ralentizar respuestas:
+
+1. **Lectura Quirúrgica Bajo Demanda:**
+   - Al implementar o modificar vistas, formularios o tipos de un módulo (`src/features/<modulo>/`), el agente **DEBE consultar únicamente el archivo `contracts/<modulo>/openapi.yaml` correspondiente**.
+   - **PROHIBIDO** escanear todo `/services/` o contratos de otros equipos de forma preventiva para no saturar el contexto.
+2. **Validación de Paridad (Tipos y Campos):**
+   - Verifica que los nombres de propiedades en `src/features/<modulo>/types.ts` coincidan exactamente con los esquemas del contrato OpenAPI (evita inventar campos como `status_id` si el contrato espera `status`).
+3. **Mapeo de Responsabilidades (`.github/CODEOWNERS`):**
+   - `contracts/events/` ↔ `@Alexis-sillyprogrammer` / `@DonitaCosmica` (Equipo 1: Eventos)
+   - `contracts/access/` ↔ `@JohanPEBO` / `@spartan117alan1` (Equipo 2: Accesos)
+   - `contracts/requests/` ↔ `@Zteven` / `@ivan0407mv` (Equipo 3: Peticiones)
+   - `contracts/incidents/` ↔ `@DiegoMH890` / `@decko67` (Equipo 4: Incidencias)
+   - `contracts/problems/` y `contracts/knowledge/` ↔ `@Leon2411` / `@PabloH126` (Equipo 5: Problemas y KB)
+   - `contracts/gateway/` ↔ `@DonitaCosmica` / `@decko67` (Equipo 7: Plataforma)
+   - `frontend/` ↔ `@ALLexelsus7` / `@DiegoMH890` (Equipo 6: Frontend)
+
+
 

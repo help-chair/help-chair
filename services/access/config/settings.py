@@ -114,7 +114,7 @@ SIMPLE_JWT = {
 AUTH_USER_MODEL = "core.Usuario"
 
 # Intentos fallidos de inicio de sesión antes de bloquear la cuenta.
-INTENTOS_ANTES_DE_BLOQUEAR = env.int("INTENTOS_ANTES_DE_BLOQUEAR", default=5)
+INTENTOS_ANTES_DE_BLOQUEAR = env.int("INTENTOS_ANTES_DE_BLOQUEAR", default=3)
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "Help Chair - access",

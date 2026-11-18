@@ -178,7 +178,7 @@ class Usuario(AbstractBaseUser, PermissionsMixin):
     def tiene_permiso(self, permiso: str) -> bool:
         return permiso in self.permisos
 
-    def registrar_intento_fallido(self, limite: int = 5) -> bool:
+    def registrar_intento_fallido(self, limite: int = 3) -> bool:
         """Suma un intento fallido y bloquea la cuenta al llegar al límite.
 
         Devuelve True si este intento provocó el bloqueo.

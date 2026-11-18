@@ -225,3 +225,57 @@ def test_refresh_de_una_cuenta_suspendida_deja_de_servir(client, usuario):
 
     assert respuesta.status_code == 401
     assert respuesta.json()["codigo"] == "token_invalido"
+
+
+@pytest.mark.django_db
+def test_un_intento_fallido_se_cuenta(client, usuario):
+    _login(client, clave="no-es-la-clave")
+
+    usuario.refresh_from_db()
+    assert usuario.intentos_fallidos == 1
+
+
+@pytest.mark.django_db
+def test_al_tercer_intento_fallido_la_cuenta_se_bloquea(client, usuario, settings):
+    settings.INTENTOS_ANTES_DE_BLOQUEAR = 3
+
+    assert _login(client, clave="mal").status_code == 401
+    assert _login(client, clave="mal").status_code == 401
+    respuesta = _login(client, clave="mal")
+
+    assert respuesta.status_code == 423
+    assert respuesta.json()["codigo"] == "cuenta_bloqueada"
+    usuario.refresh_from_db()
+    assert usuario.estado == EstadoUsuario.BLOQUEADO
+
+
+@pytest.mark.django_db
+def test_bloqueada_sigue_en_423_aunque_la_clave_sea_la_buena(client, usuario, settings):
+    settings.INTENTOS_ANTES_DE_BLOQUEAR = 3
+    for _ in range(3):
+        _login(client, clave="mal")
+
+    assert _login(client).status_code == 423
+
+
+@pytest.mark.django_db
+def test_un_correo_inexistente_no_deja_rastro(client, db):
+    respuesta = _login(client, correo="nadie@empresa-demo.mx", clave="mal")
+
+    assert respuesta.status_code == 401
+    assert respuesta.json()["codigo"] == "credenciales_invalidas"
+
+
+@pytest.mark.django_db
+def test_desbloquear_devuelve_el_acceso(client, usuario, settings):
+    settings.INTENTOS_ANTES_DE_BLOQUEAR = 3
+    for _ in range(3):
+        _login(client, clave="mal")
+    usuario.refresh_from_db()
+
+    usuario.desbloquear()
+
+    assert _login(client).status_code == 200
+    usuario.refresh_from_db()
+    assert usuario.intentos_fallidos == 0
+    assert usuario.estado == EstadoUsuario.ACTIVO

@@ -13,7 +13,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from drf_spectacular.utils import extend_schema
 from rest_framework import serializers, status
-from rest_framework.exceptions import APIException
+from rest_framework.exceptions import APIException, AuthenticationFailed
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.settings import api_settings as ajustes_jwt
@@ -133,10 +133,32 @@ class LoginSerializer(TokenObtainPairSerializer):
         return token
 
     def validate(self, attrs):
-        self._revisar_estado(attrs.get(self.username_field, ""))
-        datos = super().validate(attrs)
+        correo = attrs.get(self.username_field, "")
+        self._revisar_estado(correo)
+        try:
+            datos = super().validate(attrs)
+        except AuthenticationFailed:
+            self._contar_intento_fallido(correo)
+            raise
         self.user.registrar_acceso()
         return construir_sesion(self.user, datos["access"], datos["refresh"])
+
+    @staticmethod
+    def _contar_intento_fallido(correo: str) -> None:
+        """Suma el intento fallido y bloquea la cuenta al llegar al límite.
+
+        Si el bloqueo ocurre justo en este intento, la respuesta cambia de 401 a
+        423, para que el frontend pueda decir por qué dejó de servir la contraseña
+        en lugar de repetir «credenciales incorrectas».
+
+        Solo se cuentan los intentos contra una cuenta activa: un correo que no
+        existe no deja rastro, y uno invitado o suspendido ya se rechazó antes.
+        """
+        usuario = get_user_model().objects.filter(correo__iexact=correo).first()
+        if usuario is None or usuario.estado != EstadoUsuario.ACTIVO:
+            return
+        if usuario.registrar_intento_fallido(settings.INTENTOS_ANTES_DE_BLOQUEAR):
+            raise CuentaBloqueada()
 
     @staticmethod
     def _revisar_estado(correo: str) -> None:

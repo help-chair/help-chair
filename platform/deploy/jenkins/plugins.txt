@@ -18,3 +18,5 @@ credentials-binding
 role-strategy
 # Configuración como código (JCasC): la configuración vive en casc.yaml
 configuration-as-code
+# Jobs como código: casc.yaml crea un job multibranch por servicio
+job-dsl

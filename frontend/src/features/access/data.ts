@@ -169,7 +169,7 @@ export function invitacionSimulada(invitacion: InvitacionUsuario): Usuario {
 
 /** Un `fetch` que no llega a ningún lado, o un servicio caído: ahí sí entra el respaldo. */
 function servicioInalcanzable(error: unknown): boolean {
-  if (error instanceof ApiError) return error.status === 404 || error.status >= 502
+  if (error instanceof ApiError) return error.status === 404 || error.status >= 500
   return true
 }
 

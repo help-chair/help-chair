@@ -1,0 +1,20 @@
+# Plugins de Jenkins para Help Chair (issue #85).
+# Los instala `jenkins-plugin-cli --plugin-file plugins.txt` al construir la imagen (ver Dockerfile).
+# Sin versión = la última compatible con el núcleo de Jenkins. Para fijarla: `nombre:versión`.
+
+# Clonar el repositorio
+git
+# Ejecutar Jenkinsfile (pipelines declarativos)
+workflow-aggregator
+# Un job por rama y por PR, de forma automática
+workflow-multibranch
+# Descubrir ramas y PR de GitHub; recibir webhooks cuando haya URL pública
+github-branch-source
+# Guardar tokens cifrados
+credentials
+# Inyectar tokens en un pipeline sin imprimirlos en el log
+credentials-binding
+# Usuarios y roles por equipo
+role-strategy
+# Configuración como código (JCasC): la configuración vive en casc.yaml
+configuration-as-code

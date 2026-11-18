@@ -2,6 +2,8 @@
 
 Este directorio está destinado a almacenar las capturas de pantalla, prototipos exportados y evidencias visuales de los diseños elaborados en **Figma** para cada módulo del frontend.
 
+El enlace para ver las pantallas de **Figma** está en [`frontend/DESIGN.md`](../DESIGN.md).
+
 ## 📁 Estructura por Prácticas y Módulos
 
 ```text
@@ -24,3 +26,4 @@ frontend/docs/
 2. **Convención de nombres:**
    - Usa nombres en **minúsculas** en formato kebab-case (ej. `dashboard-incidentes.png`, `modal-nuevo-ticket.png`).
    - **NO uses espacios, mayúsculas, tildes ni caracteres especiales** para evitar conflictos de codificación en sistemas Git, Linux y Windows.
+

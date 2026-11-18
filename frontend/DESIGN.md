@@ -8,7 +8,6 @@
 
 * **Archivo Maestro en Figma:** [Ver archivo en Figma](https://www.figma.com/design/o3232M6n3YJk5PWdPbK6EM/Help-Chair-%C2%B7-Service-Desk--Design-System---Templates-?node-id=2-400&t=FJ537GG11wCmIZYz-1)
 * **Modo de Acceso:** Lectura / Comentarios para evaluadores académicos.
-* **Prototipo Interactivo:** [Probar Prototipo en Vivo](https://www.figma.com/proto/o3232M6n3YJk5PWdPbK6EM/Help-Chair-%C2%B7-Service-Desk--Design-System---Templates-?node-id=2-924&p=f&t=qJuO3gYh3QvtkAEm-1&scaling=min-zoom&content-scaling=fixed&page-id=2%3A400)
 
 ---
 

@@ -1,0 +1,642 @@
+openapi: 3.0.3
+info:
+  title: Help Chair - Accesos (autenticación, usuarios y roles)
+  version: 0.1.0
+  description: |
+    Contrato v0 (borrador, Fase 1-2). Dueño: Equipo 2 (Accesos).
+    Consumidores: Equipo 6 (Frontend, Service Desk), Equipo 7 (Plataforma, aprovisionador)
+    y el resto de servicios del stack, que validan el JWT con la clave pública.
+
+    - Vive **dentro del stack de cada empresa** (`empresaN.help-chair.com`). No hay una instancia global:
+      la empresa queda determinada por el stack, no por un campo de la petición.
+    - Rutas públicas bajo `/api/access/v1`; el ingress las expone. `/internal/v1` **no se expone**:
+      solo es alcanzable desde el aprovisionador (NetworkPolicy).
+    - La contraseña del administrador nunca pasa por el directorio global (D-24): se define aquí con un
+      enlace de activación de un solo uso.
+    - El estado del onboarding (`onboarding_completed`) vive en el perfil del administrador (D-25).
+
+    **Token de sesión (JWT).** Claims: `sub` (id de usuario), `empresa` (subdominio), `rol`,
+    `permisos`, `iat`, `exp`, `iss`. En la v0 se firma con HS256, con la clave del stack. La firma
+    asimétrica RS256 y la clave pública de `/api/access/v1/.well-known/jwks.json`, con la que los
+    demás servicios validarán el token sin llamar a Accesos, llegan en la Fase 3.
+
+    **Eventos de seguridad.** Cada intento de autenticación publica un evento hacia Eventos por el
+    broker (`login_exitoso`, `login_fallido`, `cuenta_bloqueada`, `usuario_invitado`, `rol_cambiado`),
+    con el sobre común de `contracts/messages/`. No forman parte de esta API REST.
+
+    **Estado de implementación (v0, cierre de la Fase 1).** Hoy solo responden las dos primeras rutas.
+    Las demás están descritas para que Frontend y Plataforma programen contra ellas, y se implementan
+    en la fase que indica `docs/ROADMAP.md`. Pedir una ruta pendiente devuelve 404.
+
+    | Ruta | Estado |
+    |---|---|
+    | `POST /login` · `POST /refresh` | implementadas |
+    | `POST /logout` | Fase 2 (necesita lista de tokens revocados) |
+    | `GET`/`POST /usuarios`, `/usuarios/{id}`, `/usuarios/{id}/desbloquear` | Fase 2 |
+    | `GET /roles` · `GET`/`POST /departamentos` | Fase 2 |
+    | `POST /activate` · `POST /internal/v1/bootstrap-admin` | Fase 3 |
+    | `GET /me` · `PATCH /me/onboarding` | Fase 3 |
+    | `GET /.well-known/jwks.json` | Fase 3 (llega con la firma RS256) |
+
+    Los límites de uso (429) y el bloqueo automático por intentos fallidos también entran en la Fase 2:
+    el modelo ya guarda el contador, pero el login todavía no lo consulta.
+servers:
+  - url: https://{subdominio}.help-chair.com
+    description: Stack de una empresa
+    variables:
+      subdominio:
+        default: empresa15
+  - url: http://localhost:8002
+    description: Entorno local
+tags:
+  - name: autenticacion
+    description: Inicio y cierre de sesión
+  - name: cuenta
+    description: Activación y perfil del usuario de la sesión
+  - name: usuarios
+    description: Administración de usuarios, roles y departamentos
+  - name: interno
+    description: Solo para el aprovisionador; no expuesto en el ingress
+security:
+  - sesionJWT: []
+paths:
+  /api/access/v1/login:
+    post:
+      tags: [autenticacion]
+      operationId: login
+      summary: Inicia sesión en el stack de la empresa
+      description: |
+        Tras `MAX_INTENTOS` fallos consecutivos (3 por omisión) la cuenta se bloquea y responde 423
+        hasta que un administrador la desbloquea. Cada intento publica un evento de seguridad.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Credenciales' }
+      responses:
+        '200':
+          description: Sesión iniciada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Sesion' }
+        '401':
+          description: Correo o contraseña incorrectos (misma respuesta en ambos casos)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '403':
+          description: La cuenta existe pero aún no se activa (invitación pendiente)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '423':
+          description: Cuenta bloqueada por intentos fallidos
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '429': { $ref: '#/components/responses/DemasiadasSolicitudes' }
+  /api/access/v1/refresh:
+    post:
+      tags: [autenticacion]
+      operationId: refreshToken
+      summary: Renueva el token de acceso
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresco]
+              properties:
+                refresco: { type: string, description: Token de refresco entregado al iniciar sesión }
+      responses:
+        '200':
+          description: Sesión renovada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Sesion' }
+        '401':
+          description: Token de refresco inválido, revocado o expirado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /api/access/v1/logout:
+    post:
+      tags: [autenticacion]
+      operationId: logout
+      summary: Cierra la sesión y revoca el token de refresco
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresco]
+              properties:
+                refresco: { type: string }
+      responses:
+        '204':
+          description: Sesión cerrada (respuesta idéntica si el token ya no era válido)
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+  /api/access/v1/activate:
+    post:
+      tags: [cuenta]
+      operationId: activateAccount
+      summary: Define la contraseña con el enlace de activación
+      description: |
+        Lo usa `/activar?token=…` en el frontend. El token es de un solo uso, se guarda solo su hash y
+        expira en 72 h. Sirve tanto para el administrador inicial como para los usuarios invitados.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ActivacionCuenta' }
+      responses:
+        '204':
+          description: Cuenta activada; el usuario ya puede iniciar sesión
+        '400':
+          description: Token inválido, usado o expirado, o contraseña que no cumple la política
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '429': { $ref: '#/components/responses/DemasiadasSolicitudes' }
+  /api/access/v1/me:
+    get:
+      tags: [cuenta]
+      operationId: getCurrentUser
+      summary: Perfil del usuario de la sesión
+      description: |
+        El frontend lo consulta al cargar el Service Desk: de `onboarding_completed` depende que se
+        muestre el asistente de onboarding, y de `permisos` qué secciones se dibujan.
+      responses:
+        '200':
+          description: Perfil del usuario autenticado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UsuarioActual' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+  /api/access/v1/me/onboarding:
+    patch:
+      tags: [cuenta]
+      operationId: updateOnboardingState
+      summary: Marca el onboarding como terminado
+      description: Solo el rol administrador. Lo llama el asistente al guardar el último paso.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [completed]
+              properties:
+                completed: { type: boolean, enum: [true] }
+      responses:
+        '200':
+          description: Estado actualizado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UsuarioActual' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/PermisoDenegado' }
+  /api/access/v1/usuarios:
+    get:
+      tags: [usuarios]
+      operationId: listUsers
+      summary: Lista los usuarios de la empresa
+      parameters:
+        - name: rol
+          in: query
+          schema: { $ref: '#/components/schemas/RolId' }
+        - name: estado
+          in: query
+          schema: { $ref: '#/components/schemas/EstadoUsuario' }
+        - name: buscar
+          in: query
+          description: Coincidencia parcial en nombre o correo
+          schema: { type: string, maxLength: 120 }
+      responses:
+        '200':
+          description: Usuarios de la empresa
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [resultados]
+                properties:
+                  resultados:
+                    type: array
+                    items: { $ref: '#/components/schemas/Usuario' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/PermisoDenegado' }
+    post:
+      tags: [usuarios]
+      operationId: inviteUser
+      summary: Invita a un usuario
+      description: |
+        Crea la cuenta en estado `invitado`, **sin contraseña**, y envía el correo con el enlace de
+        activación (mismo mecanismo que el administrador inicial). Requiere `usuarios:administrar`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InvitacionUsuario' }
+      responses:
+        '201':
+          description: Invitación creada y enviada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Usuario' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/PermisoDenegado' }
+        '409':
+          description: Ya existe un usuario con ese correo
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '422':
+          description: Datos inválidos
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /api/access/v1/usuarios/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [usuarios]
+      operationId: getUser
+      summary: Consulta un usuario
+      responses:
+        '200':
+          description: Usuario
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Usuario' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/PermisoDenegado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+    patch:
+      tags: [usuarios]
+      operationId: updateUser
+      summary: Cambia el rol, el departamento o suspende a un usuario
+      description: Requiere `usuarios:administrar`. Un cambio de rol publica el evento `rol_cambiado`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ActualizacionUsuario' }
+      responses:
+        '200':
+          description: Usuario actualizado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Usuario' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403':
+          description: |
+            Sin permiso, o la empresa quedaría sin ningún administrador activo.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+  /api/access/v1/usuarios/{id}/desbloquear:
+    post:
+      tags: [usuarios]
+      operationId: unlockUser
+      summary: Reactiva una cuenta bloqueada por intentos fallidos
+      description: Reinicia el contador de intentos. Requiere `usuarios:administrar`.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Cuenta reactivada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Usuario' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/PermisoDenegado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+  /api/access/v1/roles:
+    get:
+      tags: [usuarios]
+      operationId: listRoles
+      summary: Catálogo de roles y sus permisos
+      description: Los roles son fijos en v1; el frontend los lee para dibujar los selectores.
+      responses:
+        '200':
+          description: Roles disponibles
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [resultados]
+                properties:
+                  resultados:
+                    type: array
+                    items: { $ref: '#/components/schemas/Rol' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+  /api/access/v1/departamentos:
+    get:
+      tags: [usuarios]
+      operationId: listDepartments
+      summary: Lista los departamentos de la empresa
+      responses:
+        '200':
+          description: Departamentos
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [resultados]
+                properties:
+                  resultados:
+                    type: array
+                    items: { $ref: '#/components/schemas/Departamento' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+    post:
+      tags: [usuarios]
+      operationId: createDepartment
+      summary: Crea un departamento
+      description: Lo usa el asistente de onboarding. Requiere `empresa:configurar`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [nombre]
+              properties:
+                nombre: { type: string, maxLength: 80, example: Sistemas }
+      responses:
+        '201':
+          description: Departamento creado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Departamento' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/PermisoDenegado' }
+        '409':
+          description: Ya existe un departamento con ese nombre
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /api/access/v1/.well-known/jwks.json:
+    get:
+      tags: [autenticacion]
+      operationId: getJwks
+      summary: Clave pública con la que los demás servicios validan el JWT
+      description: |
+        Se consulta una vez y se guarda en memoria con el `kid` como llave. La rotación de llaves
+        publica la nueva antes de firmar con ella.
+      security: []
+      responses:
+        '200':
+          description: Conjunto de claves públicas (JWKS, RFC 7517)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Jwks' }
+  /internal/v1/bootstrap-admin:
+    post:
+      tags: [interno]
+      operationId: bootstrapAdmin
+      summary: Crea al administrador inicial de la empresa, sin contraseña
+      description: |
+        Lo llama el aprovisionador justo después de crear el stack. **No se expone en el ingress.**
+        Es idempotente: si ya existe un administrador responde 409 y no crea nada.
+        La contraseña se define después, con el token de activación que devuelve aquí.
+      security:
+        - tokenAprovisionador: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [nombre, correo]
+              properties:
+                nombre: { type: string, maxLength: 120 }
+                correo: { type: string, format: email }
+      responses:
+        '201':
+          description: Administrador creado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminCreado' }
+        '401':
+          description: Falta el token del aprovisionador o es incorrecto
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: La empresa ya tiene un administrador (reintento del aprovisionador)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '422':
+          description: Datos inválidos
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+components:
+  securitySchemes:
+    sesionJWT:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: 'Token de acceso devuelto por `/login`, en `Authorization: Bearer <token>`.'
+    tokenAprovisionador:
+      type: http
+      scheme: bearer
+      description: |
+        `PROVISIONER_TOKEN`, secreto propio de cada stack que solo conocen el aprovisionador y
+        este servicio. No es un JWT.
+  responses:
+    NoAutenticado:
+      description: Falta el token de sesión, está expirado o es inválido
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    PermisoDenegado:
+      description: El rol de la sesión no tiene el permiso necesario
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NoEncontrado:
+      description: El recurso no existe en esta empresa
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    DemasiadasSolicitudes:
+      description: Límite de solicitudes excedido
+      headers:
+        Retry-After: { schema: { type: integer }, description: Segundos de espera }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+  schemas:
+    Password:
+      type: string
+      format: password
+      minLength: 12
+      maxLength: 128
+      description: |
+        Política mínima: 12 caracteres. Se guarda con el hash de Django (PBKDF2 por omisión; Argon2id
+        queda como mejora de la Fase 2); nunca se devuelve ni se registra
+        en bitácoras. El nombre del campo es `password` porque así lo consume ya el frontend.
+    Credenciales:
+      type: object
+      required: [correo, password]
+      properties:
+        correo: { type: string, format: email, example: admin@acme.com }
+        password: { $ref: '#/components/schemas/Password' }
+    Sesion:
+      type: object
+      required: [acceso, refresco, token_tipo, expira_en, usuario]
+      properties:
+        acceso:
+          type: string
+          description: 'JWT de acceso. HS256 en la v0; RS256 a partir de la Fase 3.'
+        refresco:
+          type: string
+          description: >-
+            Token de refresco. En la v0 es un JWT reutilizable hasta que expira y `/refresh` lo
+            devuelve tal cual. La rotación de un solo uso y la revocación entran en la Fase 2.
+        token_tipo: { type: string, enum: [Bearer] }
+        expira_en: { type: integer, description: Vigencia del token de acceso en segundos, example: 900 }
+        usuario: { $ref: '#/components/schemas/UsuarioActual' }
+    ActivacionCuenta:
+      type: object
+      required: [token, password]
+      properties:
+        token: { type: string, description: 'Token del enlace de activación (un solo uso, expira en 72 h)' }
+        password: { $ref: '#/components/schemas/Password' }
+    RolId:
+      type: string
+      enum: [administrador, agente_n2, agente_n1, usuario_final]
+      description: |
+        `administrador` configura la empresa y administra usuarios; `agente_n2` atiende lo escalado y
+        participa en problemas; `agente_n1` es la primera línea del Service Desk; `usuario_final`
+        levanta peticiones y consulta las suyas.
+    Permiso:
+      type: string
+      enum:
+        - tickets:ver
+        - tickets:atender
+        - tickets:escalar
+        - empresa:configurar
+        - usuarios:administrar
+    Rol:
+      type: object
+      required: [id, nombre, permisos]
+      properties:
+        id: { $ref: '#/components/schemas/RolId' }
+        nombre: { type: string, example: Agente N1 }
+        descripcion: { type: string }
+        permisos:
+          type: array
+          items: { $ref: '#/components/schemas/Permiso' }
+    EstadoUsuario:
+      type: string
+      enum: [activo, invitado, bloqueado, suspendido]
+      description: |
+        `invitado`: creado sin contraseña, con activación pendiente. `bloqueado`: por intentos fallidos
+        (lo levanta `/desbloquear`). `suspendido`: dado de baja por un administrador.
+    Usuario:
+      type: object
+      required: [id, nombre, correo, rol, estado]
+      properties:
+        id: { type: string, format: uuid }
+        nombre: { type: string, maxLength: 120 }
+        correo: { type: string, format: email }
+        rol: { $ref: '#/components/schemas/RolId' }
+        departamento: { type: string, nullable: true, example: Sistemas }
+        estado: { $ref: '#/components/schemas/EstadoUsuario' }
+        ultimo_acceso: { type: string, format: date-time, nullable: true }
+        creado_en: { type: string, format: date-time }
+    UsuarioActual:
+      allOf:
+        - $ref: '#/components/schemas/Usuario'
+        - type: object
+          required: [permisos, onboarding_completed]
+          properties:
+            permisos:
+              type: array
+              description: Permisos efectivos del rol; el frontend dibuja la navegación con esto.
+              items: { $ref: '#/components/schemas/Permiso' }
+            onboarding_completed:
+              type: boolean
+              description: Si es false y el rol es administrador, el frontend muestra el asistente.
+    InvitacionUsuario:
+      type: object
+      required: [nombre, correo, rol]
+      properties:
+        nombre: { type: string, maxLength: 120 }
+        correo: { type: string, format: email }
+        rol: { $ref: '#/components/schemas/RolId' }
+        departamento: { type: string, maxLength: 80 }
+    ActualizacionUsuario:
+      type: object
+      minProperties: 1
+      properties:
+        rol: { $ref: '#/components/schemas/RolId' }
+        departamento: { type: string, maxLength: 80, nullable: true }
+        estado:
+          type: string
+          enum: [activo, suspendido]
+          description: Solo permite suspender o reactivar; el bloqueo se levanta con `/desbloquear`.
+    Departamento:
+      type: object
+      required: [id, nombre]
+      properties:
+        id: { type: string, format: uuid }
+        nombre: { type: string, maxLength: 80, example: Sistemas }
+        usuarios: { type: integer, description: Cuántos usuarios tiene, example: 4 }
+    AdminCreado:
+      type: object
+      required: [usuario_id, token_activacion, expira_en]
+      properties:
+        usuario_id: { type: string, format: uuid }
+        token_activacion:
+          type: string
+          description: Se entrega una sola vez; el servicio guarda solo su hash. Viaja al administrador por correo.
+        expira_en: { type: string, format: date-time, description: Caducidad del token de activación }
+    Jwks:
+      type: object
+      required: [keys]
+      properties:
+        keys:
+          type: array
+          items:
+            type: object
+            required: [kty, kid, use, alg, n, e]
+            properties:
+              kty: { type: string, example: RSA }
+              kid: { type: string, description: Identificador de la llave }
+              use: { type: string, example: sig }
+              alg: { type: string, example: RS256 }
+              n: { type: string, description: Módulo en base64url }
+              e: { type: string, description: Exponente en base64url, example: AQAB }
+    Error:
+      type: object
+      required: [codigo, detalle]
+      properties:
+        codigo:
+          type: string
+          description: |
+            Valores previstos: `credenciales_invalidas`, `cuenta_bloqueada`, `cuenta_no_activada`,
+            `token_invalido`, `no_autenticado`, `permiso_denegado`, `correo_duplicado`,
+            `administrador_existente`, `ultimo_administrador`, `departamento_duplicado`.
+          example: credenciales_invalidas
+        detalle: { type: string, description: Mensaje para mostrar al usuario }
+        campos:
+          type: object
+          additionalProperties: { type: string }
+          description: Errores por campo (422)

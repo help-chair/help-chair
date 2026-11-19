@@ -1,7 +1,8 @@
-// Cliente HTTP mínimo. Los tipos se generarán a partir de contracts/<servicio>/openapi.yaml.
-// Las rutas son RELATIVAS (/api/...): no hay URL de API incrustada en el bundle y no hay CORS.
-// En desarrollo las reenvía el proxy de Vite; en producción, el gateway/ingress según el Host.
-// VITE_API_BASE_URL solo existe como válvula de escape (p. ej. pruebas contra otra URL).
+// Minimal HTTP client for the frontend. Types are generated from contracts/<servicio>/openapi.yaml.
+// Paths are relative (/api/...), no hard‑coded base URL in the bundle and no CORS.
+// In development the Vite proxy forwards requests; in production the gateway/ingress handles them.
+// VITE_API_BASE_URL can be set to override the base URL (e.g., for testing).
+
 export const API_BASE_URL: string = import.meta.env.VITE_API_BASE_URL ?? ''
 
 export class ApiError extends Error {
@@ -22,12 +23,55 @@ interface ErrorBody {
   campos?: Record<string, string>
 }
 
+export interface ClientRequestInit extends RequestInit {
+  _retry?: boolean
+}
+
+function shouldRefreshToken(path: string): boolean {
+  return (
+    !path.includes('/login') &&
+    !path.includes('/refresh') &&
+    !path.includes('/activate') &&
+    !path.startsWith('/api/public')
+  )
+}
+
+let refreshingPromise: Promise<boolean> | null = null
+
+/** Refresh the JWT when a 401 is received on an authenticated endpoint.
+ * Returns true if the token was refreshed, false otherwise.
+ */
+async function handleAuthError(): Promise<boolean> {
+  if (refreshingPromise) {
+    return refreshingPromise
+  }
+
+  refreshingPromise = (async () => {
+    try {
+      const { refreshSession, setAccessToken } = await import('./access')
+      // The simulated backend accepts an empty string; real backend uses httpOnly cookie.
+      const refreshed = await refreshSession('')
+      setAccessToken(refreshed.acceso)
+      return true
+    } catch {
+      // If refreshing fails, clear the token so the UI forces a login.
+      const { setAccessToken } = await import('./access')
+      setAccessToken(null)
+      return false
+    } finally {
+      refreshingPromise = null
+    }
+  })()
+
+  return refreshingPromise
+}
+
 async function toApiError(method: string, path: string, response: Response): Promise<ApiError> {
   let body: ErrorBody = {}
   try {
     body = (await response.json()) as ErrorBody
   } catch {
-    // la respuesta de error no es JSON
+    // response is not JSON
   }
   return new ApiError(
     response.status,
@@ -37,20 +81,30 @@ async function toApiError(method: string, path: string, response: Response): Pro
   )
 }
 
-export async function apiGet<T>(path: string, init?: RequestInit): Promise<T> {
+export async function apiGet<T>(path: string, init?: ClientRequestInit): Promise<T> {
+  const { _retry, ...fetchInit } = init ?? {}
   const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...init,
-    headers: { Accept: 'application/json', ...init?.headers },
+    ...fetchInit,
+    headers: { Accept: 'application/json', ...fetchInit?.headers },
   })
-  if (!response.ok) throw await toApiError('GET', path, response)
+  if (!response.ok) {
+    if (response.status === 401 && shouldRefreshToken(path) && !_retry) {
+      const refreshed = await handleAuthError()
+      if (refreshed) {
+        // Retry once with new token
+        return apiGet<T>(path, { ...init, _retry: true })
+      }
+    }
+    throw await toApiError('GET', path, response)
+  }
   return (await response.json()) as T
 }
 
-export async function apiPost<T>(path: string, body: unknown, init?: RequestInit): Promise<T> {
+export async function apiPost<T>(path: string, body: unknown, init?: ClientRequestInit): Promise<T> {
   return send<T>('POST', path, body, init)
 }
 
-export async function apiPatch<T>(path: string, body: unknown, init?: RequestInit): Promise<T> {
+export async function apiPatch<T>(path: string, body: unknown, init?: ClientRequestInit): Promise<T> {
   return send<T>('PATCH', path, body, init)
 }
 
@@ -58,15 +112,24 @@ async function send<T>(
   method: 'POST' | 'PATCH',
   path: string,
   body: unknown,
-  init?: RequestInit,
+  init?: ClientRequestInit,
 ): Promise<T> {
+  const { _retry, ...fetchInit } = init ?? {}
   const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...init,
+    ...fetchInit,
     method,
-    headers: { Accept: 'application/json', 'Content-Type': 'application/json', ...init?.headers },
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json', ...fetchInit?.headers },
     body: JSON.stringify(body),
   })
-  if (!response.ok) throw await toApiError(method, path, response)
-  if (response.status === 204) return undefined as T
+  if (!response.ok) {
+    if (response.status === 401 && shouldRefreshToken(path) && !_retry) {
+      const refreshed = await handleAuthError()
+      if (refreshed) {
+        return send<T>(method, path, body, { ...init, _retry: true })
+      }
+    }
+    throw await toApiError(method, path, response)
+  }
+  if (response.status === 204) return undefined as unknown as T
   return (await response.json()) as T
 }

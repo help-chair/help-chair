@@ -95,4 +95,18 @@ describe('App', () => {
     expect(menu.queryByRole('button', { name: /problemas/i })).not.toBeInTheDocument()
     expect(menu.queryByRole('button', { name: /gestión de eventos/i })).not.toBeInTheDocument()
   })
+
+  it('permite al administrador acceder a la sección de peticiones', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
+      const url = String(input)
+      if (url.startsWith('/api/access/v1/login')) return Promise.resolve(json(sesion))
+      return Promise.resolve(json({ resultados: [] }))
+    })
+    render(<App />)
+    const user = await entrar()
+
+    await user.click(await screen.findByRole('button', { name: /peticiones/i }))
+    expect(screen.queryByText(/no tienes permiso para ver solicitudes/i)).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /gestión de peticiones/i })).toBeInTheDocument()
+  })
 })

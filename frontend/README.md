@@ -63,7 +63,7 @@ Al arrancar, la SPA decide qué mostrar según el dominio (`src/config/runtime.t
 - [ ] Imagen publicada en `ghcr.io/help-chair/hc-frontend`
 - [x] `requests`/`limits` de recursos declarados (detallados en [`DEPLOYMENT.md`](DEPLOYMENT.md))
 - [x] Cierre ordenado con `SIGTERM`
-- [ ] Workflow de CI propio, filtrado por esta ruta (ver `../CONTRIBUTING.md`)
+- [x] Workflow de CI propio, filtrado por esta ruta (ver `../CONTRIBUTING.md`)
 
 ### Ejecución local
 

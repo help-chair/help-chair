@@ -161,6 +161,78 @@ paths:
       responses:
         '204':
           description: No response body
+  /api/peticiones/{id}/asignar/:
+    post:
+      operationId: peticiones_asignar_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: Un Cadena UUID que identifique este peticion.
+        required: true
+      tags:
+      - peticiones
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Asignar'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Asignar'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Asignar'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Peticion'
+          description: ''
+  /api/peticiones/{id}/cambiar-estado/:
+    post:
+      operationId: peticiones_cambiar_estado_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: Un Cadena UUID que identifique este peticion.
+        required: true
+      tags:
+      - peticiones
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CambioEstado'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CambioEstado'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CambioEstado'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Peticion'
+          description: ''
   /api/servicios/:
     get:
       operationId: servicios_list
@@ -204,6 +276,24 @@ paths:
           description: ''
 components:
   schemas:
+    Asignar:
+      type: object
+      properties:
+        asignado_a_id:
+          type: integer
+          minimum: 1
+      required:
+      - asignado_a_id
+    CambioEstado:
+      type: object
+      properties:
+        estado:
+          $ref: '#/components/schemas/EstadoEnum'
+        motivo_cancelacion:
+          type: string
+          maxLength: 255
+      required:
+      - estado
     EstadoEnum:
       enum:
       - nuevo
@@ -239,7 +329,9 @@ components:
         descripcion:
           type: string
         estado:
-          $ref: '#/components/schemas/EstadoEnum'
+          allOf:
+          - $ref: '#/components/schemas/EstadoEnum'
+          readOnly: true
         solicitante_id:
           type: integer
           maximum: 9223372036854775807
@@ -247,9 +339,7 @@ components:
           format: int64
         asignado_a_id:
           type: integer
-          maximum: 9223372036854775807
-          minimum: -9223372036854775808
-          format: int64
+          readOnly: true
           nullable: true
         evento_id:
           type: integer
@@ -259,7 +349,7 @@ components:
           nullable: true
         motivo_cancelacion:
           type: string
-          maxLength: 255
+          readOnly: true
         creada:
           type: string
           format: date-time
@@ -290,7 +380,9 @@ components:
         descripcion:
           type: string
         estado:
-          $ref: '#/components/schemas/EstadoEnum'
+          allOf:
+          - $ref: '#/components/schemas/EstadoEnum'
+          readOnly: true
         solicitante_id:
           type: integer
           maximum: 9223372036854775807
@@ -298,9 +390,7 @@ components:
           format: int64
         asignado_a_id:
           type: integer
-          maximum: 9223372036854775807
-          minimum: -9223372036854775808
-          format: int64
+          readOnly: true
           nullable: true
         evento_id:
           type: integer
@@ -310,7 +400,7 @@ components:
           nullable: true
         motivo_cancelacion:
           type: string
-          maxLength: 255
+          readOnly: true
         creada:
           type: string
           format: date-time
@@ -326,9 +416,12 @@ components:
           nullable: true
       required:
       - actualizada
+      - asignado_a_id
       - cerrada_en
       - creada
+      - estado
       - id
+      - motivo_cancelacion
       - servicio
       - solicitante_id
       - titulo

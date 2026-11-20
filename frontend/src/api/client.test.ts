@@ -3,8 +3,10 @@ import { ApiError, apiGet } from '@/api/client'
 
 // Mock the access module used by the client
 vi.mock('@/api/access', () => ({
-  refreshSession: vi.fn(() => Promise.resolve({ acceso: 'new-token' })),
+  refreshSession: vi.fn(() => Promise.resolve({ acceso: 'new-token', refresco: 'new-refresh' })),
   setAccessToken: vi.fn(),
+  setRefreshToken: vi.fn(),
+  getRefreshToken: vi.fn(() => 'stored-refresh'),
 }))
 
 describe('api client', () => {
@@ -46,9 +48,10 @@ describe('api client JWT refresh', () => {
 
     expect(result).toEqual({ data: 123 })
 
-    const { refreshSession, setAccessToken } = await import('@/api/access')
-    expect(refreshSession).toHaveBeenCalled()
+    const { refreshSession, setAccessToken, setRefreshToken } = await import('@/api/access')
+    expect(refreshSession).toHaveBeenCalledWith('stored-refresh')
     expect(setAccessToken).toHaveBeenCalledWith('new-token')
+    expect(setRefreshToken).toHaveBeenCalledWith('new-refresh')
     expect(fetch).toHaveBeenCalledTimes(2)
   })
 
@@ -64,6 +67,24 @@ describe('api client JWT refresh', () => {
     await expect(apiGet('/test')).rejects.toThrow()
 
     expect(access.setAccessToken).toHaveBeenCalledWith(null)
+    expect(access.setRefreshToken).toHaveBeenCalledWith(null)
+  })
+
+  it('no intenta refrescar si no hay token de refresco guardado', async () => {
+    // @ts-expect-error -- intentional global.fetch mock for test
+    global.fetch = vi.fn(() =>
+      Promise.resolve({ ok: false, status: 401, json: () => ({}) }),
+    )
+
+    const access = await import('@/api/access')
+    vi.mocked(access.getRefreshToken).mockReturnValue(null)
+    vi.mocked(access.refreshSession).mockClear()
+
+    await expect(apiGet('/test')).rejects.toThrow()
+
+    expect(access.refreshSession).not.toHaveBeenCalled()
+    expect(access.setAccessToken).toHaveBeenCalledWith(null)
+    expect(access.setRefreshToken).toHaveBeenCalledWith(null)
   })
 
   it('does not attempt refresh for login endpoint', async () => {

@@ -48,15 +48,23 @@ async function handleAuthError(): Promise<boolean> {
 
   refreshingPromise = (async () => {
     try {
-      const { refreshSession, setAccessToken } = await import('./access')
-      // The simulated backend accepts an empty string; real backend uses httpOnly cookie.
-      const refreshed = await refreshSession('')
+      const { refreshSession, setAccessToken, setRefreshToken, getRefreshToken } =
+        await import('./access')
+      const refresco = getRefreshToken()
+      if (!refresco) {
+        setAccessToken(null)
+        setRefreshToken(null)
+        return false
+      }
+      const refreshed = await refreshSession(refresco)
       setAccessToken(refreshed.acceso)
+      setRefreshToken(refreshed.refresco)
       return true
     } catch {
-      // If refreshing fails, clear the token so the UI forces a login.
-      const { setAccessToken } = await import('./access')
+      // Si el refresco falla, limpia ambos tokens para que la UI fuerce el login.
+      const { setAccessToken, setRefreshToken } = await import('./access')
       setAccessToken(null)
+      setRefreshToken(null)
       return false
     } finally {
       refreshingPromise = null

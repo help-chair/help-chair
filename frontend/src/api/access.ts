@@ -20,9 +20,18 @@ const BASE = '/api/access/v1'
  * a la recarga sin exponer nada al JavaScript de la página.
  */
 let accessToken: string | null = null
+let refreshToken: string | null = null
 
 export function setAccessToken(token: string | null): void {
   accessToken = token
+}
+
+export function setRefreshToken(token: string | null): void {
+  refreshToken = token
+}
+
+export function getRefreshToken(): string | null {
+  return refreshToken
 }
 
 function authHeader(): Record<string, string> {

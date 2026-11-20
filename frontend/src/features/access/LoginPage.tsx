@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Eye, EyeOff, LockKeyhole, LogIn, ShieldCheck } from 'lucide-react'
-import { login, setAccessToken } from '@/api/access'
+import { login, setAccessToken, setRefreshToken } from '@/api/access'
 import { ApiError } from '@/api/client'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -54,6 +54,7 @@ export default function LoginPage({ onAuthenticated }: LoginPageProps) {
         () => autenticarSimulado(correo, password),
       )
       setAccessToken(sesion.acceso)
+      setRefreshToken(sesion.refresco)
       onAuthenticated(sesion)
     } catch (error) {
       setPassword('')

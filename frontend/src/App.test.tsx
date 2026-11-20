@@ -121,25 +121,35 @@ describe('App', () => {
     return user
   }
 
-  it('agente N1 ve Eventos e Incidencias, pero no Problemas ni Accesos', async () => {
+  it('agente N1 ve su panel de primera línea, Eventos e Incidencias, no Problemas ni Accesos', async () => {
     await entrarSimulado('daniela.ruiz@empresa15.com')
     const menu = within(await screen.findByRole('navigation', { name: /secciones/i }))
 
+    expect(
+      screen.getByRole('heading', { name: /portal unificado de gestión de servicios/i }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: /panel de primera línea/i }),
+    ).toBeInTheDocument()
     expect(menu.getByRole('button', { name: /gestión de eventos/i })).toBeInTheDocument()
     expect(menu.getByRole('button', { name: /incidencias/i })).toBeInTheDocument()
     expect(menu.queryByRole('button', { name: /problemas/i })).not.toBeInTheDocument()
     expect(menu.queryByRole('button', { name: 'Accesos' })).not.toBeInTheDocument()
   })
 
-  it('agente N2 ve Problemas y su panel de área en el dashboard, no Accesos', async () => {
+  it('agente N2 ve el dashboard principal y su panel de área, no Accesos', async () => {
     await entrarSimulado('marco.estrada@empresa15.com')
     const menu = within(await screen.findByRole('navigation', { name: /secciones/i }))
 
+    expect(
+      screen.getByRole('heading', { name: /portal unificado de gestión de servicios/i }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /catálogo de servicios/i })).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: /panel de área operativa/i }),
+    ).toBeInTheDocument()
     expect(menu.getByRole('button', { name: /problemas/i })).toBeInTheDocument()
     expect(menu.queryByRole('button', { name: 'Accesos' })).not.toBeInTheDocument()
-    expect(
-      await screen.findByRole('heading', { name: /panel de área operativa/i }),
-    ).toBeInTheDocument()
   })
 
   it('agente N2 abre Incidencias y ve la gestión, no el panel estático', async () => {

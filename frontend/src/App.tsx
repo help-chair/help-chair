@@ -64,7 +64,9 @@ export default function App() {
       {tabActual === 'events' && <EventsPage />}
       {tabActual === 'requests' && (
         canViewRequests ? (
-          <RequestsPage />
+          <RequestsPage
+            puedeGestionar={sesion.usuario.permisos.includes('tickets:atender')}
+          />
         ) : (
           <div className="p-4 text-center text-red-600">No tienes permiso para ver solicitudes.</div>
         )

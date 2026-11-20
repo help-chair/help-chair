@@ -58,4 +58,30 @@ describe('RequestsPage', () => {
       /aprobación pendiente/i,
     )
   })
+
+  it('no muestra la cola de atención para el usuario final', () => {
+    render(<RequestsPage />)
+
+    expect(screen.queryByRole('button', { name: /cola de atención/i })).not.toBeInTheDocument()
+  })
+
+  it('muestra la cola de atención para los agentes', () => {
+    render(<RequestsPage puedeGestionar />)
+
+    expect(screen.getByRole('button', { name: /cola de atención/i })).toBeInTheDocument()
+  })
+
+  it('filtra la cola por estado', async () => {
+    const user = userEvent.setup()
+    render(<RequestsPage puedeGestionar />)
+
+    await user.click(screen.getByRole('button', { name: /cola de atención/i }))
+    expect(screen.getByText('REQ-0015')).toBeInTheDocument()
+    expect(screen.getByText('REQ-0014')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /aprobación pendiente/i }))
+
+    expect(screen.getByText('REQ-0015')).toBeInTheDocument()
+    expect(screen.queryByText('REQ-0014')).not.toBeInTheDocument()
+  })
 })

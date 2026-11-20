@@ -107,3 +107,6 @@ LOGGING = {
     "handlers": {"console": {"class": "logging.StreamHandler", "formatter": "json"}},
     "root": {"handlers": ["console"], "level": env("LOG_LEVEL", default="INFO").upper()},
 }
+
+BROKER_URL = env("BROKER_URL", default="")
+BROKER_EVENTS_SUBJECT = env("BROKER_EVENTS_SUBJECT", default="events.routed.requests")

@@ -35,6 +35,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "drf_spectacular",
     "core",
+    "incidents",
 ]
 
 MIDDLEWARE = [
@@ -87,11 +88,19 @@ STORAGES = {
 
 REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    # Listados paginados desde v0 para no romper el contrato después
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "PAGE_SIZE": 50,
 }
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "Help Chair - incidents",
-    "DESCRIPTION": "API del servicio incidents (contrato en contracts/incidents/).",
+    "DESCRIPTION": (
+        "Gestión de Incidencias (ITIL v4 · Incident Management) de Help Chair. "
+        "**Borrador v0**: puede cambiar durante la Fase 2 y se congela como v1 al cerrarla. "
+        "Pendiente para la Fase 2: autenticación con JWT de Accesos, cálculo del SLA, "
+        "historial de cambios y mensajes por el broker."
+    ),
     "VERSION": "0.1.0",
     "SERVE_INCLUDE_SCHEMA": False,
 }

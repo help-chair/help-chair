@@ -13,19 +13,26 @@ import {
 import type { TabKey } from '@/components/layout/ServiceDeskLayout'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import type { RolId } from '@/features/access/types'
 import { INITIAL_EVENTS } from '@/features/events/data'
+import { N1AreaPanel } from './N1AreaPanel'
+import { N2AreaPanel } from './N2AreaPanel'
 
 interface DashboardPageProps {
   onNavigate: (tab: TabKey) => void
   /** Secciones que permite el rol de la sesión; si falta, se muestran todos los accesos. */
   secciones?: TabKey[]
+  /** Rol de la sesión, para personalizar bloques (p. ej. el panel del N2). */
+  rolId?: RolId
 }
 
-export function DashboardPage({ onNavigate, secciones }: DashboardPageProps) {
+export function DashboardPage({ onNavigate, secciones, rolId }: DashboardPageProps) {
   const puedeVer = (seccion: TabKey) => secciones === undefined || secciones.includes(seccion)
   const recentEvents = INITIAL_EVENTS.slice(0, 3)
 
   const isTecnico = puedeVer('events') || puedeVer('incidents')
+  const esN1 = rolId === 'agente_n1'
+  const esN2 = rolId === 'agente_n2'
 
   return (
     <div className="space-y-6">
@@ -168,6 +175,10 @@ export function DashboardPage({ onNavigate, secciones }: DashboardPageProps) {
           </div>
         </Card>
       </div>
+
+      {/* Panel de Primera Línea (N1) o del Especialista (N2) */}
+      {esN1 && <N1AreaPanel onNavigate={onNavigate} />}
+      {esN2 && <N2AreaPanel onNavigate={onNavigate} />}
 
       {/* Resumen de Accesos Rápidos y Últimos Eventos */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

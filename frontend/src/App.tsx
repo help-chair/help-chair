@@ -2,10 +2,6 @@ import { useState } from 'react'
 import { logout as cerrarSesionEnAccesos, setAccessToken } from '@/api/access'
 import { ServiceDeskLayout, type TabKey } from '@/components/layout/ServiceDeskLayout'
 import { useHasRole } from '@/auth/roleGuard'
-import React, { Suspense } from 'react'
-
-// Lazy-loaded dashboards
-const OwnerDashboard = React.lazy(() => import('./pages/OwnerDashboard'))
 
 import LoginPage from '@/features/access/LoginPage'
 import { UsersPage } from '@/features/access/UsersPage'
@@ -41,8 +37,6 @@ export default function App() {
   const secciones = seccionesVisibles(sesion.usuario.permisos)
   const tabActual = secciones.includes(activeTab) ? activeTab : seccionInicial(sesion.usuario.permisos)
 
-  const isOwner = sesion.usuario.rol === 'agente_n2'
-
   function salir() {
     if (sesion) void cerrarSesionEnAccesos(sesion.refresco).catch(() => undefined)
     setAccessToken(null)
@@ -62,14 +56,9 @@ export default function App() {
       secciones={secciones}
       onLogout={salir}
     >
-      {tabActual === 'dashboard' &&
-        (isOwner ? (
-          <Suspense fallback={<div>Cargando panel de área...</div>}>
-            <OwnerDashboard onNavigate={setActiveTab} />
-          </Suspense>
-        ) : (
-          <DashboardPage onNavigate={setActiveTab} secciones={secciones} />
-        ))}
+      {tabActual === 'dashboard' && (
+        <DashboardPage onNavigate={setActiveTab} secciones={secciones} rolId={sesion.usuario.rol} />
+      )}
       {tabActual === 'events' && <EventsPage />}
       {tabActual === 'requests' && (
         canViewRequests ? (

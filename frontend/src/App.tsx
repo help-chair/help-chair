@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { logout as cerrarSesionEnAccesos, setAccessToken } from '@/api/access'
+import { logout as cerrarSesionEnAccesos, setAccessToken, setRefreshToken } from '@/api/access'
 import { ServiceDeskLayout, type TabKey } from '@/components/layout/ServiceDeskLayout'
 import { useHasRole } from '@/auth/roleGuard'
 
@@ -40,6 +40,7 @@ export default function App() {
   function salir() {
     if (sesion) void cerrarSesionEnAccesos(sesion.refresco).catch(() => undefined)
     setAccessToken(null)
+    setRefreshToken(null)
     setSesion(null)
     setActiveTab('dashboard')
   }

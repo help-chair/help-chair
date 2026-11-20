@@ -64,6 +64,9 @@ describe('LoginPage', () => {
       password: 'una-clave-muy-larga-1',
     })
     expect(onAuthenticated).toHaveBeenCalledWith(sesion)
+
+    const { getRefreshToken } = await import('@/api/access')
+    expect(getRefreshToken()).toBe(sesion.refresco)
   })
 
   it('avisa cuando el correo o la contraseña no coinciden', async () => {

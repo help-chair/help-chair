@@ -26,6 +26,7 @@
   - Maneja la visualización de SLAs y estado de los servicios.
   - Implementa el **sitio público**: landing, registro de empresa, verificación de correo, progreso del alta y «Entrar a mi empresa».
   - Implementa la **activación de la cuenta del administrador** (`/activar`) en el subdominio de la empresa.
+  - Implementa el **inicio de sesión del Service Desk** y la **navegación según el rol** de la sesión (RBAC), más la pantalla de **Gestión de Accesos** (usuarios, roles, bloqueos) contra `services/access`.
 - **Qué NO hace esta carpeta:**
   - No gestiona base de datos propia ni persiste tickets directamente (cada microservicio backend es dueño de su BD).
   - No procesa reglas de negocio complejas en el cliente; consume las APIs y contratos definidos en `contracts/`.
@@ -90,6 +91,21 @@ npm run dev                   # terminal 2
 ```
 Abre [http://localhost:5173/?site=public](http://localhost:5173/?site=public). El mock devuelve datos de ejemplo, no un flujo real.
 
+#### Entrar al Service Desk sin backend
+Mientras `services/access` no exista, el inicio de sesión y la pantalla de Accesos caen en los datos
+simulados de `src/features/access/data.ts` y lo avisan en pantalla. Credenciales de prueba:
+
+| Correo | Rol | Para qué sirve |
+|---|---|---|
+| `admin@empresa15.com` | Administrador | Ve todo el menú y administra usuarios |
+| `lucia.ponce@empresa15.com` | Usuario final | Comprueba la navegación según rol |
+
+La contraseña de ambos es `helpchair-demo`. Para probar contra el contrato real en vez del respaldo:
+```bash
+npm run mock:access           # terminal 1: mock de Accesos en http://localhost:8002
+npm run dev                   # terminal 2
+```
+
 ### Variables de Entorno
 
 **Desarrollo (`.env`).** Son los destinos del proxy de Vite; el cliente no los lee:
@@ -116,7 +132,7 @@ Abre [http://localhost:5173/?site=public](http://localhost:5173/?site=public). E
 ### 🤖 Guía para Desarrolladores y Agentes de IA
 Al generar o modificar código en este frontend:
 1. **Componentes reutilizables:** Utiliza exclusivamente Tailwind CSS y la estructura modular en `src/components/ui/`. Evita instalar librerías pesadas adicionales.
-2. **Vocabulario ITIL v4 estricto:** 
+2. **Vocabulario ITIL v4 estricto:**
    - Eventos: *Informativo*, *Advertencia*, *Excepción*.
    - Tickets: *Incidencias*, *Peticiones de Servicio*, *Problemas*.
    - Prioridad calculada por *Impacto × Urgencia*.

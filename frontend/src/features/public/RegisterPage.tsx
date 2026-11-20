@@ -1,71 +1,32 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { ApiError } from '@/api/client'
-import { SUBDOMINIO_REGEX, checkSubdomain, registerCompany, type Tamano } from '@/api/public'
+import { registerCompany, type Tamano } from '@/api/public'
 import { getRuntimeConfig } from '@/config/runtime'
-import { navigate } from '@/lib/routing'
+import { navigate, queryParam } from '@/lib/routing'
 import { inputClass } from './PublicLayout'
+import { AVAILABILITY_TEXT, slugify, useSubdomainAvailability } from './subdomain'
 import { saveTrackingToken } from './tracking'
-
-type Availability = 'idle' | 'checking' | 'ok' | 'ocupado' | 'reservado' | 'invalido' | 'error'
 
 const TAMANOS: Tamano[] = ['1-10', '11-50', '51-200', '201-1000', '1000+']
 
-const AVAILABILITY_TEXT: Record<Availability, string> = {
-  idle: '',
-  checking: 'Comprobando disponibilidad…',
-  ok: 'Disponible',
-  ocupado: 'Ese subdominio ya está en uso.',
-  reservado: 'Ese nombre está reservado.',
-  invalido: 'Usa 3 a 30 caracteres: minúsculas, números y guiones.',
-  error: 'No se pudo comprobar ahora; se validará al enviar.',
-}
-
-function slugify(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9-]/g, '')
-}
-
 export default function RegisterPage() {
   const [nombre, setNombre] = useState('')
-  const [subdominio, setSubdominio] = useState('')
+  // La landing puede enviar el subdominio elegido: /registro?subdominio=acme
+  const [subdominio, setSubdominio] = useState(() => slugify(queryParam('subdominio') ?? ''))
   const [sector, setSector] = useState('')
   const [tamano, setTamano] = useState<Tamano | ''>('')
   const [pais, setPais] = useState('')
   const [adminNombre, setAdminNombre] = useState('')
   const [correo, setCorreo] = useState('')
   const [acepta, setAcepta] = useState(false)
-  const [availability, setAvailability] = useState<Availability>('idle')
+  const [availability, setAvailability] = useSubdomainAvailability(subdominio)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const baseDomain = getRuntimeConfig().baseDomain
-
-  // Disponibilidad en tiempo real (con espera para no consultar en cada tecla)
-  useEffect(() => {
-    if (!subdominio) {
-      setAvailability('idle')
-      return
-    }
-    if (!SUBDOMINIO_REGEX.test(subdominio)) {
-      setAvailability('invalido')
-      return
-    }
-    setAvailability('checking')
-    const controller = new AbortController()
-    const timer = window.setTimeout(() => {
-      checkSubdomain(subdominio, controller.signal)
-        .then((r) => setAvailability(r.disponible ? 'ok' : (r.motivo ?? 'ocupado')))
-        .catch((e: unknown) => {
-          if (!(e instanceof DOMException && e.name === 'AbortError')) setAvailability('error')
-        })
-    }, 400)
-    return () => {
-      window.clearTimeout(timer)
-      controller.abort()
-    }
-  }, [subdominio])
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault()

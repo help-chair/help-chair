@@ -1,0 +1,62 @@
+# Catálogo v0 de eventos de seguridad que emite el servicio access.
+#
+# Equipo: Gestión de Accesos (services/access)
+# Consumidor: Gestión de Eventos (services/events), que los clasifica con la
+# regla 4 del plan ("seguridad o credenciales").
+#
+# El sobre común de evento lo define el equipo de Eventos en este mismo
+# directorio. Aquí solo se declaran los tipos que publica access y los datos
+# propios de cada uno. Al congelar los contratos v1 (fin de la fase 2) este
+# archivo se alinea con ese sobre.
+
+version: 0.1.0
+servicio: access
+categoria: seguridad
+
+eventos:
+  - tipo: access.login.exitoso
+    descripcion: Un usuario inició sesión correctamente.
+    severidad: informativo
+    datos:
+      usuario_id: Identificador del usuario dentro del stack.
+      rol: Rol con el que se emitió el token.
+      ip: Dirección desde la que se inició sesión.
+
+  - tipo: access.login.fallido
+    descripcion: Intento de inicio de sesión con credenciales inválidas.
+    severidad: advertencia
+    datos:
+      identificador: Correo o usuario con el que se intentó entrar.
+      intentos: Número de intentos fallidos consecutivos.
+      ip: Dirección desde la que se intentó.
+
+  - tipo: access.cuenta.bloqueada
+    descripcion: Cuenta bloqueada por superar el límite de intentos fallidos.
+    severidad: excepcion
+    datos:
+      usuario_id: Identificador del usuario bloqueado.
+      intentos: Intentos fallidos que provocaron el bloqueo.
+      desbloquea_en: Momento en que el bloqueo expira.
+
+  - tipo: access.password.cambiada
+    descripcion: Un usuario cambió su contraseña.
+    severidad: informativo
+    datos:
+      usuario_id: Identificador del usuario.
+      forzado: Indica si el cambio fue obligado por un administrador.
+
+  - tipo: access.usuario.creado
+    descripcion: Se dio de alta un usuario en el stack.
+    severidad: informativo
+    datos:
+      usuario_id: Identificador del usuario creado.
+      creado_por: Identificador de quien lo dio de alta.
+
+  - tipo: access.rol.asignado
+    descripcion: Cambió el rol de un usuario.
+    severidad: advertencia
+    datos:
+      usuario_id: Identificador del usuario.
+      rol_anterior: Rol que tenía.
+      rol_nuevo: Rol que queda vigente.
+      asignado_por: Identificador de quien hizo el cambio.

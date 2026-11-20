@@ -30,7 +30,7 @@ services:
         condition: service_healthy
 
   events-db:
-    image: postgres:16-alpine
+    image: timescale/timescaledb:latest-pg16
     restart: unless-stopped
     environment:
       POSTGRES_USER: events

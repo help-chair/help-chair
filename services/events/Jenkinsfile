@@ -1,0 +1,74 @@
+// CI de events. Adaptacion: platform/templates/README-jenkins.md.
+pipeline {
+  // Plataforma debe asignar nodos Linux con las herramientas documentadas.
+  agent any
+
+  options {
+    skipDefaultCheckout(true)
+    disableConcurrentBuilds()
+    timeout(time: 30, unit: 'MINUTES')
+    buildDiscarder(logRotator(numToKeepStr: '15'))
+  }
+
+  parameters {
+    booleanParam(
+      name: 'FORCE_CI',
+      defaultValue: false,
+      description: 'Ejecuta CI aunque no haya cambios en el servicio.'
+    )
+  }
+
+  environment {
+    CONTAINER = "${env.CI_CONTAINER ?: 'podman'}"
+    UV_LOCKED = 'true'
+    // uv puede obtener Python 3.12 segun la politica del agente.
+    DEBUG = 'false'
+    SECRET_KEY = 'jenkins-ci-only-not-for-deploy'
+    DATABASE_URL = "${env.CI_DATABASE_URL ?: 'sqlite:///:memory:'}"
+  }
+
+  stages {
+    stage('Checkout') {
+      steps {
+        checkout scm
+      }
+    }
+
+    stage('CI del servicio') {
+      when {
+        anyOf {
+          changeset pattern: 'services/events/**', comparator: 'GLOB', caseSensitive: true
+          // El primer build del job puede no tener changelog.
+          expression { currentBuild.number == 1 }
+          expression { params.FORCE_CI == true }
+        }
+      }
+
+      stages {
+        stage('Lint') {
+          steps {
+            dir('services/events') {
+              sh 'make lint'
+            }
+          }
+        }
+
+        stage('Test') {
+          steps {
+            dir('services/events') {
+              sh 'make test'
+            }
+          }
+        }
+
+        stage('Build') {
+          steps {
+            dir('services/events') {
+              sh 'make build TAG="$GIT_COMMIT"'
+            }
+          }
+        }
+      }
+    }
+  }
+}

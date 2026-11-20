@@ -5,21 +5,53 @@ import {
   BookOpen,
   Flame,
   Inbox,
+  KeyRound,
   LayoutDashboard,
+  LogOut,
   Server,
   ShieldAlert,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 
-export type TabKey = 'dashboard' | 'events' | 'requests' | 'incidents' | 'problems' | 'knowledge'
+export type TabKey =
+  | 'dashboard'
+  | 'events'
+  | 'requests'
+  | 'incidents'
+  | 'problems'
+  | 'knowledge'
+  | 'access'
+
+/** Lo mínimo que el cascarón necesita de la sesión; lo entrega Accesos desde `App.tsx`. */
+interface UsuarioDeSesion {
+  nombre: string
+  rol: string
+}
 
 interface ServiceDeskLayoutProps {
   activeTab: TabKey
   onSelectTab: (tab: TabKey) => void
+  /** Sesión activa. Si falta, el header muestra el usuario de ejemplo. */
+  usuario?: UsuarioDeSesion
+  /**
+   * Secciones que el rol de la sesión puede ver (navegación según rol).
+   * Las calcula Accesos en `features/access/navegacion.ts`. Si falta, se muestran todas.
+   */
+  secciones?: TabKey[]
+  onLogout?: () => void
   children: ReactNode
 }
 
-export function ServiceDeskLayout({ activeTab, onSelectTab, children }: ServiceDeskLayoutProps) {
+export function ServiceDeskLayout({
+  activeTab,
+  onSelectTab,
+  usuario,
+  secciones,
+  onLogout,
+  children,
+}: ServiceDeskLayoutProps) {
+  const puedeVer = (seccion: TabKey) => secciones === undefined || secciones.includes(seccion)
   const getHeaderTitle = () => {
     switch (activeTab) {
       case 'dashboard':
@@ -34,10 +66,19 @@ export function ServiceDeskLayout({ activeTab, onSelectTab, children }: ServiceD
         return 'Gestión de Problemas'
       case 'knowledge':
         return 'Base de Conocimiento (KB)'
+      case 'access':
+        return 'Gestión de Accesos'
       default:
         return 'Service Desk'
     }
   }
+
+  const iniciales = (usuario?.nombre ?? 'Admin Help Desk')
+    .split(' ')
+    .map((parte) => parte[0] ?? '')
+    .slice(0, 2)
+    .join('')
+    .toUpperCase()
 
   return (
     <div className="flex h-screen bg-slate-100 text-slate-800">
@@ -62,7 +103,7 @@ export function ServiceDeskLayout({ activeTab, onSelectTab, children }: ServiceD
           </div>
 
           {/* Menú principal */}
-          <nav className="p-4 space-y-1">
+          <nav aria-label="Secciones del Service Desk" className="p-4 space-y-1">
             <p className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-slate-400">
               Centro de Mando
             </p>
@@ -78,76 +119,107 @@ export function ServiceDeskLayout({ activeTab, onSelectTab, children }: ServiceD
               <LayoutDashboard size={18} />
               Dashboard Principal
             </button>
-            <button
-              onClick={() => onSelectTab('events')}
-              aria-current={activeTab === 'events' ? 'page' : undefined}
-              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                activeTab === 'events'
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-              }`}
-            >
-              <Activity size={18} />
-              Gestión de Eventos
-              <span className="ml-auto bg-slate-800 text-slate-300 text-xs px-2 py-0.5 rounded-full">
-                5
-              </span>
-            </button>
+            {puedeVer('events') && (
+              <button
+                onClick={() => onSelectTab('events')}
+                aria-current={activeTab === 'events' ? 'page' : undefined}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  activeTab === 'events'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                }`}
+              >
+                <Activity size={18} />
+                Gestión de Eventos
+                <span className="ml-auto bg-slate-800 text-slate-300 text-xs px-2 py-0.5 rounded-full">
+                  5
+                </span>
+              </button>
+            )}
 
             <p className="pt-4 px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-slate-400">
               Microservicios ITIL
             </p>
-            <button
-              onClick={() => onSelectTab('incidents')}
-              aria-current={activeTab === 'incidents' ? 'page' : undefined}
-              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                activeTab === 'incidents'
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-              }`}
-            >
-              <Flame size={18} className={activeTab === 'incidents' ? '' : 'text-red-400'} />
-              <span>Incidencias</span>
-            </button>
+            {puedeVer('access') && (
+              <button
+                onClick={() => onSelectTab('access')}
+                aria-current={activeTab === 'access' ? 'page' : undefined}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  activeTab === 'access'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                }`}
+              >
+                <KeyRound size={18} className={activeTab === 'access' ? '' : 'text-indigo-300'} />
+                <span>Accesos</span>
+              </button>
+            )}
 
-            <button
-              onClick={() => onSelectTab('requests')}
-              aria-current={activeTab === 'requests' ? 'page' : undefined}
-              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                activeTab === 'requests'
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-              }`}
-            >
-              <Inbox size={18} className={activeTab === 'requests' ? '' : 'text-purple-400'} />
-              <span>Peticiones</span>
-            </button>
+            {puedeVer('incidents') && (
+              <button
+                onClick={() => onSelectTab('incidents')}
+                aria-current={activeTab === 'incidents' ? 'page' : undefined}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  activeTab === 'incidents'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                }`}
+              >
+                <Flame size={18} className={activeTab === 'incidents' ? '' : 'text-red-400'} />
+                <span>Incidencias</span>
+              </button>
+            )}
 
-            <button
-              onClick={() => onSelectTab('problems')}
-              aria-current={activeTab === 'problems' ? 'page' : undefined}
-              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                activeTab === 'problems'
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-              }`}
-            >
-              <ShieldAlert size={18} className={activeTab === 'problems' ? '' : 'text-amber-400'} />
-              <span>Problemas</span>
-            </button>
+            {puedeVer('requests') && (
+              <button
+                onClick={() => onSelectTab('requests')}
+                aria-current={activeTab === 'requests' ? 'page' : undefined}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  activeTab === 'requests'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                }`}
+              >
+                <Inbox size={18} className={activeTab === 'requests' ? '' : 'text-purple-400'} />
+                <span>Peticiones</span>
+              </button>
+            )}
 
-            <button
-              onClick={() => onSelectTab('knowledge')}
-              aria-current={activeTab === 'knowledge' ? 'page' : undefined}
-              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                activeTab === 'knowledge'
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-              }`}
-            >
-              <BookOpen size={18} className={activeTab === 'knowledge' ? '' : 'text-emerald-400'} />
-              <span>Base de Conocimiento</span>
-            </button>
+            {puedeVer('problems') && (
+              <button
+                onClick={() => onSelectTab('problems')}
+                aria-current={activeTab === 'problems' ? 'page' : undefined}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  activeTab === 'problems'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                }`}
+              >
+                <ShieldAlert
+                  size={18}
+                  className={activeTab === 'problems' ? '' : 'text-amber-400'}
+                />
+                <span>Problemas</span>
+              </button>
+            )}
+
+            {puedeVer('knowledge') && (
+              <button
+                onClick={() => onSelectTab('knowledge')}
+                aria-current={activeTab === 'knowledge' ? 'page' : undefined}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  activeTab === 'knowledge'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                }`}
+              >
+                <BookOpen
+                  size={18}
+                  className={activeTab === 'knowledge' ? '' : 'text-emerald-400'}
+                />
+                <span>Base de Conocimiento</span>
+              </button>
+            )}
           </nav>
         </div>
 
@@ -179,12 +251,18 @@ export function ServiceDeskLayout({ activeTab, onSelectTab, children }: ServiceD
             </button>
             <div className="flex items-center gap-2 pl-4 border-l border-border">
               <div className="w-8 h-8 rounded-full bg-slate-800 text-white flex items-center justify-center font-medium text-xs">
-                AD
+                {iniciales}
               </div>
               <div className="text-left text-xs">
-                <p className="font-semibold text-slate-700">Admin Help Desk</p>
-                <p className="text-slate-500">Service Desk Lead</p>
+                <p className="font-semibold text-slate-700">{usuario?.nombre ?? 'Admin Help Desk'}</p>
+                <p className="text-slate-500">{usuario?.rol ?? 'Service Desk Lead'}</p>
               </div>
+              {onLogout && (
+                <Button variant="ghost" size="sm" className="ml-2" onClick={onLogout}>
+                  <LogOut size={16} aria-hidden="true" />
+                  Salir
+                </Button>
+              )}
             </div>
           </div>
         </header>

@@ -72,6 +72,9 @@ El frontend es **una sola SPA y una sola imagen** para `help-chair.com` (sitio p
   - Service Desk: se montan desde `Root.tsx`.
 - **Secretos y contraseñas:** nunca se guardan en `localStorage`/`sessionStorage`. Solo el token de seguimiento del alta vive en `sessionStorage` (`features/public/tracking.ts`).
 - **Tokens de la URL** (`/verificar`, `/activar`) son de un solo uso: no los repitas en logs ni los reenvíes en una segunda llamada (cuidado con la doble ejecución de `StrictMode`, ver `VerifyPage.tsx`).
+- **Estados del Alta de Empresa (`docs/REGISTRO-EMPRESA.md`):** La pantalla de progreso (`/estado/:id`) debe manejar el ciclo oficial: `pendiente_verificacion` → `aprovisionando` → `activa` (o `error` con reintento).
+- **Subdominios Reservados:** El registro debe validar contra la lista negra del gateway (`www`, `api`, `admin`, `app`, `mail`, `status`, `help`, `support`).
+- **Autenticación en Memoria (D-24):** El JWT vive únicamente en el estado en memoria de React (`api/access.ts`); nunca se persiste en `localStorage`.
 - **Accesibilidad:** las páginas públicas también deben cumplir WCAG 2.1 AA (etiquetas, `role="alert"`/`aria-live` para mensajes, foco visible).
 
 ---
@@ -103,3 +106,66 @@ src/features/
    - Todo formulario debe usar los componentes estandarizados de `@/components/ui/form` (`Field`, `Input`, `Select`, `Textarea`), que ya cuentan con los estados visuales *Default*, *Focus*, *Error*, y accesibilidad WCAG (`aria-invalid`, `aria-describedby`).
 4. **Mocks y Contratos:**
    - Mientras el microservicio backend publica su API oficial en `contracts/<servicio>/openapi.yaml`, define los datos simulados en un archivo local `data.ts` dentro de tu carpeta `features/<servicio>/`. Cuando el contrato exista, genera los tipos en `types.ts` a partir del OpenAPI.
+
+---
+
+## 📸 8. Evidencias de Diseño y Capturas de Figma (`frontend/docs/`)
+
+Para mantener el orden del monorepo y evitar conflictos entre sistemas operativos (Linux y Windows):
+
+- **Ubicación obligatoria:** Las capturas de pantalla, flujos exportados y evidencias de diseño en Figma deben guardarse exclusivamente dentro de `frontend/docs/<practica>/`:
+  ```text
+  frontend/docs/
+  ├── access/       # Capturas del módulo de Accesos (Equipo 2)
+  ├── dashboard/    # Capturas del Dashboard central / Home
+  ├── events/       # Capturas del Monitor de Gestión de Eventos (Equipo 1)
+  ├── incidents/    # Capturas de la Gestión de Incidencias (Equipo 4)
+  ├── knowledge/    # Capturas de la Base de Conocimiento (Equipo 5)
+  ├── problems/     # Capturas de la Gestión de Problemas (Equipo 5)
+  ├── public/       # Capturas del Portal Público / Landing / Registro
+  └── requests/     # Capturas de la Gestión de Peticiones (Equipo 3)
+  ```
+- **Convención de nombres de archivo:**
+  - Nombres estrictamente en **minúsculas** en formato kebab-case (ejemplo: `dashboard-incidentes.png`, `modal-nuevo-ticket.png`).
+  - **PROHIBIDO** usar espacios, mayúsculas, tildes o caracteres especiales (evita rutas como `Diseño/`, `Captura 1.png` o caracteres ilegales en Windows/Git como `<` o `>`).
+  - Esta carpeta es **únicamente para evidencias gráficas y documentación complementaria**. Queda terminantemente **PROHIBIDO** colocar proyectos de Vite, archivos `package.json` o código ejecutable dentro de `frontend/docs/`.
+
+---
+
+## ♿ 9. Calidad, Accesibilidad y Microcopy
+
+Todo desarrollo en el frontend debe apegarse a los estándares de experiencia y accesibilidad detallados en la skill `help-chair-design` (`frontend/.agents/skills/help-chair-design/SKILL.md`):
+
+1. **Microcopy Orientado a la Acción:**
+   - Botones con verbos explícitos y en voz activa (`Guardar Cambios`, `Crear Petición`, `Escalar a Nivel 2`), nunca textos genéricos como `Enviar` o `Aceptar`.
+   - Coherencia total entre la acción y el mensaje de confirmación/toast.
+2. **Tratamiento Obligatorio de Estados:**
+   - Todo componente o tabla con datos asíncronos debe manejar sus 3 estados: **Carga** (`Skeleton`/spinner), **Vacío** (`Empty State` con llamada a la acción) y **Error** (explicativo y con botón de reintento).
+3. **Estándares de Accesibilidad (WCAG 2.1 AA):**
+   - Identificadores accesibles en formularios con `useId()` de React.
+   - Navegación 100% operable por teclado con foco visible.
+   - Modales con `role="dialog"`, `aria-modal="true"` y cierre con tecla `Escape`.
+   - Tablas con scroll horizontal responsivo (`overflow-x-auto` y `min-w-[640px]`) para no romper pantallas móviles o tablets.
+
+---
+
+## 🔄 10. Sincronización Quirúrgica de Contratos (`contracts/`)
+
+Para asegurar la coherencia entre el frontend y los backends sin desperdiciar tokens ni ralentizar respuestas:
+
+1. **Lectura Quirúrgica Bajo Demanda:**
+   - Al implementar o modificar vistas, formularios o tipos de un módulo (`src/features/<modulo>/`), el agente **DEBE consultar únicamente el archivo `contracts/<modulo>/openapi.yaml` correspondiente**.
+   - **PROHIBIDO** escanear todo `/services/` o contratos de otros equipos de forma preventiva para no saturar el contexto.
+2. **Validación de Paridad (Tipos y Campos):**
+   - Verifica que los nombres de propiedades en `src/features/<modulo>/types.ts` coincidan exactamente con los esquemas del contrato OpenAPI (evita inventar campos como `status_id` si el contrato espera `status`).
+3. **Mapeo de Responsabilidades (`.github/CODEOWNERS`):**
+   - `contracts/events/` ↔ `@Alexis-sillyprogrammer` / `@DonitaCosmica` (Equipo 1: Eventos)
+   - `contracts/access/` ↔ `@JohanPEBO` / `@spartan117alan1` (Equipo 2: Accesos)
+   - `contracts/requests/` ↔ `@Zteven` / `@ivan0407mv` (Equipo 3: Peticiones)
+   - `contracts/incidents/` ↔ `@DiegoMH890` / `@decko67` (Equipo 4: Incidencias)
+   - `contracts/problems/` y `contracts/knowledge/` ↔ `@Leon2411` / `@PabloH126` (Equipo 5: Problemas y KB)
+   - `contracts/gateway/` ↔ `@DonitaCosmica` / `@decko67` (Equipo 7: Plataforma)
+   - `frontend/` ↔ `@ALLexelsus7` / `@DiegoMH890` (Equipo 6: Frontend)
+
+
+

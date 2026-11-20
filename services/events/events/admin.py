@@ -9,11 +9,13 @@ from .models import (
     SlaPolicy,
 )
 
+
 @admin.register(BusinessService)
 class BusinessServiceAdmin(admin.ModelAdmin):
     list_display = ("code", "name", "importance", "owner_department_ref", "is_active")
     list_filter = ("importance", "is_active")
     search_fields = ("code", "name")
+
 
 @admin.register(SlaPolicy)
 class SlaPolicyAdmin(admin.ModelAdmin):
@@ -27,10 +29,12 @@ class SlaPolicyAdmin(admin.ModelAdmin):
     list_filter = ("priority", "uses_business_hours")
     list_select_related = ("service",)
 
+
 @admin.register(PriorityMatrix)
 class PriorityMatrixAdmin(admin.ModelAdmin):
     list_display = ("impact", "urgency", "priority")
     list_filter = ("impact", "urgency", "priority")
+
 
 @admin.register(EventSource)
 class EventSourceAdmin(admin.ModelAdmin):
@@ -38,6 +42,7 @@ class EventSourceAdmin(admin.ModelAdmin):
     list_filter = ("kind", "is_active")
     search_fields = ("name",)
     exclude = ("api_key_hash",)
+
 
 class EventHistoryInline(admin.TabularInline):
     """Bitácora dentro del evento: solo lectura (es de solo inserción)."""
@@ -61,6 +66,7 @@ class EventHistoryInline(admin.TabularInline):
     def has_add_permission(self, request, obj=None):
         return False
 
+
 @admin.register(Event)
 class EventAdmin(admin.ModelAdmin):
     list_display = (
@@ -78,6 +84,7 @@ class EventAdmin(admin.ModelAdmin):
     date_hierarchy = "created_at"
     readonly_fields = ("id", "fingerprint", "created_at", "updated_at")
     inlines = [EventHistoryInline]
+
 
 @admin.register(EventHistory)
 class EventHistoryAdmin(admin.ModelAdmin):

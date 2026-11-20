@@ -6,7 +6,7 @@
 |---|---|
 | Identificadores | `Event.id` es **UUID** (se comparte con otros servicios y viaja en los mensajes); el resto usa `bigint` autoincremental |
 | Referencias a otros servicios | Campos `*_ref` (texto o UUID), **sin llave foránea**: cada servicio tiene su BD. Ejemplos: usuario (Accesos), artículo (KB), destino (Peticiones, Incidencias, Problemas) |
-| Base de Conocimiento | Es de otro servicio (equipo de Problemas). Eventos la consulta **solo por API**; guarda `article_ref` y una instantánea (título, versión, dificultad) |
+| Base de Conocimiento | Es de otro servicio (equipo de Problemas). Eventos la consulta **solo por API**; guarda `article_ref` y una instantánea (título, versión, autor) |
 | Enumeraciones | `TextChoices` de Django guardados como texto (legibles en SQL); no se usan tipos `ENUM` de PostgreSQL |
 | Fechas | `timestamptz` en UTC (`USE_TZ = True`) |
 | Huella de auditoría | Todas las tablas de configuración y estado heredan `AuditModel`: `created_at`, `updated_at`, `created_by_ref`, `updated_by_ref` |
@@ -36,13 +36,12 @@ Las transiciones permitidas se definen **en código** (un diccionario `ALLOWED_T
 |---|---|
 | `EventOrigin` | `USER`, `SYSTEM` |
 | `EventType` (ITIL) | `INFORMATION`, `WARNING`, `EXCEPTION` |
-| `EventCategory` | `SECURITY`, `REQUEST`, `GENERAL` |
+| `EventCategory` | `SECURITY`, `REQUEST`, `FAILURE`, `CHANGE`, `GENERAL` |
 | `EventState` | `NEW`, `ASSIGNED`, `IN_PROGRESS`, `ON_HOLD`, `RESOLVED`, `CLOSED`, `REJECTED`, `CANCELLED`, `REOPENED` |
 | `Impact` / `Urgency` | `HIGH`, `MEDIUM`, `LOW` |
 | `Priority` | `CRITICAL` (P1), `HIGH` (P2), `MEDIUM` (P3), `LOW` (P4) |
 | `ServiceImportance` | `CRITICAL`, `HIGH`, `MEDIUM`, `LOW` |
-| `Difficulty` | `EASY`, `MEDIUM`, `HARD` |
-| `Destination` | `LOG_ONLY`, `WATCH`, `KB_AUTO_REPLY`, `SECURITY_ACCESS`, `REQUEST`, `INCIDENT`, `PROBLEM`, `CHANGE`, `MANUAL_TRIAGE` |
+| `Destination` (docs/rules.md) | `LOG_ONLY`, `SOLUTION_AUTHOR`, `EVENTS`, `ACCESS`, `REQUESTS`, `INCIDENTS`, `PROBLEMS` |
 | `RoutingStatus` | `PENDING`, `SENT`, `ACKNOWLEDGED`, `FAILED` |
 | `ClosureCode` | `AUTO_LOGGED`, `KB_RESOLVED`, `SOLVED`, `NOT_APPLICABLE` |
 | `ChangeType` | `STATE_CHANGE`, `ASSIGNMENT`, `PRIORITY_CHANGE`, `CLASSIFICATION`, `ROUTING`, `NOTE`, `SYSTEM` |
@@ -167,7 +166,6 @@ Fuentes registradas, para la ingesta por webhook con clave de API.
 Índices y restricciones:
 - **Único parcial** sobre `fingerprint` donde `state` no es `CLOSED`, `REJECTED` ni `CANCELLED` (un solo evento abierto por huella).
 - (`state`), (`state`, `priority`), (`service_id`, `state`), (`assigned_to_ref`, `state`), (`created_at` descendente) y (`resolution_due_at`) donde el evento está abierto.
-
 ### `event_occurrence` (hypertable de TimescaleDB)
 Cada llegada cruda de un evento. Permite calcular `n_eventos_similares` en una ventana T, analizar tendencias y aplicar retención.
 
@@ -211,14 +209,14 @@ Trazabilidad de la decisión de destino (reglas 1–9) y de su entrega.
 | destination | enum | no | |
 | rule_code | varchar(20) | no | regla aplicada |
 | status | enum | no | |
-| destination_ref | varchar(64) | sí | ID en el servicio destino |
+| destination_ref | varchar(64) | sí | ID en el servicio destino (o el autor, si el destino es `SOLUTION_AUTHOR`) |
 | attempts | int | no | |
 | last_error | text | sí | |
 | routed_at | timestamptz | sí | |
 | auditoría | | | |
 
 ### `event_kb_response`
-Auto-respuesta con artículo de la KB (regla 2) y su resultado. Eventos **no** guarda artículos: consulta la API del servicio de KB y solo registra qué mostró y si ayudó.
+Auto-respuesta con artículo de la KB (regla 2) y su resultado. Eventos **no** guarda artículos: consulta la API del servicio de KB, registra qué mostró y si ayudó, y enruta el evento al **autor de la solución y a su departamento** (regla 2) cuando el usuario responde «no me sirvió».
 
 | Campo | Tipo | Nulo | Notas |
 |---|---|---|---|
@@ -227,7 +225,8 @@ Auto-respuesta con artículo de la KB (regla 2) y su resultado. Eventos **no** g
 | article_ref | varchar(64) | no | ID del artículo (vive en la BD de la KB; **sin llave foránea**) |
 | article_title | varchar(200) | sí | instantánea al momento de mostrarlo |
 | article_version | varchar(30) | sí | versión del artículo mostrado |
-| article_difficulty | enum | sí | la dificultad la define la KB; Eventos solo la copia (regla 2) |
+| author_ref | varchar(64) | sí | autor de la solución en la KB (referencia a Accesos): **destino de la regla 2** |
+| department_ref | varchar(64) | sí | departamento del autor (referencia a Accesos); pasa a ser el grupo asignado del evento |
 | presented_at | timestamptz | no | |
 | helped | bool | sí | nulo = sin respuesta; `false` = «no me sirvió» |
 | responded_at | timestamptz | sí | |
@@ -278,3 +277,166 @@ Idempotencia del consumidor (evita procesar dos veces un mensaje, por ejemplo lo
 | 2 | `event_occurrence` (hypertable), `recurrence_policy`, `priority_modifier`, `outbox_message` |
 | 3 | `event_routing`, `event_kb_response`, `event_survey`, `processed_message` |
 | 4 | `event_source` y, si hace falta, `event_notification` |
+
+### Ejecución local y verificación (fase 1)
+
+Todos los comandos se ejecutan en `services/events/`, salvo los de `podman compose`, que se ejecutan en la raíz del repositorio.
+
+#### 1. Preparar el entorno
+
+```bash
+make setup        # crea .env desde .env.example e instala dependencias (con uv, o venv + pip si no hay uv)
+make help         # lista todos los comandos
+```
+
+#### 2. Calidad de código y chequeos (sin base de datos)
+
+```bash
+make lint                                                  # ruff check + ruff format --check
+uv run python manage.py check                              # "System check identified no issues"
+uv run python manage.py makemigrations --check --dry-run   # "No changes detected": los modelos y las migraciones coinciden
+```
+
+Si no usas uv, quita el prefijo `uv run`.
+
+#### 3. Pruebas
+
+```bash
+make test                                   # pytest con cobertura
+uv run pytest -q -rxX                       # además muestra los casos xfail/xpass
+uv run pytest tests/test_rules.py --collect-only -q | tail -5   # cuántos casos de las 9 reglas hay
+```
+
+- `tests/test_health.py` debe quedar en verde.
+- `tests/test_rules.py` contiene las 9 reglas de destino como pruebas parametrizadas (TDD). Las que aún no estén implementadas deben ir marcadas `xfail` con un motivo; así `make test` queda en verde sin ocultar el trabajo pendiente.
+- Sin `DATABASE_URL` las pruebas usan SQLite. Para repetirlas contra PostgreSQL/TimescaleDB, sigue el paso 4 y vuelve a ejecutar `make test`.
+#### 4. Base de datos (PostgreSQL + TimescaleDB)
+
+Desde la raíz del repositorio:
+
+```bash
+podman compose -f platform/deploy/local/compose.yaml config --services   # confirma el nombre del servicio (events-db)
+podman compose -f platform/deploy/local/compose.yaml up -d events-db
+podman ps --format '{{.Names}}  {{.Status}}'                              # debe mostrar Up (healthy)
+```
+
+En `services/events/.env` descomenta o define:
+
+```bash
+DATABASE_URL=postgresql://events:events@localhost:5441/events
+```
+
+#### 5. Migraciones
+
+```bash
+make migrate                                          # aplica las migraciones
+uv run python manage.py showmigrations events         # todas con [X]
+uv run python manage.py makemigrations --check --dry-run   # sigue sin cambios
+```
+
+Verifica en la base de datos:
+
+```bash
+podman exec -it <contenedor-bd> psql -U events -d events -c "\dx"          # debe listar timescaledb
+podman exec -it <contenedor-bd> psql -U events -d events -c "\dt"          # tablas de events + las de Django
+podman exec -it <contenedor-bd> psql -U events -d events -c "\d event"     # revisa closed_at (nulo), índices y llaves foráneas
+```
+
+El nombre real del contenedor aparece en `podman ps`.
+
+> **Si cambiaste migraciones que ya habías aplicado**, la base queda inconsistente. Reinicia el volumen (borra los datos locales de **todos** los servicios del compose):
+> `podman compose -f platform/deploy/local/compose.yaml down -v` y vuelve a ejecutar `make migrate`.
+> Nunca edites una migración que ya esté fusionada en `develop`: crea una nueva con `make makemigrations`.
+
+Prueba de la restricción de deduplicación (un solo evento abierto por huella):
+
+```bash
+uv run python manage.py shell -c "
+from django.db import IntegrityError, transaction
+from events.models import Event
+Event.objects.create(origin='SYSTEM', event_type='EXCEPTION', title='a', message='x', fingerprint='f'*64)
+try:
+    with transaction.atomic():
+        Event.objects.create(origin='SYSTEM', event_type='EXCEPTION', title='b', message='x', fingerprint='f'*64)
+    print('ERROR: permitió un duplicado abierto')
+except IntegrityError:
+    print('OK: rechaza el duplicado abierto')
+Event.objects.filter(fingerprint='f'*64).delete()
+"
+```
+
+#### 6. Health checks
+
+```bash
+make run                                          # servidor en http://localhost:8001 (aplica migraciones al arrancar)
+```
+
+En otra terminal:
+
+```bash
+curl -i http://localhost:8001/health/live         # 200
+curl -i http://localhost:8001/health/ready        # 200 con la BD arriba
+podman stop <contenedor-bd>
+curl -i http://localhost:8001/health/ready        # 503: demuestra que verifica la BD
+podman start <contenedor-bd>
+```
+
+#### 7. Admin de Django
+
+```bash
+uv run python manage.py createsuperuser
+```
+
+Entra a <http://localhost:8001/admin/>. Deben verse los modelos registrados (servicios, políticas de SLA, matriz de prioridad, fuentes, eventos e historial). Crea un evento y confirma que nace en estado **Nuevo** y con `closed_at` vacío.
+
+#### 8. Imagen de contenedor y stack completo
+
+```bash
+make build                                                        # imagen ghcr.io/help-chair/hc-events:dev (Podman)
+podman compose -f platform/deploy/local/compose.yaml up -d --build events    # desde la raíz
+curl -i http://localhost:8001/health/ready
+podman compose -f platform/deploy/local/compose.yaml down
+```
+
+#### Checklist de la puerta de salida de la fase 1
+
+| Entregable | Cómo comprobarlo |
+|---|---|
+| Proyecto Django + DRF con ajustes por entorno | `make run`, `manage.py check` |
+| Conexión a su PostgreSQL y migración inicial aplicada | Pasos 4 y 5 |
+| `/health/live` y `/health/ready` (este verifica la BD) | Paso 6 (503 con la BD detenida) |
+| `Dockerfile` (no root, gunicorn) y `Makefile` | `make build`, `make lint test` |
+| `.env.example`, ruff + pre-commit, pytest con una prueba pasando | Pasos 1 a 3 |
+| Modelo de datos y diagrama entidad-relación | `docs/README.md` y migraciones |
+| Las 9 reglas como pruebas parametrizadas | `tests/test_rules.py` (`xfail` donde falte implementación) |
+| Borrador OpenAPI y esquema del mensaje común | `contracts/events/openapi.yaml`, `contracts/messages/` (`make openapi`) |
+
+---
+
+## English
+
+### Running locally and verifying (phase 1)
+
+Run everything inside `services/events/`, except the `podman compose` commands, which run from the repository root.
+
+```bash
+make setup                                                  # creates .env and installs dependencies (uv, or venv + pip)
+make lint && make test                                      # ruff + pytest
+uv run python manage.py check
+uv run python manage.py makemigrations --check --dry-run    # "No changes detected"
+
+# database (PostgreSQL + TimescaleDB), from the repo root
+podman compose -f platform/deploy/local/compose.yaml up -d events-db
+# in services/events/.env:  DATABASE_URL=postgresql://events:events@localhost:5441/events
+
+make migrate && uv run python manage.py showmigrations events
+make run                                                    # http://localhost:8001
+curl -i http://localhost:8001/health/live                   # 200
+curl -i http://localhost:8001/health/ready                  # 200 with the DB up, 503 with the DB stopped
+```
+
+- Without `DATABASE_URL` the tests use SQLite; repeat `make test` against PostgreSQL after starting `events-db`.
+- If you changed migrations you had already applied, reset the volume: `podman compose -f platform/deploy/local/compose.yaml down -v`, then `make migrate`.
+- Never edit a migration that is already merged into `develop`; create a new one with `make makemigrations`.
+- Admin: `uv run python manage.py createsuperuser`, then <http://localhost:8001/admin/>.
+- Image: `make build` (Podman) and `podman compose -f platform/deploy/local/compose.yaml up -d --build events`.

@@ -5,7 +5,6 @@ import { useHasRole } from '@/auth/roleGuard'
 import React, { Suspense } from 'react'
 
 // Lazy-loaded dashboards
-const AdminDashboard = React.lazy(() => import('./pages/AdminDashboard'))
 const OwnerDashboard = React.lazy(() => import('./pages/OwnerDashboard'))
 
 import LoginPage from '@/features/access/LoginPage'
@@ -42,7 +41,6 @@ export default function App() {
   const secciones = seccionesVisibles(sesion.usuario.permisos)
   const tabActual = secciones.includes(activeTab) ? activeTab : seccionInicial(sesion.usuario.permisos)
 
-  const isAdmin = sesion.usuario.rol === 'administrador'
   const isOwner = sesion.usuario.rol === 'agente_n2'
 
   function salir() {
@@ -61,13 +59,7 @@ export default function App() {
       onLogout={salir}
     >
       {tabActual === 'dashboard' && (
-        isAdmin ? (
-          <Suspense fallback={<div>Cargando panel admin...</div>}>
-            <AdminDashboard />
-          </Suspense>
-        ) : (
-          <DashboardPage onNavigate={setActiveTab} secciones={secciones} />
-        )
+        <DashboardPage onNavigate={setActiveTab} secciones={secciones} />
       )}
       {tabActual === 'events' && <EventsPage />}
       {tabActual === 'requests' && (

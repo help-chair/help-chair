@@ -7,6 +7,30 @@ paths:
   /api/peticiones/:
     get:
       operationId: peticiones_list
+      parameters:
+      - in: query
+        name: asignado_a_id
+        schema:
+          type: integer
+        description: Filtrar peticiones por ID del agente asignado.
+      - in: query
+        name: estado
+        schema:
+          type: string
+          enum:
+          - asignado
+          - cancelado
+          - cerrado
+          - en_proceso
+          - nuevo
+          - reabierto
+          - resuelto
+        description: Filtrar peticiones por estado.
+      - in: query
+        name: solicitante_id
+        schema:
+          type: integer
+        description: Filtrar peticiones por ID del usuario solicitante.
       tags:
       - peticiones
       security:
@@ -236,6 +260,12 @@ paths:
   /api/servicios/:
     get:
       operationId: servicios_list
+      parameters:
+      - in: query
+        name: incluir_inactivos
+        schema:
+          type: boolean
+        description: Si es true, incluye servicios desactivados en el listado.
       tags:
       - servicios
       security:
@@ -250,6 +280,33 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/ServicioSolicitable'
+          description: ''
+    post:
+      operationId: servicios_create
+      tags:
+      - servicios
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServicioSolicitable'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ServicioSolicitable'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ServicioSolicitable'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServicioSolicitable'
           description: ''
   /api/servicios/{id}/:
     get:
@@ -274,6 +331,91 @@ paths:
               schema:
                 $ref: '#/components/schemas/ServicioSolicitable'
           description: ''
+    put:
+      operationId: servicios_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: Un valor de entero único que identifique este servicio solicitable.
+        required: true
+      tags:
+      - servicios
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServicioSolicitable'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ServicioSolicitable'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ServicioSolicitable'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServicioSolicitable'
+          description: ''
+    patch:
+      operationId: servicios_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: Un valor de entero único que identifique este servicio solicitable.
+        required: true
+      tags:
+      - servicios
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedServicioSolicitable'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedServicioSolicitable'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedServicioSolicitable'
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServicioSolicitable'
+          description: ''
+    delete:
+      operationId: servicios_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: Un valor de entero único que identifique este servicio solicitable.
+        required: true
+      tags:
+      - servicios
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '204':
+          description: No response body
 components:
   schemas:
     Asignar:
@@ -363,6 +505,19 @@ components:
           format: date-time
           readOnly: true
           nullable: true
+    PatchedServicioSolicitable:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        nombre:
+          type: string
+          maxLength: 120
+        descripcion:
+          type: string
+        activo:
+          type: boolean
     Peticion:
       type: object
       properties:

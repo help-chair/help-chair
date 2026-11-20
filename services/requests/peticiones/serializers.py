@@ -37,6 +37,13 @@ class PeticionSerializer(serializers.ModelSerializer):
             "cerrada_en",
         ]
 
+    def validate_servicio(self, servicio):
+        if not servicio.activo:
+            raise serializers.ValidationError(
+                "El servicio seleccionado no está activo."
+            )
+        return servicio
+
 class CambioEstadoSerializer(serializers.Serializer):
     estado = serializers.ChoiceField(choices=Peticion.Estado.choices)
     motivo_cancelacion = serializers.CharField(

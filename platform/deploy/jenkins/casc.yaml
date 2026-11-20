@@ -1,0 +1,164 @@
+# Configuración de Jenkins como código (JCasC). Issue #85.
+# Se aplica en cada arranque: lo que se cambie desde la interfaz web se pierde al reiniciar.
+# Los valores ${VARIABLE} son secretos y salen del archivo .env (nunca del repositorio).
+# Ver docs/runbooks/jenkins.md
+
+jenkins:
+  systemMessage: "Help Chair CI/CD. Configurado por código: platform/deploy/jenkins/casc.yaml"
+  numExecutors: 2
+  mode: NORMAL
+
+  # Usuarios: uno de administración (Plataforma) y uno por equipo. Sin registro abierto.
+  securityRealm:
+    local:
+      allowsSignup: false
+      users:
+        - id: "admin"
+          name: "Plataforma (administración)"
+          password: "${JENKINS_ADMIN_PASSWORD}"
+        - id: "equipo-events"
+          name: "Equipo 1: Eventos"
+          password: "${JENKINS_PASS_EVENTS}"
+        - id: "equipo-access"
+          name: "Equipo 2: Accesos"
+          password: "${JENKINS_PASS_ACCESS}"
+        - id: "equipo-requests"
+          name: "Equipo 3: Peticiones"
+          password: "${JENKINS_PASS_REQUESTS}"
+        - id: "equipo-incidents"
+          name: "Equipo 4: Incidencias"
+          password: "${JENKINS_PASS_INCIDENTS}"
+        - id: "equipo-problems"
+          name: "Equipo 5: Problemas y KB"
+          password: "${JENKINS_PASS_PROBLEMS}"
+        - id: "equipo-frontend"
+          name: "Equipo 6: Frontend"
+          password: "${JENKINS_PASS_FRONTEND}"
+
+  # Roles: todos ven todo; cada equipo solo ejecuta y cancela los jobs de su servicio.
+  authorizationStrategy:
+    roleBased:
+      roles:
+        global:
+          - name: "admin"
+            description: "Plataforma: administra Jenkins"
+            permissions:
+              - "Overall/Administer"
+            entries:
+              - user: "admin"
+          - name: "lectura"
+            description: "Todos los equipos: ver jobs y resultados"
+            permissions:
+              - "Overall/Read"
+              - "Job/Read"
+            entries:
+              - user: "equipo-events"
+              - user: "equipo-access"
+              - user: "equipo-requests"
+              - user: "equipo-incidents"
+              - user: "equipo-problems"
+              - user: "equipo-frontend"
+        items:
+          - name: "events"
+            pattern: "events(/.*)?"
+            permissions: &ejecutar ["Job/Build", "Job/Cancel", "Job/Workspace", "Run/Replay"]
+            entries:
+              - user: "equipo-events"
+          - name: "access"
+            pattern: "access(/.*)?"
+            permissions: *ejecutar
+            entries:
+              - user: "equipo-access"
+          - name: "requests"
+            pattern: "requests(/.*)?"
+            permissions: *ejecutar
+            entries:
+              - user: "equipo-requests"
+          - name: "incidents"
+            pattern: "incidents(/.*)?"
+            permissions: *ejecutar
+            entries:
+              - user: "equipo-incidents"
+          - name: "problems-knowledge"
+            pattern: "(problems|knowledge)(/.*)?"
+            permissions: *ejecutar
+            entries:
+              - user: "equipo-problems"
+          - name: "frontend"
+            pattern: "frontend(/.*)?"
+            permissions: *ejecutar
+            entries:
+              - user: "equipo-frontend"
+
+# Credenciales cifradas dentro de Jenkins; el valor real viene del .env
+credentials:
+  system:
+    domainCredentials:
+      - credentials:
+          - usernamePassword:
+              scope: GLOBAL
+              id: "github-readonly"
+              description: "GitHub: lectura de help-chair/help-chair (escaneo de ramas y PR)"
+              username: "${GITHUB_USER}"
+              password: "${GITHUB_TOKEN}"
+          - usernamePassword:
+              scope: GLOBAL
+              id: "ghcr-push"
+              description: "GHCR: publicar imágenes ghcr.io/help-chair/hc-*"
+              username: "${GHCR_USER}"
+              password: "${GHCR_TOKEN}"
+
+unclassified:
+  location:
+    url: "${JENKINS_URL:-http://localhost:8090/}"
+  # Sin URL pública se escanea GitHub cada 2 min: esto evita agotar el límite de la API
+  gitHubConfiguration:
+    apiRateLimitChecker: ThrottleForNormalize
+
+# Un job multibranch por servicio. Cada uno lee services/<servicio>/Jenkinsfile
+# (o frontend/Jenkinsfile); las ramas sin ese archivo se ignoran solas.
+jobs:
+  - script: |
+      def proyectos = [
+        events   : 'services/events/Jenkinsfile',
+        access   : 'services/access/Jenkinsfile',
+        requests : 'services/requests/Jenkinsfile',
+        incidents: 'services/incidents/Jenkinsfile',
+        problems : 'services/problems/Jenkinsfile',
+        knowledge: 'services/knowledge/Jenkinsfile',
+        frontend : 'frontend/Jenkinsfile',
+      ]
+      proyectos.each { nombre, receta ->
+        multibranchPipelineJob(nombre) {
+          displayName('hc-' + nombre)
+          description('Pipeline de ' + receta + ' (creado por casc.yaml)')
+          branchSources {
+            branchSource {
+              source {
+                github {
+                  id('hc-' + nombre)
+                  repoOwner('help-chair')
+                  repository('help-chair')
+                  repositoryUrl('https://github.com/help-chair/help-chair')
+                  configuredByUrl(false)
+                  credentialsId('github-readonly')
+                  traits {
+                    gitHubBranchDiscovery { strategyId(1) }
+                    gitHubPullRequestDiscovery { strategyId(1) }
+                  }
+                }
+              }
+            }
+          }
+          factory {
+            workflowBranchProjectFactory { scriptPath(receta) }
+          }
+          // Poll SCM: sin URL pública no hay webhook; se revisa GitHub cada 2 minutos
+          triggers {
+            periodicFolderTrigger { interval('2m') }
+          }
+          orphanedItemStrategy {
+            discardOldItems { numToKeep(10) }
+          }
+        }
+      }

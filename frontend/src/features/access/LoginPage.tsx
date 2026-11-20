@@ -193,12 +193,60 @@ export default function LoginPage({ onAuthenticated }: LoginPageProps) {
                 {enviando ? 'Entrando…' : 'Entrar'}
               </Button>
 
-              <p className="rounded-lg border border-border bg-surface-muted p-3 text-xs text-slate-600">
-                <strong>Mientras no exista el backend:</strong> entra con{' '}
-                <code className="font-mono">admin@empresa15.com</code> (administrador) o{' '}
-                <code className="font-mono">lucia.ponce@empresa15.com</code> (usuario final) y la
-                contraseña <code className="font-mono">{CLAVE_DEMO}</code>.
-              </p>
+              {import.meta.env.DEV && (
+                <details className="rounded-lg border border-border bg-surface-muted text-xs text-slate-600">
+                  <summary className="cursor-pointer select-none p-3 font-medium text-slate-700">
+                    Cuentas de prueba (solo desarrollo)
+                  </summary>
+                  <div className="border-t border-border px-3 py-3">
+                    <p className="mb-2 text-slate-500">
+                      Contraseña de todas: <code className="font-mono">{CLAVE_DEMO}</code>
+                    </p>
+                    <table className="w-full text-left text-xs">
+                      <caption className="sr-only">Correos de prueba por rol y caso</caption>
+                      <thead>
+                        <tr className="text-slate-500">
+                          <th className="py-1 pr-2 font-medium">Correo</th>
+                          <th className="py-1 pr-2 font-medium">Rol</th>
+                          <th className="py-1 font-medium">Para probar</th>
+                        </tr>
+                      </thead>
+                      <tbody className="align-top text-slate-600">
+                        <tr>
+                          <td className="py-1 pr-2 font-mono">admin@empresa15.com</td>
+                          <td>Administrador</td>
+                          <td>Todo el menú y Gestión de Accesos</td>
+                        </tr>
+                        <tr>
+                          <td className="py-1 pr-2 font-mono">daniela.ruiz@empresa15.com</td>
+                          <td>Agente N1</td>
+                          <td>Eventos e Incidencias, sin Problemas ni Accesos</td>
+                        </tr>
+                        <tr>
+                          <td className="py-1 pr-2 font-mono">marco.estrada@empresa15.com</td>
+                          <td>Agente N2</td>
+                          <td>Panel de área, Incidencias escaladas y Problemas</td>
+                        </tr>
+                        <tr>
+                          <td className="py-1 pr-2 font-mono">lucia.ponce@empresa15.com</td>
+                          <td>Usuario final</td>
+                          <td>Autoservicio, Peticiones y Base de Conocimiento</td>
+                        </tr>
+                        <tr>
+                          <td className="py-1 pr-2 font-mono">hugo.navarro@empresa15.com</td>
+                          <td>Usuario final</td>
+                          <td>Cuenta bloqueada (error)</td>
+                        </tr>
+                        <tr>
+                          <td className="py-1 pr-2 font-mono">sofia.marin@empresa15.com</td>
+                          <td>Agente N1</td>
+                          <td>Invitado sin activar (error)</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </details>
+              )}
             </form>
           </CardContent>
         </Card>

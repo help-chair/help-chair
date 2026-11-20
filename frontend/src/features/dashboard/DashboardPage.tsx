@@ -3,6 +3,7 @@ import {
   ArrowRight,
   BookOpen,
   CheckCircle2,
+  FileText,
   Flame,
   Inbox,
   KeyRound,
@@ -24,6 +25,8 @@ export function DashboardPage({ onNavigate, secciones }: DashboardPageProps) {
   const puedeVer = (seccion: TabKey) => secciones === undefined || secciones.includes(seccion)
   const recentEvents = INITIAL_EVENTS.slice(0, 3)
 
+  const isTecnico = puedeVer('events') || puedeVer('incidents')
+
   return (
     <div className="space-y-6">
       {/* Banner de bienvenida / Estado general */}
@@ -31,8 +34,9 @@ export function DashboardPage({ onNavigate, secciones }: DashboardPageProps) {
         <div className="space-y-1">
           <h3 className="text-xl font-bold">Portal Unificado de Gestión de Servicios</h3>
           <p className="text-sm text-indigo-100 max-w-2xl">
-            Centro de control ITIL v4. Monitorea eventos de infraestructura en tiempo real y gestiona
-            el ciclo de vida de peticiones, incidentes y problemas en tu stack empresarial.
+            {isTecnico
+              ? 'Centro de control ITIL v4. Monitorea eventos de infraestructura en tiempo real y gestiona el ciclo de vida de peticiones, incidentes y problemas en tu stack empresarial.'
+              : 'Bienvenido al Service Desk. Solicita servicios del catálogo corporativo, revisa el estado de tus peticiones y consulta guías en la Base de Conocimiento.'}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -45,51 +49,99 @@ export function DashboardPage({ onNavigate, secciones }: DashboardPageProps) {
             <LifeBuoy size={16} />
             Catálogo de Servicios
           </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => onNavigate('events')}
-            className="bg-slate-800/80 hover:bg-slate-800"
-          >
-            <Activity size={16} />
-            Consola de Eventos
-          </Button>
+          {puedeVer('events') ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => onNavigate('events')}
+              className="bg-slate-800/80 hover:bg-slate-800"
+            >
+              <Activity size={16} />
+              Consola de Eventos
+            </Button>
+          ) : (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => onNavigate('knowledge')}
+              className="bg-slate-800/80 hover:bg-slate-800"
+            >
+              <BookOpen size={16} />
+              Base de Conocimiento
+            </Button>
+          )}
         </div>
       </div>
 
-      {/* Tarjetas de Métricas ITIL */}
+      {/* Tarjetas de Métricas ITIL / Usuario */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {/* Tarjeta 1: Eventos */}
-        <Card
-          onClick={() => onNavigate('events')}
-          className="p-5 flex items-center justify-between cursor-pointer hover:border-indigo-300 transition-all hover:shadow-md"
-        >
-          <div>
-            <p className="text-xs font-semibold uppercase text-slate-500">Eventos (24h)</p>
-            <p className="text-2xl font-bold text-slate-800 mt-1">128</p>
-            <p className="text-xs text-emerald-600 font-medium mt-1">94% auto-clasificados</p>
-          </div>
-          <div className="p-3 bg-blue-50 text-blue-600 rounded-lg">
-            <Activity size={24} />
-          </div>
-        </Card>
+        {isTecnico ? (
+          <>
+            {/* Tarjeta 1: Eventos */}
+            <Card
+              onClick={() => onNavigate('events')}
+              className="p-5 flex items-center justify-between cursor-pointer hover:border-indigo-300 transition-all hover:shadow-md"
+            >
+              <div>
+                <p className="text-xs font-semibold uppercase text-slate-500">Eventos (24h)</p>
+                <p className="text-2xl font-bold text-slate-800 mt-1">128</p>
+                <p className="text-xs text-emerald-600 font-medium mt-1">94% auto-clasificados</p>
+              </div>
+              <div className="p-3 bg-blue-50 text-blue-600 rounded-lg">
+                <Activity size={24} />
+              </div>
+            </Card>
 
-        {/* Tarjeta 2: Incidencias */}
-        <Card
-          onClick={() => onNavigate('incidents')}
-          className="p-5 flex items-center justify-between cursor-pointer hover:border-red-300 transition-all hover:shadow-md"
-        >
-          <div>
-            <p className="text-xs font-semibold uppercase text-slate-500">Incidencias Abiertas</p>
-            <p className="text-2xl font-bold text-red-600 mt-1">4</p>
-            <p className="text-xs text-slate-500 mt-1">1 P1 Crítica activa</p>
-          </div>
-          <div className="p-3 bg-red-50 text-red-600 rounded-lg">
-            <Flame size={24} />
-          </div>
-        </Card>
+            {/* Tarjeta 2: Incidencias */}
+            <Card
+              onClick={() => onNavigate('incidents')}
+              className="p-5 flex items-center justify-between cursor-pointer hover:border-red-300 transition-all hover:shadow-md"
+            >
+              <div>
+                <p className="text-xs font-semibold uppercase text-slate-500">Incidencias Abiertas</p>
+                <p className="text-2xl font-bold text-red-600 mt-1">4</p>
+                <p className="text-xs text-slate-500 mt-1">1 P1 Crítica activa</p>
+              </div>
+              <div className="p-3 bg-red-50 text-red-600 rounded-lg">
+                <Flame size={24} />
+              </div>
+            </Card>
+          </>
+        ) : (
+          <>
+            {/* Tarjeta 1 Usuario: Peticiones Activas */}
+            <Card
+              onClick={() => onNavigate('requests')}
+              className="p-5 flex items-center justify-between cursor-pointer hover:border-indigo-300 transition-all hover:shadow-md"
+            >
+              <div>
+                <p className="text-xs font-semibold uppercase text-slate-500">Mis Peticiones</p>
+                <p className="text-2xl font-bold text-slate-800 mt-1">3</p>
+                <p className="text-xs text-indigo-600 font-medium mt-1">En curso y revisión</p>
+              </div>
+              <div className="p-3 bg-indigo-50 text-indigo-600 rounded-lg">
+                <Inbox size={24} />
+              </div>
+            </Card>
 
-        {/* Tarjeta 3: Peticiones */}
+            {/* Tarjeta 2 Usuario: Ayuda Rápida */}
+            <Card
+              onClick={() => onNavigate('knowledge')}
+              className="p-5 flex items-center justify-between cursor-pointer hover:border-emerald-300 transition-all hover:shadow-md"
+            >
+              <div>
+                <p className="text-xs font-semibold uppercase text-slate-500">Base de Conocimiento</p>
+                <p className="text-2xl font-bold text-emerald-600 mt-1">14 Guías</p>
+                <p className="text-xs text-slate-500 mt-1">Artículos de autoservicio</p>
+              </div>
+              <div className="p-3 bg-emerald-50 text-emerald-600 rounded-lg">
+                <BookOpen size={24} />
+              </div>
+            </Card>
+          </>
+        )}
+
+        {/* Tarjeta 3: Peticiones de Servicio */}
         <Card
           onClick={() => onNavigate('requests')}
           className="p-5 flex items-center justify-between cursor-pointer hover:border-purple-300 transition-all hover:shadow-md"
@@ -125,63 +177,73 @@ export function DashboardPage({ onNavigate, secciones }: DashboardPageProps) {
             Microservicios del Stack
           </h4>
           <p className="text-xs text-slate-500">
-            Navega directamente a los submódulos de gestión de servicios:
+            Navega directamente a los submódulos autorizados para tu rol:
           </p>
           <div className="space-y-2">
-            <button
-              onClick={() => onNavigate('events')}
-              className="w-full flex items-center justify-between p-3 rounded-lg border border-border hover:bg-slate-50 text-left transition-colors text-sm"
-            >
-              <div className="flex items-center gap-3">
-                <Activity size={18} className="text-blue-600" />
-                <span className="font-medium text-slate-800">Gestión de Eventos</span>
-              </div>
-              <ArrowRight size={16} className="text-slate-400" />
-            </button>
+            {puedeVer('events') && (
+              <button
+                onClick={() => onNavigate('events')}
+                className="w-full flex items-center justify-between p-3 rounded-lg border border-border hover:bg-slate-50 text-left transition-colors text-sm"
+              >
+                <div className="flex items-center gap-3">
+                  <Activity size={18} className="text-blue-600" />
+                  <span className="font-medium text-slate-800">Gestión de Eventos</span>
+                </div>
+                <ArrowRight size={16} className="text-slate-400" />
+              </button>
+            )}
 
-            <button
-              onClick={() => onNavigate('incidents')}
-              className="w-full flex items-center justify-between p-3 rounded-lg border border-border hover:bg-slate-50 text-left transition-colors text-sm"
-            >
-              <div className="flex items-center gap-3">
-                <Flame size={18} className="text-red-600" />
-                <span className="font-medium text-slate-800">Gestión de Incidencias</span>
-              </div>
-              <ArrowRight size={16} className="text-slate-400" />
-            </button>
+            {puedeVer('incidents') && (
+              <button
+                onClick={() => onNavigate('incidents')}
+                className="w-full flex items-center justify-between p-3 rounded-lg border border-border hover:bg-slate-50 text-left transition-colors text-sm"
+              >
+                <div className="flex items-center gap-3">
+                  <Flame size={18} className="text-red-600" />
+                  <span className="font-medium text-slate-800">Gestión de Incidencias</span>
+                </div>
+                <ArrowRight size={16} className="text-slate-400" />
+              </button>
+            )}
 
-            <button
-              onClick={() => onNavigate('requests')}
-              className="w-full flex items-center justify-between p-3 rounded-lg border border-border hover:bg-slate-50 text-left transition-colors text-sm"
-            >
-              <div className="flex items-center gap-3">
-                <Inbox size={18} className="text-purple-600" />
-                <span className="font-medium text-slate-800">Gestión de Peticiones</span>
-              </div>
-              <ArrowRight size={16} className="text-slate-400" />
-            </button>
+            {puedeVer('requests') && (
+              <button
+                onClick={() => onNavigate('requests')}
+                className="w-full flex items-center justify-between p-3 rounded-lg border border-border hover:bg-slate-50 text-left transition-colors text-sm"
+              >
+                <div className="flex items-center gap-3">
+                  <Inbox size={18} className="text-purple-600" />
+                  <span className="font-medium text-slate-800">Gestión de Peticiones</span>
+                </div>
+                <ArrowRight size={16} className="text-slate-400" />
+              </button>
+            )}
 
-            <button
-              onClick={() => onNavigate('problems')}
-              className="w-full flex items-center justify-between p-3 rounded-lg border border-border hover:bg-slate-50 text-left transition-colors text-sm"
-            >
-              <div className="flex items-center gap-3">
-                <ShieldAlert size={18} className="text-amber-600" />
-                <span className="font-medium text-slate-800">Gestión de Problemas</span>
-              </div>
-              <ArrowRight size={16} className="text-slate-400" />
-            </button>
+            {puedeVer('problems') && (
+              <button
+                onClick={() => onNavigate('problems')}
+                className="w-full flex items-center justify-between p-3 rounded-lg border border-border hover:bg-slate-50 text-left transition-colors text-sm"
+              >
+                <div className="flex items-center gap-3">
+                  <ShieldAlert size={18} className="text-amber-600" />
+                  <span className="font-medium text-slate-800">Gestión de Problemas</span>
+                </div>
+                <ArrowRight size={16} className="text-slate-400" />
+              </button>
+            )}
 
-            <button
-              onClick={() => onNavigate('knowledge')}
-              className="w-full flex items-center justify-between p-3 rounded-lg border border-border hover:bg-slate-50 text-left transition-colors text-sm"
-            >
-              <div className="flex items-center gap-3">
-                <BookOpen size={18} className="text-emerald-600" />
-                <span className="font-medium text-slate-800">Base de Conocimiento</span>
-              </div>
-              <ArrowRight size={16} className="text-slate-400" />
-            </button>
+            {puedeVer('knowledge') && (
+              <button
+                onClick={() => onNavigate('knowledge')}
+                className="w-full flex items-center justify-between p-3 rounded-lg border border-border hover:bg-slate-50 text-left transition-colors text-sm"
+              >
+                <div className="flex items-center gap-3">
+                  <BookOpen size={18} className="text-emerald-600" />
+                  <span className="font-medium text-slate-800">Base de Conocimiento</span>
+                </div>
+                <ArrowRight size={16} className="text-slate-400" />
+              </button>
+            )}
 
             {puedeVer('access') && (
               <button
@@ -198,57 +260,130 @@ export function DashboardPage({ onNavigate, secciones }: DashboardPageProps) {
           </div>
         </Card>
 
-        {/* Columna Derecha: Vista previa del feed de eventos */}
-        <Card className="p-6 space-y-4 lg:col-span-2 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <h4 className="font-semibold text-slate-900 text-sm uppercase tracking-wider">
-                  Eventos Recientes (Live Feed)
-                </h4>
-                <p className="text-xs text-slate-500">
-                  Últimas señales detectadas y clasificadas por el Gateway de Eventos
-                </p>
+        {/* Columna Derecha: Vista previa de Feed de Eventos o Guías de Autoservicio */}
+        {isTecnico ? (
+          <Card className="p-6 space-y-4 lg:col-span-2 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <h4 className="font-semibold text-slate-900 text-sm uppercase tracking-wider">
+                    Eventos Recientes (Live Feed)
+                  </h4>
+                  <p className="text-xs text-slate-500">
+                    Últimas señales detectadas y clasificadas por el Gateway de Eventos
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onNavigate('events')}
+                  className="text-xs"
+                >
+                  Ver consola completa
+                </Button>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => onNavigate('events')}
-                className="text-xs"
-              >
-                Ver consola completa
-              </Button>
+
+              <div className="space-y-3">
+                {recentEvents.map((evt) => (
+                  <div
+                    key={evt.id}
+                    className="p-3.5 rounded-lg border border-border bg-slate-50/50 flex items-center justify-between gap-3 text-sm"
+                  >
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs text-slate-500 font-semibold">
+                          {evt.id}
+                        </span>
+                        <span className="text-xs text-slate-400">• {evt.timestamp}</span>
+                        <span className="text-xs px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 font-medium border border-indigo-100">
+                          {evt.destination}
+                        </span>
+                      </div>
+                      <p className="font-medium text-slate-800">{evt.title}</p>
+                    </div>
+                    <span className="text-xs text-slate-500 shrink-0">{evt.status}</span>
+                  </div>
+                ))}
+              </div>
             </div>
 
-            <div className="space-y-3">
-              {recentEvents.map((evt) => (
+            <div className="pt-4 border-t border-border flex items-center justify-between text-xs text-slate-400">
+              <span>Reglas ITIL v4 de clasificación activas</span>
+              <span>Stack Namespace: K8s multiempresa</span>
+            </div>
+          </Card>
+        ) : (
+          <Card className="p-6 space-y-4 lg:col-span-2 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <h4 className="font-semibold text-slate-900 text-sm uppercase tracking-wider">
+                    Centro de Ayuda y Artículos Frecuentes
+                  </h4>
+                  <p className="text-xs text-slate-500">
+                    Soluciones rápidas y guías paso a paso para empleados
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onNavigate('knowledge')}
+                  className="text-xs"
+                >
+                  Explorar Base de Conocimiento
+                </Button>
+              </div>
+
+              <div className="space-y-3">
                 <div
-                  key={evt.id}
-                  className="p-3.5 rounded-lg border border-border bg-slate-50/50 flex items-center justify-between gap-3 text-sm"
+                  onClick={() => onNavigate('knowledge')}
+                  className="p-3.5 rounded-lg border border-border bg-slate-50/50 hover:bg-slate-50 transition-colors cursor-pointer flex items-center justify-between gap-3 text-sm"
                 >
                   <div className="space-y-0.5">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs text-slate-500 font-semibold">
-                        {evt.id}
-                      </span>
-                      <span className="text-xs text-slate-400">• {evt.timestamp}</span>
-                      <span className="text-xs px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 font-medium border border-indigo-100">
-                        {evt.destination}
-                      </span>
-                    </div>
-                    <p className="font-medium text-slate-800">{evt.title}</p>
+                    <span className="text-xs px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-medium border border-emerald-100">
+                      Conectividad & Red
+                    </span>
+                    <p className="font-medium text-slate-800 mt-1">¿Cómo solicitar y configurar acceso a VPN para trabajo remoto?</p>
                   </div>
-                  <span className="text-xs text-slate-500 shrink-0">{evt.status}</span>
+                  <ArrowRight size={16} className="text-slate-400 shrink-0" />
                 </div>
-              ))}
-            </div>
-          </div>
 
-          <div className="pt-4 border-t border-border flex items-center justify-between text-xs text-slate-400">
-            <span>Reglas ITIL v4 de clasificación activas</span>
-            <span>Stack Namespace: K8s multiempresa</span>
-          </div>
-        </Card>
+                <div
+                  onClick={() => onNavigate('knowledge')}
+                  className="p-3.5 rounded-lg border border-border bg-slate-50/50 hover:bg-slate-50 transition-colors cursor-pointer flex items-center justify-between gap-3 text-sm"
+                >
+                  <div className="space-y-0.5">
+                    <span className="text-xs px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-medium border border-blue-100">
+                      Cuentas y Seguridad
+                    </span>
+                    <p className="font-medium text-slate-800 mt-1">Guía para restablecer contraseña y activar verificación en dos pasos</p>
+                  </div>
+                  <ArrowRight size={16} className="text-slate-400 shrink-0" />
+                </div>
+
+                <div
+                  onClick={() => onNavigate('requests')}
+                  className="p-3.5 rounded-lg border border-border bg-slate-50/50 hover:bg-slate-50 transition-colors cursor-pointer flex items-center justify-between gap-3 text-sm"
+                >
+                  <div className="space-y-0.5">
+                    <span className="text-xs px-2 py-0.5 rounded bg-purple-50 text-purple-700 font-medium border border-purple-100">
+                      Equipamiento
+                    </span>
+                    <p className="font-medium text-slate-800 mt-1">Solicitud de cambio de periféricos, teclado y monitor secundario</p>
+                  </div>
+                  <ArrowRight size={16} className="text-slate-400 shrink-0" />
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-border flex items-center justify-between text-xs text-slate-400">
+              <span className="flex items-center gap-1.5">
+                <FileText size={14} /> Artículos verificados por el equipo de TI
+              </span>
+              <span>Portal de Autoservicio Help Chair</span>
+            </div>
+          </Card>
+        )}
       </div>
     </div>
   )

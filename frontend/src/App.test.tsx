@@ -105,7 +105,8 @@ describe('App', () => {
     render(<App />)
     const user = await entrar()
 
-    await user.click(await screen.findByRole('button', { name: /peticiones/i }))
+    const menu = within(await screen.findByRole('navigation', { name: /secciones/i }))
+    await user.click(menu.getByRole('button', { name: /peticiones/i }))
     expect(screen.queryByText(/no tienes permiso para ver solicitudes/i)).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /gestión de peticiones/i })).toBeInTheDocument()
   })

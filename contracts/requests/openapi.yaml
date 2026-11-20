@@ -46,6 +46,8 @@ paths:
                 items:
                   $ref: '#/components/schemas/Peticion'
           description: ''
+        '400':
+          description: Datos o parámetros de consulta inválidos.
     post:
       operationId: peticiones_create
       tags:
@@ -53,12 +55,6 @@ paths:
       requestBody:
         content:
           application/json:
-            schema:
-              $ref: '#/components/schemas/Peticion'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/Peticion'
-          multipart/form-data:
             schema:
               $ref: '#/components/schemas/Peticion'
         required: true
@@ -73,6 +69,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/Peticion'
           description: ''
+        '400':
+          description: Datos o parámetros de consulta inválidos.
   /api/peticiones/{id}/:
     get:
       operationId: peticiones_retrieve
@@ -97,6 +95,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/Peticion'
           description: ''
+        '404':
+          description: Recurso no encontrado.
     put:
       operationId: peticiones_update
       parameters:
@@ -114,12 +114,6 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/Peticion'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/Peticion'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/Peticion'
         required: true
       security:
       - cookieAuth: []
@@ -132,6 +126,10 @@ paths:
               schema:
                 $ref: '#/components/schemas/Peticion'
           description: ''
+        '400':
+          description: Datos o parámetros de consulta inválidos.
+        '404':
+          description: Recurso no encontrado.
     patch:
       operationId: peticiones_partial_update
       parameters:
@@ -149,12 +147,6 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/PatchedPeticion'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedPeticion'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedPeticion'
       security:
       - cookieAuth: []
       - basicAuth: []
@@ -166,6 +158,10 @@ paths:
               schema:
                 $ref: '#/components/schemas/Peticion'
           description: ''
+        '400':
+          description: Datos o parámetros de consulta inválidos.
+        '404':
+          description: Recurso no encontrado.
     delete:
       operationId: peticiones_destroy
       parameters:
@@ -185,6 +181,8 @@ paths:
       responses:
         '204':
           description: No response body
+        '404':
+          description: Recurso no encontrado.
   /api/peticiones/{id}/asignar/:
     post:
       operationId: peticiones_asignar_create
@@ -203,12 +201,6 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/Asignar'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/Asignar'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/Asignar'
         required: true
       security:
       - cookieAuth: []
@@ -221,6 +213,10 @@ paths:
               schema:
                 $ref: '#/components/schemas/Peticion'
           description: ''
+        '400':
+          description: Datos o parámetros de consulta inválidos.
+        '404':
+          description: Recurso no encontrado.
   /api/peticiones/{id}/cambiar-estado/:
     post:
       operationId: peticiones_cambiar_estado_create
@@ -239,12 +235,6 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CambioEstado'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/CambioEstado'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/CambioEstado'
         required: true
       security:
       - cookieAuth: []
@@ -257,6 +247,10 @@ paths:
               schema:
                 $ref: '#/components/schemas/Peticion'
           description: ''
+        '400':
+          description: Datos o parámetros de consulta inválidos.
+        '404':
+          description: Recurso no encontrado.
   /api/servicios/:
     get:
       operationId: servicios_list
@@ -281,6 +275,8 @@ paths:
                 items:
                   $ref: '#/components/schemas/ServicioSolicitable'
           description: ''
+        '400':
+          description: Datos o parámetros de consulta inválidos.
     post:
       operationId: servicios_create
       tags:
@@ -288,12 +284,6 @@ paths:
       requestBody:
         content:
           application/json:
-            schema:
-              $ref: '#/components/schemas/ServicioSolicitable'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/ServicioSolicitable'
-          multipart/form-data:
             schema:
               $ref: '#/components/schemas/ServicioSolicitable'
         required: true
@@ -308,6 +298,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ServicioSolicitable'
           description: ''
+        '400':
+          description: Datos o parámetros de consulta inválidos.
   /api/servicios/{id}/:
     get:
       operationId: servicios_retrieve
@@ -331,6 +323,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ServicioSolicitable'
           description: ''
+        '404':
+          description: Recurso no encontrado.
     put:
       operationId: servicios_update
       parameters:
@@ -347,12 +341,6 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ServicioSolicitable'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/ServicioSolicitable'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/ServicioSolicitable'
         required: true
       security:
       - cookieAuth: []
@@ -365,6 +353,10 @@ paths:
               schema:
                 $ref: '#/components/schemas/ServicioSolicitable'
           description: ''
+        '400':
+          description: Datos o parámetros de consulta inválidos.
+        '404':
+          description: Recurso no encontrado.
     patch:
       operationId: servicios_partial_update
       parameters:
@@ -381,12 +373,6 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/PatchedServicioSolicitable'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedServicioSolicitable'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedServicioSolicitable'
       security:
       - cookieAuth: []
       - basicAuth: []
@@ -398,6 +384,10 @@ paths:
               schema:
                 $ref: '#/components/schemas/ServicioSolicitable'
           description: ''
+        '400':
+          description: Datos o parámetros de consulta inválidos.
+        '404':
+          description: Recurso no encontrado.
     delete:
       operationId: servicios_destroy
       parameters:
@@ -416,6 +406,8 @@ paths:
       responses:
         '204':
           description: No response body
+        '404':
+          description: Recurso no encontrado.
 components:
   schemas:
     Asignar:

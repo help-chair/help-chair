@@ -1,6 +1,11 @@
 from django.utils import timezone
 from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import OpenApiParameter, extend_schema
+from drf_spectacular.utils import (
+    OpenApiParameter,
+    OpenApiResponse,
+    extend_schema,
+    extend_schema_view,
+)
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
@@ -21,12 +26,12 @@ ESTADOS_ASIGNABLES = (
     Peticion.Estado.REABIERTO,
 )
 
+ERROR_400 = OpenApiResponse(description="Datos o parámetros de consulta inválidos.")
+ERROR_404 = OpenApiResponse(description="Recurso no encontrado.")
 
-class ServicioSolicitableViewSet(viewsets.ModelViewSet):
-    queryset = ServicioSolicitable.objects.all()
-    serializer_class = ServicioSolicitableSerializer
 
-    @extend_schema(
+@extend_schema_view(
+    list=extend_schema(
         parameters=[
             OpenApiParameter(
                 name="incluir_inactivos",
@@ -34,28 +39,45 @@ class ServicioSolicitableViewSet(viewsets.ModelViewSet):
                 location=OpenApiParameter.QUERY,
                 description="Si es true, incluye servicios desactivados en el listado.",
             ),
-        ]
-    )
-    def list(self, request, *args, **kwargs):
-        return super().list(request, *args, **kwargs)
+        ],
+        responses={200: ServicioSolicitableSerializer(many=True), 400: ERROR_400},
+    ),
+    create=extend_schema(responses={201: ServicioSolicitableSerializer, 400: ERROR_400}),
+    retrieve=extend_schema(responses={200: ServicioSolicitableSerializer, 404: ERROR_404}),
+    update=extend_schema(
+        responses={200: ServicioSolicitableSerializer, 400: ERROR_400, 404: ERROR_404}
+    ),
+    partial_update=extend_schema(
+        responses={200: ServicioSolicitableSerializer, 400: ERROR_400, 404: ERROR_404}
+    ),
+    destroy=extend_schema(responses={204: None, 404: ERROR_404}),
+)
+class ServicioSolicitableViewSet(viewsets.ModelViewSet):
+    queryset = ServicioSolicitable.objects.all()
+    serializer_class = ServicioSolicitableSerializer
 
     def get_queryset(self):
         qs = super().get_queryset()
         if self.action == "list":
-            incluir_inactivos = (
-                self.request.query_params.get("incluir_inactivos", "").lower()
-                in ("true", "1", "yes")
-            )
+            raw = self.request.query_params.get("incluir_inactivos")
+            if raw is None or raw == "":
+                incluir_inactivos = False
+            elif raw.lower() in ("true", "1"):
+                incluir_inactivos = True
+            elif raw.lower() in ("false", "0"):
+                incluir_inactivos = False
+            else:
+                raise ValidationError(
+                    {"incluir_inactivos": "Debe ser un booleano válido (true o false)."}
+                )
+
             if not incluir_inactivos:
                 qs = qs.filter(activo=True)
         return qs
 
 
-class PeticionViewSet(viewsets.ModelViewSet):
-    queryset = Peticion.objects.all()
-    serializer_class = PeticionSerializer
-
-    @extend_schema(
+@extend_schema_view(
+    list=extend_schema(
         parameters=[
             OpenApiParameter(
                 name="estado",
@@ -76,17 +98,29 @@ class PeticionViewSet(viewsets.ModelViewSet):
                 location=OpenApiParameter.QUERY,
                 description="Filtrar peticiones por ID del usuario solicitante.",
             ),
-        ]
-    )
-    def list(self, request, *args, **kwargs):
-        return super().list(request, *args, **kwargs)
+        ],
+        responses={200: PeticionSerializer(many=True), 400: ERROR_400},
+    ),
+    create=extend_schema(responses={201: PeticionSerializer, 400: ERROR_400}),
+    retrieve=extend_schema(responses={200: PeticionSerializer, 404: ERROR_404}),
+    update=extend_schema(responses={200: PeticionSerializer, 400: ERROR_400, 404: ERROR_404}),
+    partial_update=extend_schema(
+        responses={200: PeticionSerializer, 400: ERROR_400, 404: ERROR_404}
+    ),
+    destroy=extend_schema(responses={204: None, 404: ERROR_404}),
+)
+class PeticionViewSet(viewsets.ModelViewSet):
+    queryset = Peticion.objects.all()
+    serializer_class = PeticionSerializer
 
     def get_queryset(self):
         qs = super().get_queryset()
         params = self.request.query_params
 
         estado = params.get("estado")
-        if estado:
+        if estado is not None and estado != "":
+            if estado not in Peticion.Estado.values:
+                raise ValidationError({"estado": "Estado no válido."})
             qs = qs.filter(estado=estado)
 
         for campo in ("asignado_a_id", "solicitante_id"):
@@ -99,7 +133,10 @@ class PeticionViewSet(viewsets.ModelViewSet):
 
         return qs
 
-    @extend_schema(request=CambioEstadoSerializer, responses=PeticionSerializer)
+    @extend_schema(
+        request=CambioEstadoSerializer,
+        responses={200: PeticionSerializer, 400: ERROR_400, 404: ERROR_404},
+    )
     @action(detail=True, methods=["post"], url_path="cambiar-estado")
     def cambiar_estado(self, request, pk=None):
         peticion = self.get_object()
@@ -121,7 +158,10 @@ class PeticionViewSet(viewsets.ModelViewSet):
         peticion.save()
         return Response(PeticionSerializer(peticion).data)
 
-    @extend_schema(request=AsignarSerializer, responses=PeticionSerializer)
+    @extend_schema(
+        request=AsignarSerializer,
+        responses={200: PeticionSerializer, 400: ERROR_400, 404: ERROR_404},
+    )
     @action(detail=True, methods=["post"])
     def asignar(self, request, pk=None):
         peticion = self.get_object()

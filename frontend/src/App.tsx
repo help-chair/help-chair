@@ -54,13 +54,22 @@ export default function App() {
     <ServiceDeskLayout
       activeTab={tabActual}
       onSelectTab={setActiveTab}
-      usuario={{ nombre: sesion.usuario.nombre, rol: NOMBRE_ROL[sesion.usuario.rol] }}
+      usuario={{
+        nombre: sesion.usuario.nombre,
+        rol: NOMBRE_ROL[sesion.usuario.rol],
+        rolId: sesion.usuario.rol,
+      }}
       secciones={secciones}
       onLogout={salir}
     >
-      {tabActual === 'dashboard' && (
-        <DashboardPage onNavigate={setActiveTab} secciones={secciones} />
-      )}
+      {tabActual === 'dashboard' &&
+        (isOwner ? (
+          <Suspense fallback={<div>Cargando panel de área...</div>}>
+            <OwnerDashboard onNavigate={setActiveTab} />
+          </Suspense>
+        ) : (
+          <DashboardPage onNavigate={setActiveTab} secciones={secciones} />
+        ))}
       {tabActual === 'events' && <EventsPage />}
       {tabActual === 'requests' && (
         canViewRequests ? (
@@ -70,15 +79,7 @@ export default function App() {
         )
       )}
       {tabActual === 'access' && <UsersPage usuario={sesion.usuario} />}
-      {tabActual === 'incidents' && (
-        isOwner ? (
-          <Suspense fallback={<div>Cargando panel área...</div>}>
-            <OwnerDashboard />
-          </Suspense>
-        ) : (
-          <IncidentsPage />
-        )
-      )}
+      {tabActual === 'incidents' && <IncidentsPage />}
       {tabActual === 'problems' && <ProblemsPage />}
       {tabActual === 'knowledge' && <KnowledgePage />}
     </ServiceDeskLayout>

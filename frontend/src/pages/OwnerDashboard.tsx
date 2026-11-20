@@ -1,8 +1,15 @@
-import { Flame, AlertTriangle, Layers } from 'lucide-react'
-import { Card } from '@/components/ui/card'
+import { AlertTriangle, Flame, Layers, ShieldAlert } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
+import type { TabKey } from '@/components/layout/ServiceDeskLayout'
 
-export default function OwnerDashboard() {
+interface OwnerDashboardProps {
+  /** Permite navegar a Incidencias o Problemas desde el panel. */
+  onNavigate: (tab: TabKey) => void
+}
+
+export default function OwnerDashboard({ onNavigate }: OwnerDashboardProps) {
   return (
     <div className="space-y-6">
       {/* Banner de Owner de Área */}
@@ -54,6 +61,18 @@ export default function OwnerDashboard() {
           <p className="text-2xl font-bold text-slate-800 mt-2">Sistemas & BD</p>
           <p className="text-xs text-slate-500 mt-1">Componentes en monitoreo activo</p>
         </Card>
+      </div>
+
+      {/* Accesos rápidos */}
+      <div className="flex flex-wrap gap-3">
+        <Button variant="secondary" size="md" onClick={() => onNavigate('incidents')}>
+          <Flame size={16} aria-hidden="true" />
+          Gestionar Incidencias
+        </Button>
+        <Button variant="secondary" size="md" onClick={() => onNavigate('problems')}>
+          <ShieldAlert size={16} aria-hidden="true" />
+          Gestionar Problemas
+        </Button>
       </div>
     </div>
   )

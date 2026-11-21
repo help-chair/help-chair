@@ -180,6 +180,10 @@ Al terminar un issue del Kanban Frontend o una implementación nueva:
    - Implementación en curso → `In progress`
    - PR abierto → `In review`
    - PR fusionado y validado → `Done`
+5. Al crear o mover un issue, **propón** (y confirma antes de fijarlos):
+   - **Priority** (`Alta` / `Media` / `Baja`), como campo del tablero y como etiqueta `prioridad: alta|media|baja`.
+   - **Size** (`XS`–`XL`) y **Estimate** (puntos).
+   - Criterio orientativo: `bug`/`infra` → Alta, `docs` → Baja, el resto → Media.
 
 Ayuda opcional: `node scripts/kanban.mjs <numero-de-issue>` imprime el estado actual del issue en el tablero y el comando `gh` exacto para moverlo (requiere `gh` autenticado).
 

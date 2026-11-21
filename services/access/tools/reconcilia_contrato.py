@@ -63,6 +63,17 @@ def resolver(doc: dict[str, Any], nodo: Any, visitados: frozenset[str] = frozens
     return nodo
 
 
+def codigos_de_respuesta(doc: dict[str, Any], ruta: str, metodo: str) -> set[str]:
+    """Códigos HTTP que la operación declara, como texto ('200', '401')."""
+    operacion = resolver(doc, (doc.get("paths") or {}).get(ruta, {}).get(metodo, {}))
+    if not isinstance(operacion, dict):
+        return set()
+    respuestas = operacion.get("responses")
+    if not isinstance(respuestas, dict):
+        return set()
+    return {str(codigo) for codigo in respuestas}
+
+
 def campos_de_respuesta(doc: dict[str, Any], ruta: str, metodo: str) -> set[str]:
     """Nombres de campo de la respuesta 200/201 en application/json."""
     operacion = resolver(doc, (doc.get("paths") or {}).get(ruta, {}).get(metodo, {}))
@@ -109,6 +120,19 @@ def main(argv: list[str]) -> int:
         for ruta, metodo in sin_servir:
             print(f"  · {metodo.upper():6} {ruta}")
 
+    codigos_sin_declarar = []
+    for ruta, metodo in compartidas:
+        sobran = codigos_de_respuesta(generado, ruta, metodo) - codigos_de_respuesta(
+            contrato, ruta, metodo
+        )
+        if sobran:
+            codigos_sin_declarar.append((ruta, metodo, sorted(sobran)))
+
+    if codigos_sin_declarar:
+        print(f"\nCódigos HTTP sin declarar en el contrato ({len(codigos_sin_declarar)}):")
+        for ruta, metodo, sobran in codigos_sin_declarar:
+            print(f"  · {metodo.upper()} {ruta}: {', '.join(sobran)}")
+
     desajustes = []
     for ruta, metodo in compartidas:
         del_codigo = campos_de_respuesta(generado, ruta, metodo)
@@ -134,11 +158,11 @@ def main(argv: list[str]) -> int:
         print("\nDeclara esas operaciones en el contrato antes de seguir.")
         return 1
 
-    if desajustes:
-        print("\nFALLA: hay campos de respuesta que no concuerdan (ver arriba).")
+    if desajustes or codigos_sin_declarar:
+        print("\nFALLA: el contrato y el código no concuerdan (ver arriba).")
         return 1
 
-    print("\nOK: el contrato declara todo lo que el código sirve, y los campos concuerdan.")
+    print("\nOK: el contrato declara todo lo que el código sirve, con sus códigos y campos.")
     return 0
 
 

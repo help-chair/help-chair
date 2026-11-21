@@ -15,17 +15,17 @@
 
 ## 2. Ciclo de vida de un evento
 
-![Ciclo de vida de un evento](life_cycle_event.png)
+![Ciclo de vida de un evento](services/events/docs/diagrams/life_cycle_event.png)
 
 
 ## 3. Diagrama entidad-relación
 
-![Diagrama entidad-relación](Related_entity.png)
+![Diagrama entidad-relación](services/events/docs/diagrams/Related_entity.png)
 
 
 ## 4. Diagrama de tablas
 
-![Diagrama de tablas](Table_Diagram.webp)
+![Diagrama de tablas](services/events/docs/diagrams/Table_Diagram.webp)
 
 
 Las transiciones permitidas se definen **en código** (un diccionario `ALLOWED_TRANSITIONS`), no en una tabla. Un evento de usuario cerrado recibe encuesta; uno cancelado recibe los motivos; uno de sistema no recibe respuesta.

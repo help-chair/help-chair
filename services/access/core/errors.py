@@ -8,6 +8,7 @@ manejador traduce ambos antes de responder.
 Se conecta en ``config/settings.py`` con ``REST_FRAMEWORK["EXCEPTION_HANDLER"]``.
 """
 
+from rest_framework import serializers
 from rest_framework.views import exception_handler as manejador_de_drf
 
 # Código por omisión según el estado HTTP, cuando la excepción no trae uno propio.
@@ -103,3 +104,15 @@ def manejador_de_errores(exc, context):
 
     respuesta.data = cuerpo
     return respuesta
+
+
+class ErrorSerializer(serializers.Serializer):
+    """Solo documenta la forma del error; la arma ``manejador_de_errores``.
+
+    Existe para que ``make openapi`` genere las respuestas de error y el esquema
+    del código declare los mismos códigos HTTP que el contrato.
+    """
+
+    codigo = serializers.CharField()
+    detalle = serializers.CharField()
+    campos = serializers.DictField(child=serializers.CharField(), required=False)

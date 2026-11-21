@@ -101,6 +101,10 @@ paths:
       tags: [autenticacion]
       operationId: refreshToken
       summary: Renueva el token de acceso
+      description: >-
+        El token de refresco viaja en el cuerpo de la petición, en el campo `refresco`.
+        La migración a cookie httpOnly está planificada para la fase 4 (issue #195);
+        en la v1 este contrato se mantiene con `refresco` en el cuerpo.
       security: []
       requestBody:
         required: true

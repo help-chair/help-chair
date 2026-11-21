@@ -38,7 +38,7 @@ addopts = "-q --cov=. --cov-report=term-missing:skip-covered"
 filterwarnings = ["ignore:No directory at:UserWarning"]
 
 [tool.coverage.run]
-omit = ["*/migrations/*", "manage.py", "config/wsgi.py", "tests/*"]
+omit = ["*/migrations/*", "manage.py", "config/wsgi.py", "tests/*", "tools/*"]
 
 [tool.ruff]
 line-length = 100

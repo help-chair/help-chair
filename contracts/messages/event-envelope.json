@@ -1,0 +1,165 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://help-chair.com/contracts/messages/event-envelope.json",
+  "title": "Sobre común de mensajes (event envelope)",
+  "description": "Contrato v0 (fase 1). Dueño: Equipo 1 (Eventos). Sobre que envuelve TODO mensaje publicado en el broker del stack. `id` es el `outbox_message.id` del productor y sirve de clave de idempotencia para los consumidores (`processed_message`). `origin` es el SERVICIO que publica (no confundir con `origin` del evento, USER o SYSTEM, que va dentro del payload). `timestamp` es cuándo se publicó; `occurred_at`, cuándo ocurrió el hecho. Los consumidores deben ignorar campos desconocidos: agregar un campo opcional no rompe, pero cambia este esquema y se avisa por PR; un cambio incompatible exige subir `version` y MAJOR. Con NATS, el subject sugerido es `<origin>.<type>` o `events.routed.<destino>`.",
+  "type": "object",
+  "required": ["id", "type", "version", "origin", "timestamp", "occurred_at", "payload"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Identificador único del mensaje (igual a outbox_message.id)."
+    },
+    "type": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
+      "description": "Tipo del mensaje, en minúsculas y separado por puntos: event.routed, event.state_changed...",
+      "examples": ["event.routed", "event.state_changed"]
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Versión del esquema del payload de este tipo."
+    },
+    "origin": {
+      "type": "string",
+      "enum": ["events", "access", "requests", "incidents", "problems", "knowledge"],
+      "description": "Servicio que publica el mensaje."
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Momento de publicación (UTC, ISO 8601)."
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Momento en que ocurrió el hecho que originó el mensaje (UTC, ISO 8601)."
+    },
+    "correlation_id": {
+      "type": ["string", "null"],
+      "format": "uuid",
+      "description": "Identificador para seguir una cadena de mensajes entre servicios; opcional."
+    },
+    "payload": {
+      "type": "object",
+      "description": "Contenido del mensaje; su forma depende de `type` (ver $defs)."
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "type": { "const": "event.routed" } }, "required": ["type"] },
+      "then": {
+        "properties": {
+          "origin": { "const": "events" },
+          "payload": { "$ref": "#/$defs/EventRoutedPayload" }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "type": { "const": "event.state_changed" } }, "required": ["type"] },
+      "then": {
+        "properties": {
+          "origin": { "const": "events" },
+          "payload": { "$ref": "#/$defs/EventStateChangedPayload" }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "EventType": { "type": "string", "enum": ["INFORMATION", "WARNING", "EXCEPTION"] },
+    "EventCategory": { "type": "string", "enum": ["SECURITY", "REQUEST", "FAILURE", "CHANGE", "GENERAL"] },
+    "EventState": {
+      "type": "string",
+      "enum": ["NEW", "ASSIGNED", "IN_PROGRESS", "ON_HOLD", "RESOLVED", "CLOSED", "REJECTED", "CANCELLED", "REOPENED"]
+    },
+    "Impact": { "type": ["string", "null"], "enum": ["HIGH", "MEDIUM", "LOW", null] },
+    "Priority": { "type": ["string", "null"], "enum": ["P1", "P2", "P3", "P4", null] },
+    "ClosureCode": {
+      "type": ["string", "null"],
+      "enum": ["AUTO_LOGGED", "KB_RESOLVED", "SOLVED", "NOT_APPLICABLE", null]
+    },
+    "EventRoutedPayload": {
+      "title": "event.routed (v1)",
+      "description": "Eventos publica el destino decidido por el motor de reglas. Solo se publica cuando el destino es otro servicio (ACCESS, REQUESTS, INCIDENTS o PROBLEMS); LOG_ONLY, EVENTS y SOLUTION_AUTHOR se resuelven dentro de Eventos. Consumidores: Peticiones, Incidencias, Problemas y Accesos (cada uno filtra por `destination`).",
+      "type": "object",
+      "required": [
+        "event_id", "destination", "rule_code", "event_type", "category", "state", "title", "message",
+        "action_required", "occurrence_count", "fingerprint", "first_seen_at", "last_seen_at"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "event_id": { "type": "string", "format": "uuid", "description": "event.id; referencia estable entre servicios (nunca llave foránea)." },
+        "destination": { "type": "string", "enum": ["ACCESS", "REQUESTS", "INCIDENTS", "PROBLEMS"] },
+        "rule_code": { "type": "string", "pattern": "^R[1-9]$", "description": "Regla aplicada, de R1 a R9 (docs/rules.md)." },
+        "event_type": { "$ref": "#/$defs/EventType" },
+        "category": { "$ref": "#/$defs/EventCategory" },
+        "state": { "$ref": "#/$defs/EventState" },
+        "priority": { "$ref": "#/$defs/Priority" },
+        "impact": { "$ref": "#/$defs/Impact" },
+        "urgency": { "$ref": "#/$defs/Impact" },
+        "service_code": { "type": ["string", "null"], "description": "Código del servicio afectado (catálogo de Eventos)." },
+        "title": { "type": "string", "maxLength": 200 },
+        "message": { "type": "string" },
+        "action_required": { "type": "boolean" },
+        "occurrence_count": { "type": "integer", "minimum": 1 },
+        "fingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "first_seen_at": { "type": "string", "format": "date-time" },
+        "last_seen_at": { "type": "string", "format": "date-time" },
+        "reporter_ref": { "type": ["string", "null"], "description": "Usuario a notificar (referencia a Accesos)." },
+        "payload": { "type": "object", "description": "Datos crudos del evento tal como llegaron." }
+      }
+    },
+    "EventStateChangedPayload": {
+      "title": "event.state_changed (v1)",
+      "description": "Eventos publica cada cambio de estado de un evento. Opcional en la fase 2.",
+      "type": "object",
+      "required": ["event_id", "to_state", "changed_at", "actor_type"],
+      "additionalProperties": false,
+      "properties": {
+        "event_id": { "type": "string", "format": "uuid" },
+        "from_state": { "type": ["string", "null"], "enum": ["NEW", "ASSIGNED", "IN_PROGRESS", "ON_HOLD", "RESOLVED", "CLOSED", "REJECTED", "CANCELLED", "REOPENED", null] },
+        "to_state": { "$ref": "#/$defs/EventState" },
+        "closure_code": { "$ref": "#/$defs/ClosureCode" },
+        "state_reason": { "type": ["string", "null"] },
+        "changed_at": { "type": "string", "format": "date-time" },
+        "actor_type": { "type": "string", "enum": ["USER", "SYSTEM", "RULE"] },
+        "actor_ref": { "type": ["string", "null"] }
+      }
+    }
+  },
+  "examples": [
+    {
+      "id": "0b9d6b1e-6c0a-4f0e-9d7e-3a1f1f7b2c11",
+      "type": "event.routed",
+      "version": 1,
+      "origin": "events",
+      "timestamp": "2026-11-20T10:00:01Z",
+      "occurred_at": "2026-11-20T10:00:00Z",
+      "correlation_id": "5d2b8a0e-0c53-4a63-8d6b-6f3f5a7a9e21",
+      "payload": {
+        "event_id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+        "destination": "INCIDENTS",
+        "rule_code": "R6",
+        "event_type": "EXCEPTION",
+        "category": "FAILURE",
+        "state": "NEW",
+        "priority": "P1",
+        "impact": "HIGH",
+        "urgency": "HIGH",
+        "service_code": "pagos",
+        "title": "Timeout en el gateway de pagos",
+        "message": "El servicio de pagos no responde desde hace 5 minutos",
+        "action_required": true,
+        "occurrence_count": 1,
+        "fingerprint": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+        "first_seen_at": "2026-11-20T10:00:00Z",
+        "last_seen_at": "2026-11-20T10:00:00Z",
+        "reporter_ref": null,
+        "payload": { "host": "pagos-01", "latency_ms": 5000 }
+      }
+    }
+  ]
+}

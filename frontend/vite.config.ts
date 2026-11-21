@@ -44,6 +44,28 @@ export default defineConfig(({ mode }) => {
       environment: 'jsdom',
       setupFiles: './src/test/setup.ts',
       css: false,
+      coverage: {
+        provider: 'v8',
+        reporter: ['text', 'html'],
+        reportsDirectory: './coverage',
+        // Fuera del alcance de los "módulos principales": bootstrap, tipos y configuración.
+        exclude: [
+          'src/main.tsx',
+          'src/Root.tsx',
+          '**/types.ts',
+          '**/*.d.ts',
+          '*.config.js',
+          '*.config.ts',
+          'scripts/**',
+          'dist/**',
+        ],
+        thresholds: {
+          lines: 60,
+          functions: 60,
+          branches: 60,
+          statements: 60,
+        },
+      },
     },
   }
 })

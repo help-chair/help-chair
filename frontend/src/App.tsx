@@ -1,12 +1,7 @@
 import { useState } from 'react'
-import { logout as cerrarSesionEnAccesos, setAccessToken } from '@/api/access'
+import { logout as cerrarSesionEnAccesos, setAccessToken, setRefreshToken } from '@/api/access'
 import { ServiceDeskLayout, type TabKey } from '@/components/layout/ServiceDeskLayout'
 import { useHasRole } from '@/auth/roleGuard'
-import React, { Suspense } from 'react'
-
-// Lazy-loaded dashboards
-const AdminDashboard = React.lazy(() => import('./pages/AdminDashboard'))
-const OwnerDashboard = React.lazy(() => import('./pages/OwnerDashboard'))
 
 import LoginPage from '@/features/access/LoginPage'
 import { UsersPage } from '@/features/access/UsersPage'
@@ -42,12 +37,10 @@ export default function App() {
   const secciones = seccionesVisibles(sesion.usuario.permisos)
   const tabActual = secciones.includes(activeTab) ? activeTab : seccionInicial(sesion.usuario.permisos)
 
-  const isAdmin = sesion.usuario.rol === 'administrador'
-  const isOwner = sesion.usuario.rol === 'agente_n2'
-
   function salir() {
     if (sesion) void cerrarSesionEnAccesos(sesion.refresco).catch(() => undefined)
     setAccessToken(null)
+    setRefreshToken(null)
     setSesion(null)
     setActiveTab('dashboard')
   }
@@ -56,37 +49,29 @@ export default function App() {
     <ServiceDeskLayout
       activeTab={tabActual}
       onSelectTab={setActiveTab}
-      usuario={{ nombre: sesion.usuario.nombre, rol: NOMBRE_ROL[sesion.usuario.rol] }}
+      usuario={{
+        nombre: sesion.usuario.nombre,
+        rol: NOMBRE_ROL[sesion.usuario.rol],
+        rolId: sesion.usuario.rol,
+      }}
       secciones={secciones}
       onLogout={salir}
     >
       {tabActual === 'dashboard' && (
-        isAdmin ? (
-          <Suspense fallback={<div>Cargando panel admin...</div>}>
-            <AdminDashboard />
-          </Suspense>
-        ) : (
-          <DashboardPage onNavigate={setActiveTab} secciones={secciones} />
-        )
+        <DashboardPage onNavigate={setActiveTab} secciones={secciones} rolId={sesion.usuario.rol} />
       )}
       {tabActual === 'events' && <EventsPage />}
       {tabActual === 'requests' && (
         canViewRequests ? (
-          <RequestsPage />
+          <RequestsPage
+            puedeGestionar={sesion.usuario.permisos.includes('tickets:atender')}
+          />
         ) : (
           <div className="p-4 text-center text-red-600">No tienes permiso para ver solicitudes.</div>
         )
       )}
       {tabActual === 'access' && <UsersPage usuario={sesion.usuario} />}
-      {tabActual === 'incidents' && (
-        isOwner ? (
-          <Suspense fallback={<div>Cargando panel área...</div>}>
-            <OwnerDashboard />
-          </Suspense>
-        ) : (
-          <IncidentsPage />
-        )
-      )}
+      {tabActual === 'incidents' && <IncidentsPage />}
       {tabActual === 'problems' && <ProblemsPage />}
       {tabActual === 'knowledge' && <KnowledgePage />}
     </ServiceDeskLayout>

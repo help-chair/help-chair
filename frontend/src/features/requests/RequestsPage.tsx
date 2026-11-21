@@ -1,11 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
-import { CheckCircle2, ClipboardList, Inbox, LayoutGrid, X } from 'lucide-react'
+import {
+  CheckCircle2,
+  ClipboardList,
+  Inbox,
+  LayoutGrid,
+  X,
+  type LucideIcon,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import { CATALOG, INITIAL_REQUESTS, nextRequestId } from './data'
 import { RequestForm } from './RequestForm'
 import { RequestList } from './RequestList'
+import { RequestQueue } from './RequestQueue'
 import { ServiceCatalog } from './ServiceCatalog'
 import type { CatalogService, NewRequestInput, ServiceRequest } from './types'
 
@@ -13,13 +21,26 @@ type View =
   | { name: 'catalogo' }
   | { name: 'formulario'; service: CatalogService }
   | { name: 'mis-peticiones' }
+  | { name: 'cola' }
+
+interface RequestsPageProps {
+  /** Muestra la cola de atención (para agentes y administradores). */
+  puedeGestionar?: boolean
+}
+
+type TabDef = {
+  id: 'catalogo' | 'mis-peticiones' | 'cola'
+  label: string
+  icon: LucideIcon
+  count?: number
+}
 
 /**
  * Módulo de Peticiones (Equipo 3 · Service Request Management).
  * Flujo B del prototipo: catálogo → formulario → la petición aparece en «Mis peticiones».
  * Por ahora trabaja con datos de ejemplo; se conectará a services/requests cuando exista su API.
  */
-export function RequestsPage() {
+export function RequestsPage({ puedeGestionar = false }: RequestsPageProps) {
   const [view, setView] = useState<View>({ name: 'catalogo' })
   const [requests, setRequests] = useState<ServiceRequest[]>(INITIAL_REQUESTS)
   const [createdId, setCreatedId] = useState<string | null>(null)
@@ -57,11 +78,15 @@ export function RequestsPage() {
     setView({ name: 'mis-peticiones' })
   }
 
-  const tabs = [
+  const tabs: TabDef[] = [
     { id: 'catalogo', label: 'Catálogo de servicios', icon: LayoutGrid },
     { id: 'mis-peticiones', label: 'Mis peticiones', icon: ClipboardList, count: requests.length },
-  ] as const
-  const activeTab = view.name === 'mis-peticiones' ? 'mis-peticiones' : 'catalogo'
+    ...(puedeGestionar
+      ? ([{ id: 'cola', label: 'Cola de atención', icon: Inbox, count: requests.length }] as TabDef[])
+      : []),
+  ]
+  const activeTab =
+    view.name === 'mis-peticiones' ? 'mis-peticiones' : view.name === 'cola' ? 'cola' : 'catalogo'
 
   return (
     // `relative` mantiene los textos sr-only (posición absoluta) dentro del área con scroll.
@@ -172,6 +197,7 @@ export function RequestsPage() {
           onGoToCatalog={() => goTo({ name: 'catalogo' })}
         />
       )}
+      {view.name === 'cola' && <RequestQueue requests={requests} />}
     </div>
   )
 }

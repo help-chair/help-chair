@@ -64,6 +64,9 @@ describe('LoginPage', () => {
       password: 'una-clave-muy-larga-1',
     })
     expect(onAuthenticated).toHaveBeenCalledWith(sesion)
+
+    const { getRefreshToken } = await import('@/api/access')
+    expect(getRefreshToken()).toBe(sesion.refresco)
   })
 
   it('avisa cuando el correo o la contraseña no coinciden', async () => {
@@ -88,5 +91,17 @@ describe('LoginPage', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/bloqueada/i)
     expect(screen.getByRole('button', { name: /entrar/i })).toBeDisabled()
+  })
+
+  it('lista las cuentas de prueba por rol en desarrollo', () => {
+    render(<LoginPage onAuthenticated={vi.fn()} />)
+
+    expect(screen.getByText(/cuentas de prueba \(solo desarrollo\)/i)).toBeInTheDocument()
+    expect(screen.getByText('admin@empresa15.com')).toBeInTheDocument()
+    expect(screen.getByText('daniela.ruiz@empresa15.com')).toBeInTheDocument()
+    expect(screen.getByText('marco.estrada@empresa15.com')).toBeInTheDocument()
+    expect(screen.getByText('lucia.ponce@empresa15.com')).toBeInTheDocument()
+    expect(screen.getByText('hugo.navarro@empresa15.com')).toBeInTheDocument()
+    expect(screen.getByText('sofia.marin@empresa15.com')).toBeInTheDocument()
   })
 })

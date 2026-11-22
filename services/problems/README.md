@@ -18,7 +18,52 @@
 
 ### Stack tecnológico
 - Lenguaje / framework: Python / Django
-- Base de datos: _por definir por el equipo_ (propia de este servicio)
+- Base de datos: PostgreSQL (propia de este servicio)
+
+### Modelo de datos
+Los IDs de otros servicios (`asignado_a_id`, `incidente_id`, `articulo_kb_id`) se guardan como texto, **sin llaves foráneas**: cada servicio es dueño de su propia base de datos.
+
+```mermaid
+erDiagram
+    PROBLEMA ||--o{ PROBLEMA_INCIDENTE : "incidentes"
+    PROBLEMA ||--o{ ERROR_CONOCIDO : "errores_conocidos"
+
+    PROBLEMA {
+        bigint id PK
+        varchar titulo "200"
+        text descripcion
+        varchar estado "registrado | en_analisis | causa_identificada | error_conocido | resuelto | cerrado"
+        varchar prioridad "baja | media | alta | critica"
+        varchar origen "manual | patron"
+        text causa_raiz "opcional"
+        varchar asignado_a_id "ID en Accesos, sin FK"
+        timestamptz creado_en
+        timestamptz actualizado_en
+        timestamptz resuelto_en "nullable"
+    }
+
+    PROBLEMA_INCIDENTE {
+        bigint id PK
+        bigint problema_id FK
+        varchar incidente_id "ID en Incidencias, sin FK"
+        timestamptz vinculado_en
+    }
+
+    ERROR_CONOCIDO {
+        bigint id PK
+        bigint problema_id FK
+        varchar titulo "200"
+        text descripcion
+        text causa_raiz
+        text workaround
+        varchar articulo_kb_id "ID en Knowledge, sin FK"
+        boolean activo "default true"
+        timestamptz creado_en
+        timestamptz actualizado_en
+    }
+```
+
+`PROBLEMA_INCIDENTE` tiene una restricción única `(problema_id, incidente_id)`: un incidente no puede vincularse dos veces al mismo problema.
 
 ### Contrato mínimo de servicio
 - [ ] `Dockerfile` y usuario no root

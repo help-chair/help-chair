@@ -19,28 +19,28 @@ servers:
   - url: http://localhost:8000/api/public/v1
     description: Entorno local
 tags:
-  - name: registro
+  - name: register
 paths:
-  /subdomains/{subdominio}/availability:
+  /subdomains/{subdomain}/availability:
     get:
-      tags: [registro]
+      tags: [register]
       operationId: checkSubdomainAvailability
       summary: Consulta si un subdominio está libre
       parameters:
-        - name: subdominio
+        - name: subdomain
           in: path
           required: true
-          schema: { $ref: '#/components/schemas/Subdominio' }
+          schema: { $ref: '#/components/schemas/Subdomain' }
       responses:
         '200':
           description: Resultado de la consulta
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Disponibilidad' }
-        '429': { $ref: '#/components/responses/DemasiadasSolicitudes' }
+              schema: { $ref: '#/components/schemas/Availability' }
+        '429': { $ref: '#/components/responses/ManyRequests' }
   /companies:
     post:
-      tags: [registro]
+      tags: [register]
       operationId: registerCompany
       summary: Solicita el alta de una empresa
       description: |
@@ -50,13 +50,13 @@ paths:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/AltaEmpresa' }
+            schema: { $ref: '#/components/schemas/HighEndCompany' }
       responses:
         '202':
           description: Solicitud aceptada; falta verificar el correo
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/SolicitudCreada' }
+              schema: { $ref: '#/components/schemas/RequestCreated' }
         '409':
           description: Subdominio no disponible
           content:
@@ -67,10 +67,10 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
-        '429': { $ref: '#/components/responses/DemasiadasSolicitudes' }
+        '429': { $ref: '#/components/responses/ManyRequests' }
   /companies/verify:
     post:
-      tags: [registro]
+      tags: [register]
       operationId: verifyCompanyEmail
       summary: Verifica el correo del administrador e inicia el aprovisionamiento
       description: Es POST (no GET) para que los escáneres de enlaces del correo no verifiquen por accidente.
@@ -88,16 +88,16 @@ paths:
           description: Correo verificado; la empresa pasa a `aprovisionando`
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/EstadoEmpresa' }
+              schema: { $ref: '#/components/schemas/CompanyStatus' }
         '400':
           description: Token inválido, usado o expirado
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
-        '429': { $ref: '#/components/responses/DemasiadasSolicitudes' }
+        '429': { $ref: '#/components/responses/ManyRequests' }
   /companies/{id}/status:
     get:
-      tags: [registro]
+      tags: [register]
       operationId: getCompanyStatus
       summary: Estado del alta (la pantalla de progreso lo consulta cada pocos segundos)
       parameters:
@@ -115,16 +115,16 @@ paths:
           description: Estado actual
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/EstadoEmpresa' }
+              schema: { $ref: '#/components/schemas/CompanyStatus' }
         '404':
           description: Solicitud inexistente o token incorrecto (misma respuesta en ambos casos)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
-        '429': { $ref: '#/components/responses/DemasiadasSolicitudes' }
+        '429': { $ref: '#/components/responses/ManyRequests' }
   /lookup:
     post:
-      tags: [registro]
+      tags: [register]
       operationId: lookupCompany
       summary: Encuentra el subdominio de una empresa a partir del correo del usuario
       description: |
@@ -136,9 +136,9 @@ paths:
           application/json:
             schema:
               type: object
-              required: [correo]
+              required: [email]
               properties:
-                correo: { type: string, format: email }
+                email: { type: string, format: email }
       responses:
         '200':
           description: Empresa encontrada
@@ -146,19 +146,19 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [subdominio, url]
+                required: [subdomain, url]
                 properties:
-                  subdominio: { type: string, example: empresa15 }
+                  subdomain: { type: string, example: empresa15 }
                   url: { type: string, format: uri, example: 'https://empresa15.help-chair.com' }
         '404':
           description: Sin coincidencia (respuesta genérica, no revela si el dominio existe)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
-        '429': { $ref: '#/components/responses/DemasiadasSolicitudes' }
+        '429': { $ref: '#/components/responses/ManyRequests' }
 components:
   responses:
-    DemasiadasSolicitudes:
+    ManyRequests:
       description: Límite de solicitudes excedido
       headers:
         Retry-After: { schema: { type: integer }, description: Segundos de espera }
@@ -166,72 +166,72 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
   schemas:
-    Subdominio:
+    Subdomain:
       type: string
       pattern: '^[a-z0-9]([a-z0-9-]{1,28}[a-z0-9])$'
       minLength: 3
       maxLength: 30
       description: Minúsculas, números y guiones. No puede ser un nombre reservado (www, api, admin, app, mail...).
       example: empresa15
-    Disponibilidad:
+    Availability:
       type: object
-      required: [disponible]
+      required: [available]
       properties:
-        disponible: { type: boolean }
-        motivo:
+        available: { type: boolean }
+        reason:
           type: string
-          enum: [ocupado, reservado, invalido]
+          enum: [occupied, reserved, invalid]
           description: Presente solo si `disponible` es false
-    AltaEmpresa:
+    HighEndCompany:
       type: object
-      required: [empresa, administrador, acepta_terminos]
+      required: [company, admin, accepts_terms]
       properties:
-        empresa:
+        company:
           type: object
-          required: [nombre, subdominio]
+          required: [name, subdomain]
           properties:
-            nombre: { type: string, maxLength: 120, example: Acme S.A. de C.V. }
-            subdominio: { $ref: '#/components/schemas/Subdominio' }
+            name: { type: string, maxLength: 120, example: Acme S.A. de C.V. }
+            subdomain: { $ref: '#/components/schemas/Subdomain' }
             sector: { type: string, maxLength: 60, description: Opcional, example: manufactura }
-            tamano:
+            size:
               type: string
               enum: ['1-10', '11-50', '51-200', '201-1000', '1000+']
               description: Opcional. Número de empleados (rango).
-            pais: { type: string, minLength: 2, maxLength: 2, description: 'Código ISO 3166-1 alfa-2', example: MX }
-        administrador:
+            country: { type: string, minLength: 2, maxLength: 2, description: 'Código ISO 3166-1 alfa-2', example: MX }
+        admin:
           type: object
-          required: [nombre, correo]
+          required: [name, email]
           properties:
-            nombre: { type: string, maxLength: 120 }
-            correo: { type: string, format: email }
-        acepta_terminos: { type: boolean, enum: [true] }
-    SolicitudCreada:
+            name: { type: string, maxLength: 120 }
+            email: { type: string, format: email }
+        accepts_terms: { type: boolean, enum: [true] }
+    RequestCreated:
       type: object
-      required: [id, subdominio, estado, token_seguimiento]
+      required: [id, subdomain, status, tracking_token]
       properties:
         id: { type: string, format: uuid }
-        subdominio: { type: string }
-        estado: { $ref: '#/components/schemas/Estado' }
-        token_seguimiento:
+        subdomain: { type: string }
+        status: { $ref: '#/components/schemas/Status' }
+        tracking_token:
           type: string
           description: Se envía en `X-Tracking-Token` al consultar el estado. Se entrega una sola vez.
-    Estado:
+    Status:
       type: string
-      enum: [pendiente_verificacion, aprovisionando, activa, suspendida, error]
-    EstadoEmpresa:
+      enum: [pending_verification, provisioning, active, suspended, error]
+    CompanyStatus:
       type: object
-      required: [id, subdominio, estado]
+      required: [id, subdomain, status]
       properties:
         id: { type: string, format: uuid }
-        subdominio: { type: string }
-        estado: { $ref: '#/components/schemas/Estado' }
+        subdomain: { type: string }
+        status: { $ref: '#/components/schemas/Status' }
         url:
           type: string
           format: uri
           nullable: true
           description: URL del Service Desk; solo cuando `estado` = activa
-        mensaje: { type: string, nullable: true, description: Texto para mostrar al usuario }
-        enlace_activacion:
+        message: { type: string, nullable: true, description: Texto para mostrar al usuario }
+        activation_link:
           type: string
           format: uri
           nullable: true
@@ -240,11 +240,11 @@ components:
             progreso). En operación normal siempre es null y el enlace llega por correo.
     Error:
       type: object
-      required: [codigo, detalle]
+      required: [code, detail]
       properties:
-        codigo: { type: string, example: subdominio_ocupado }
-        detalle: { type: string }
-        campos:
+        code: { type: string, example: taken_subdomain }
+        detail: { type: string }
+        fields:
           type: object
           additionalProperties: { type: string }
           description: Errores por campo (422)

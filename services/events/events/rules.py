@@ -1,64 +1,141 @@
-"""Motor de reglas de destino de Eventos (ESQUELETO).
+"""Motor de reglas de destino de Eventos.
 
-Define el vocabulario (evento, destino, decisión) y la firma de ``evaluar``.
-La lógica de las 9 reglas se implementa después (TDD): ver ``tests/test_rules.py``.
+Decide el destino de un evento y la regla aplicada, sin llamadas de red ni acceso a BD.
+Las reglas se evalúan en RULE_ORDER y gana la primera que coincide (ver docs/reglas.md).
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
 
 
-class Origen(StrEnum):
-    SISTEMA = "sistema"
-    USUARIO = "usuario"
+class Origin(StrEnum):
+    SYSTEM = "sistema"
+    USER = "usuario"
 
 
-class Tipo(StrEnum):
-    INFORMATIVO = "informativo"
-    ADVERTENCIA = "advertencia"
-    EXCEPCION = "excepcion"
+class EventType(StrEnum):
+    INFORMATIVE = "informativo"
+    WARNING = "advertencia"
+    EXCEPTION = "excepcion"
 
 
-class Categoria(StrEnum):
-    SEGURIDAD = "seguridad"  # seguridad o credenciales
-    SOLICITUD_CATALOGO = "solicitud_catalogo"
-    FALLA = "falla"  # falla, degradación o interrupción
-    CAMBIO = "cambio"  # requiere modificar configuración o infraestructura
+class Category(StrEnum):
+    SECURITY = "seguridad"
+    CATALOG_REQUEST = "solicitud_catalogo"
+    FAILURE = "falla"
+    CHANGE = "cambio"
 
 
-class Destino(StrEnum):
-    REGISTRO = "registro"  # regla 1: solo bitácora, cierre automático
-    AUTOR_SOLUCION = "autor_solucion"  # regla 2: autor del artículo de la KB
-    EVENTOS = "eventos"  # regla 3: registro y vigilancia dentro de Eventos
-    ACCESOS = "accesos"  # regla 4
-    PETICIONES = "peticiones"  # reglas 5 y 8
-    INCIDENCIAS = "incidencias"  # reglas 6 y 9
-    PROBLEMAS = "problemas"  # regla 7
+class Destination(StrEnum):
+    LOG = "registro"
+    SOLUTION_AUTHOR = "autor_solucion"
+    EVENT = "eventos"
+    ACCESS = "accesos"
+    REQUEST = "peticiones"
+    INCIDENT = "incidencias"
+    PROBLEM = "problemas"
+    CHANGE = "cambios"
+    MANUAL_TRIAGE = "triage_manual"
 
 
 @dataclass(frozen=True)
-class Evento:
-    """Datos mínimos que el motor necesita para decidir."""
-
-    origen: Origen
-    tipo: Tipo  # tipo con el que llega el evento (el motor puede reclasificarlo en Decision)
-    requiere_accion: bool = False
-    categoria: Categoria | None = None
-    autor_solucion_kb: str | None = None  # autor del artículo de la KB, si existe
-    repeticiones: int = 0  # veces que se repitió el patrón dentro de la ventana de T días
-    umbral: int = 3  # N: umbral de recurrencia
+class Event:
+    origin: Origin
+    event_type: EventType
+    requires_action: bool = False
+    category: Category | None = None
+    kb_solution_author: str | None = None
+    repetitions: int = 0
+    threshold: int = 3
 
 
 @dataclass(frozen=True)
 class Decision:
-    regla: int  # 1..9
-    destino: Destino
-    # Clasificación ITIL que la regla ASIGNA al evento (columna "Tipo" de docs/reglas.md).
-    # Puede diferir del tipo con el que llegó: p. ej. una advertencia repetida (regla 7)
-    # se reclasifica como Excepción.
-    tipo: Tipo
+    rule: int
+    destination: Destination
+    event_type: EventType
 
 
-def evaluar(evento: Evento) -> Decision:
+@dataclass(frozen=True)
+class Rule:
+    number: int
+    matches: Callable[[Event], bool]
+    destination: Destination
+    event_type: EventType
+
+
+RULES: dict[int, Rule] = {
+    rule.number: rule
+    for rule in (
+        Rule(
+            1,
+            lambda e: (
+                e.origin == Origin.SYSTEM
+                and e.event_type == EventType.INFORMATIVE
+                and not e.requires_action
+            ),
+            Destination.LOG,
+            EventType.INFORMATIVE,
+        ),
+        Rule(
+            2,
+            lambda e: e.origin == Origin.USER and bool(e.kb_solution_author),
+            Destination.SOLUTION_AUTHOR,
+            EventType.INFORMATIVE,
+        ),
+        Rule(
+            3,
+            lambda e: e.event_type == EventType.WARNING and e.repetitions < e.threshold,
+            Destination.EVENT,
+            EventType.WARNING,
+        ),
+        Rule(
+            4,
+            lambda e: e.category == Category.SECURITY,
+            Destination.ACCESS,
+            EventType.WARNING,
+        ),
+        Rule(
+            5,
+            lambda e: e.category == Category.CATALOG_REQUEST,
+            Destination.REQUEST,
+            EventType.INFORMATIVE,
+        ),
+        Rule(
+            6,
+            lambda e: e.category == Category.FAILURE,
+            Destination.INCIDENT,
+            EventType.EXCEPTION,
+        ),
+        Rule(
+            7,
+            lambda e: e.repetitions >= e.threshold,
+            Destination.PROBLEM,
+            EventType.EXCEPTION,
+        ),
+        Rule(
+            8,
+            lambda e: e.category == Category.CHANGE,
+            Destination.CHANGE,
+            EventType.INFORMATIVE,
+        ),
+        Rule(
+            9,
+            lambda e: True,
+            Destination.MANUAL_TRIAGE,
+            EventType.EXCEPTION,
+        ),
+    )
+}
+
+RULE_ORDER: tuple[int, ...] = (4, 2, 7, 8, 5, 6, 3, 1, 9)
+
+
+def evaluate(event: Event) -> Decision:
     """Devuelve la regla aplicada y el destino del evento."""
-    raise NotImplementedError("Motor de reglas pendiente de implementar")
+    for number in RULE_ORDER:
+        rule = RULES[number]
+        if rule.matches(event):
+            return Decision(rule.number, rule.destination, rule.event_type)
+    raise AssertionError("La regla 9 coincide siempre")

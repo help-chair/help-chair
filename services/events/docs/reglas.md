@@ -2,7 +2,7 @@
 
 *Español primero, English below.*
 
-> Relacionado / Related: [`ARCHITECTURE.md`](ARCHITECTURE.md) (§6) · [`ITIL-MAPPING.md`](ITIL-MAPPING.md) · [`test_rules.py`](../services/events/tests/test_rules.py)
+> Relacionado / Related: [`ARCHITECTURE.md`](../../../docs/ARCHITECTURE.md) (§6) · [`ITIL-MAPPING.md`](../../../docs/ITIL-MAPPING.md) · [`test_rules.py`](../tests/test_rules.py)
 
 ---
 
@@ -13,8 +13,9 @@
 - El motor de **Eventos** recibe un evento y decide a dónde va.
 - Práctica ITIL v4: **Monitoring and Event Management** (Gestión de Eventos).
 - Estas reglas son la **especificación** del servicio (issue #67).
-- Se verifican con pruebas **pytest parametrizadas** en `services/events/tests/test_rules.py` antes de implementar el motor (**TDD**).
-- Las pruebas de comportamiento aún no implementado quedan marcadas como `xfail`.
+- Se verifican con pruebas **pytest parametrizadas** en `services/events/tests/test_rules.py` (**TDD**).
+- El motor está implementado en `services/events/events/rules.py`: `evaluate(event)` devuelve el destino y la regla aplicada, sin llamadas de red ni acceso a BD. Todas las pruebas pasan, sin `xfail`.
+- Hay 9 destinos, uno por regla: registro, autor de la solución (auto-respuesta), eventos (vigilancia), accesos (seguridad), peticiones, incidencias, problemas, cambios y triage manual.
 - Servicios existentes: Accesos, Eventos, Peticiones, Incidencias, Problemas y Base de Conocimiento (KB).
 
 ### 2. Reglas de destino
@@ -28,11 +29,11 @@
 | 5 | Solicitud estándar del catálogo | Informativo | Peticiones | Requisito de un departamento ya contemplado en el catálogo de servicios. |
 | 6 | Falla, degradación o interrupción | Excepción | Incidencias | Restauración del servicio ante una falla puntual, sin buscar todavía la causa de fondo. |
 | 7 | Patrón repetido | Excepción | Problemas | Se registra cuántas veces se repitió el patrón para investigar la causa raíz y documentar posibles soluciones o un **Error conocido**. |
-| 8 | Requiere modificar configuración o infraestructura | Informativo | Peticiones | Si hace falta cambiar equipo, configuración o instrumentación, Peticiones gestiona el cambio, ya que el MVP absorbe Change Enablement. |
-| 9 | Ninguna de las anteriores coincide | Excepción | Incidencias | El evento no pudo encontrar una relación; pasa a Incidencias para que se revise y clasifique (**triage manual**). |
+| 8 | Requiere modificar configuración o infraestructura | Informativo | Cambios | Si hace falta cambiar equipo, configuración o instrumentación, se registra como cambio; en el MVP lo gestiona Peticiones, que absorbe Change Enablement. |
+| 9 | Ninguna de las anteriores coincide | Excepción | Triage manual | El evento no pudo encontrar una relación; queda en triage manual para que una persona lo revise y clasifique, apoyándose en Incidencias. |
 
 - La columna **Tipo** es la clasificación ITIL que **la regla asigna** al evento (Informativo, Advertencia o Excepción); no es una condición de entrada y puede diferir del tipo con el que llegó. Ejemplos: un evento de seguridad que llega como Excepción sale como Advertencia (regla 4); una advertencia que alcanza el umbral sale como Excepción (regla 7).
-- Las reglas 1, 2 y 3 se resuelven dentro de Eventos o con la KB; las demás enrutan a otro servicio.
+- Las reglas 1, 2, 3 y 9 se resuelven dentro de Eventos o con la KB; las demás enrutan a otro servicio.
 
 ### 3. Orden de evaluación
 
@@ -58,43 +59,43 @@
 
 | Campo | Tipo de dato | Valores |
 |---|---|---|
-| `origen` | texto | `sistema`, `usuario` |
-| `tipo` | texto | `informativo`, `advertencia`, `excepcion` (tipo con el que llega el evento) |
-| `requiere_accion` | bool | `true`, `false` |
-| `categoria` | texto o vacío | `seguridad`, `solicitud_catalogo`, `falla`, `cambio`; vacío si no aplica |
-| `autor_solucion_kb` | texto o vacío | autor del artículo de la KB que resuelve el evento |
-| `repeticiones` | entero | veces que se repitió el patrón dentro de la ventana de T días |
-| `umbral` | entero | N |
+| `origin` | texto | `sistema`, `usuario` |
+| `event_type` | texto | `informativo`, `advertencia`, `excepcion` (tipo con el que llega el evento) |
+| `requires_action` | bool | `true`, `false` |
+| `category` | texto o vacío | `seguridad`, `solicitud_catalogo`, `falla`, `cambio`; vacío si no aplica |
+| `kb_solution_author` | texto o vacío | autor del artículo de la KB que resuelve el evento |
+| `repetitions` | entero | veces que se repitió el patrón dentro de la ventana de T días |
+| `threshold` | entero | N |
 
-**Salida:** `Decision(regla, destino, tipo)`.
+**Salida:** `Decision(rule, destination, event_type)`.
 
-| Regla | Condición en campos | `destino` | `tipo` asignado |
+| Regla | Condición en campos | `destination` | `event_type` asignado |
 |---|---|---|---|
-| 1 | `origen = sistema`, `tipo = informativo`, `requiere_accion = false` | `registro` | `informativo` |
-| 2 | `origen = usuario`, `autor_solucion_kb` no vacío | `autor_solucion` | `informativo` |
-| 3 | `tipo = advertencia`, `repeticiones < umbral` | `eventos` | `advertencia` |
-| 4 | `categoria = seguridad` | `accesos` | `advertencia` |
-| 5 | `categoria = solicitud_catalogo` | `peticiones` | `informativo` |
-| 6 | `categoria = falla` | `incidencias` | `excepcion` |
-| 7 | `repeticiones >= umbral` | `problemas` | `excepcion` |
-| 8 | `categoria = cambio` | `peticiones` | `informativo` |
-| 9 | ninguna de las anteriores | `incidencias` | `excepcion` |
+| 1 | `origin = sistema`, `event_type = informativo`, `requires_action = false` | `registro` | `informativo` |
+| 2 | `origin = usuario`, `kb_solution_author` no vacío | `autor_solucion` | `informativo` |
+| 3 | `event_type = advertencia`, `repetitions < threshold` | `eventos` | `advertencia` |
+| 4 | `category = seguridad` | `accesos` | `advertencia` |
+| 5 | `category = solicitud_catalogo` | `peticiones` | `informativo` |
+| 6 | `category = falla` | `incidencias` | `excepcion` |
+| 7 | `repetitions >= threshold` | `problemas` | `excepcion` |
+| 8 | `category = cambio` | `cambios` | `informativo` |
+| 9 | ninguna de las anteriores | `triage_manual` | `excepcion` |
 
 - Las condiciones se evalúan en el orden de la sección 3, no en orden numérico.
-- `tipo` de la salida es la clasificación asignada por la regla (sección 2); el `tipo` de la entrada solo participa en las reglas 1 y 3.
-- "Superar el umbral" se interpreta como `repeticiones >= umbral`.
+- `event_type` de la salida es la clasificación asignada por la regla (sección 2); el `event_type` de la entrada solo participa en las reglas 1 y 3.
+- "Superar el umbral" se interpreta como `repetitions >= threshold`.
 
 ### 5. Casos de borde y pruebas
 
 | Caso | Regla esperada | Tipo asignado |
 |---|---|---|
-| Advertencia con `repeticiones = umbral - 1` | 3 | Advertencia |
-| Advertencia con `repeticiones = umbral` | 7 | Excepción (reclasificada) |
-| Falla repetida (`repeticiones >= umbral`) | 7 (no 6) | Excepción |
+| Advertencia con `repetitions = threshold - 1` | 3 | Advertencia |
+| Advertencia con `repetitions = threshold` | 7 | Excepción (reclasificada) |
+| Falla repetida (`repetitions >= threshold`) | 7 (no 6) | Excepción |
 | Seguridad con solución en KB o repetida | 4 | Advertencia |
 | Falla de usuario con solución en KB | 2 | Informativo |
 | Informativo de usuario sin KB | 9 | Excepción |
-| Evento de sistema informativo con `requiere_accion = true` | 9 | Excepción |
+| Evento de sistema informativo con `requires_action = true` | 9 | Excepción |
 | Evento sin coincidencia | 9 | Excepción |
 
 **Correr las pruebas:**
@@ -104,25 +105,27 @@ cd services/events
 make test
 ```
 
-- Las pruebas pendientes aparecen como `xfail` con su motivo.
-- Dos pruebas guardia (sin `xfail`) verifican que las 9 reglas tengan al menos un caso y que el tipo asignado de cada una coincida con la tabla de la sección 2.
+- Todas las pruebas pasan, sin `xfail`.
+- Tres pruebas guardia verifican que las 9 reglas tengan al menos un caso, que el tipo asignado de cada una coincida con la tabla de la sección 2 y que cada uno de los 9 destinos se alcance con una regla.
 
 ### 6. Supuestos y decisiones abiertas
 
 - El orden de evaluación (sección 3) está por confirmar con el equipo.
-- La regla 7 se evalúa solo por `repeticiones >= umbral`, no por "causa raíz desconocida", para no mandar toda falla nueva a Problemas.
-- La regla 7 no distingue el `tipo` de entrada: un informativo repetido también llegaría a Problemas y se reclasificaría como Excepción. Por confirmar si se excluye.
-- El `tipo` de salida lo asigna la regla; el `tipo` de entrada solo se usa en las reglas 1 y 3.
+- La regla 7 se evalúa solo por `repetitions >= threshold`, no por "causa raíz desconocida", para no mandar toda falla nueva a Problemas.
+- La regla 7 no distingue el `event_type` de entrada: un informativo repetido también llegaría a Problemas y se reclasificaría como Excepción. Por confirmar si se excluye.
+- El `event_type` de salida lo asigna la regla; el `event_type` de entrada solo se usa en las reglas 1 y 3.
+- Cambios y triage manual son destinos propios del motor; mientras no existan como servicios, el contrato con Peticiones (cambios) e Incidencias (triage) se define en la integración.
 - La encuesta de la regla 2 no se modela en el motor: el destino es `autor_solucion` tanto al entregar la solución como al responder "no resolvió".
 - El canal de la alerta al superar el umbral (regla 3) no está definido.
-- El motor recibe `repeticiones` ya calculadas; N y T son parámetros externos.
-- La KB debe guardar el autor de cada artículo para llenar `autor_solucion_kb`.
+- El motor recibe `repetitions` ya calculadas; N y T son parámetros externos.
+- La KB debe guardar el autor de cada artículo para llenar `kb_solution_author`.
 
 ### 7. Referencias
 
-- [`ARCHITECTURE.md`](ARCHITECTURE.md): sección 6, flujo de Eventos.
-- [`ITIL-MAPPING.md`](ITIL-MAPPING.md): mapeo de servicios a prácticas ITIL v4.
-- [`test_rules.py`](../services/events/tests/test_rules.py): pruebas parametrizadas de las reglas.
+- [`ARCHITECTURE.md`](../../../docs/ARCHITECTURE.md): sección 6, flujo de Eventos.
+- [`ITIL-MAPPING.md`](../../../docs/ITIL-MAPPING.md): mapeo de servicios a prácticas ITIL v4.
+- [`rules.py`](../events/rules.py): motor de reglas.
+- [`test_rules.py`](../tests/test_rules.py): pruebas parametrizadas de las reglas.
 
 ---
 
@@ -133,8 +136,9 @@ make test
 - The **Events** engine receives an event and decides where it goes.
 - ITIL v4 practice: **Monitoring and Event Management**.
 - These rules are the service **specification** (issue #67).
-- They are verified with **parametrized pytest** tests in `services/events/tests/test_rules.py` before the engine is implemented (**TDD**).
-- Tests for behavior not yet implemented are marked `xfail`.
+- They are verified with **parametrized pytest** tests in `services/events/tests/test_rules.py` (**TDD**).
+- The engine is implemented in `services/events/events/rules.py`: `evaluate(event)` returns the destination and the applied rule, with no network calls or DB access. All tests pass, with no `xfail`.
+- There are 9 destinations, one per rule: log, solution author (auto-reply), events (monitoring), access (security), requests, incidents, problems, changes and manual triage.
 - Existing services: Access, Events, Requests, Incidents, Problems and Knowledge Base (KB).
 
 ### 2. Routing rules
@@ -148,11 +152,11 @@ make test
 | 5 | Standard catalog request | Informational | Requests | A department requirement already covered by the service catalog. |
 | 6 | Failure, degradation or outage | Exception | Incidents | Service restoration after a one-off failure, without looking for the underlying cause yet. |
 | 7 | Repeated pattern | Exception | Problems | The number of repetitions is recorded to investigate the root cause and document possible solutions or a **Known Error**. |
-| 8 | Requires a configuration or infrastructure change | Informational | Requests | If equipment, configuration or instrumentation must change, Requests manages the change, since the MVP absorbs Change Enablement. |
-| 9 | None of the above matches | Exception | Incidents | The event could not be matched; it goes to Incidents for review and classification (**manual triage**). |
+| 8 | Requires a configuration or infrastructure change | Informational | Changes | If equipment, configuration or instrumentation must change, it is recorded as a change; in the MVP Requests manages it, since it absorbs Change Enablement. |
+| 9 | None of the above matches | Exception | Manual triage | The event could not be matched; it stays in manual triage so a person reviews and classifies it, with Incidents as support. |
 
 - The **Type** column is the ITIL classification that **the rule assigns** to the event (Informational, Warning or Exception); it is not an input condition and may differ from the type the event arrived with. Examples: a security event arriving as Exception leaves as Warning (rule 4); a warning that reaches the threshold leaves as Exception (rule 7).
-- Rules 1, 2 and 3 are resolved inside Events or with the KB; the others route to another service.
+- Rules 1, 2, 3 and 9 are resolved inside Events or with the KB; the others route to another service.
 
 ### 3. Evaluation order
 
@@ -178,43 +182,43 @@ make test
 
 | Field | Data type | Values |
 |---|---|---|
-| `origen` | text | `sistema`, `usuario` |
-| `tipo` | text | `informativo`, `advertencia`, `excepcion` (type the event arrives with) |
-| `requiere_accion` | bool | `true`, `false` |
-| `categoria` | text or empty | `seguridad`, `solicitud_catalogo`, `falla`, `cambio`; empty if none applies |
-| `autor_solucion_kb` | text or empty | author of the KB article that resolves the event |
-| `repeticiones` | integer | times the pattern repeated within the T-day window |
-| `umbral` | integer | N |
+| `origin` | text | `sistema`, `usuario` |
+| `event_type` | text | `informativo`, `advertencia`, `excepcion` (type the event arrives with) |
+| `requires_action` | bool | `true`, `false` |
+| `category` | text or empty | `seguridad`, `solicitud_catalogo`, `falla`, `cambio`; empty if none applies |
+| `kb_solution_author` | text or empty | author of the KB article that resolves the event |
+| `repetitions` | integer | times the pattern repeated within the T-day window |
+| `threshold` | integer | N |
 
-**Output:** `Decision(regla, destino, tipo)`.
+**Output:** `Decision(rule, destination, event_type)`.
 
-| Rule | Field condition | `destino` | Assigned `tipo` |
+| Rule | Field condition | `destination` | Assigned `event_type` |
 |---|---|---|---|
-| 1 | `origen = sistema`, `tipo = informativo`, `requiere_accion = false` | `registro` | `informativo` |
-| 2 | `origen = usuario`, `autor_solucion_kb` not empty | `autor_solucion` | `informativo` |
-| 3 | `tipo = advertencia`, `repeticiones < umbral` | `eventos` | `advertencia` |
-| 4 | `categoria = seguridad` | `accesos` | `advertencia` |
-| 5 | `categoria = solicitud_catalogo` | `peticiones` | `informativo` |
-| 6 | `categoria = falla` | `incidencias` | `excepcion` |
-| 7 | `repeticiones >= umbral` | `problemas` | `excepcion` |
-| 8 | `categoria = cambio` | `peticiones` | `informativo` |
-| 9 | none of the above | `incidencias` | `excepcion` |
+| 1 | `origin = sistema`, `event_type = informativo`, `requires_action = false` | `registro` | `informativo` |
+| 2 | `origin = usuario`, `kb_solution_author` not empty | `autor_solucion` | `informativo` |
+| 3 | `event_type = advertencia`, `repetitions < threshold` | `eventos` | `advertencia` |
+| 4 | `category = seguridad` | `accesos` | `advertencia` |
+| 5 | `category = solicitud_catalogo` | `peticiones` | `informativo` |
+| 6 | `category = falla` | `incidencias` | `excepcion` |
+| 7 | `repetitions >= threshold` | `problemas` | `excepcion` |
+| 8 | `category = cambio` | `cambios` | `informativo` |
+| 9 | none of the above | `triage_manual` | `excepcion` |
 
 - Conditions are evaluated in the order of section 3, not in numeric order.
-- The output `tipo` is the classification assigned by the rule (section 2); the input `tipo` only takes part in rules 1 and 3.
-- "Exceeding the threshold" is read as `repeticiones >= umbral`.
+- The output `event_type` is the classification assigned by the rule (section 2); the input `event_type` only takes part in rules 1 and 3.
+- "Exceeding the threshold" is read as `repetitions >= threshold`.
 
 ### 5. Edge cases and tests
 
 | Case | Expected rule | Assigned type |
 |---|---|---|
-| Warning with `repeticiones = umbral - 1` | 3 | Warning |
-| Warning with `repeticiones = umbral` | 7 | Exception (reclassified) |
-| Repeated failure (`repeticiones >= umbral`) | 7 (not 6) | Exception |
+| Warning with `repetitions = threshold - 1` | 3 | Warning |
+| Warning with `repetitions = threshold` | 7 | Exception (reclassified) |
+| Repeated failure (`repetitions >= threshold`) | 7 (not 6) | Exception |
 | Security with a KB solution or repeated | 4 | Warning |
 | User failure with a KB solution | 2 | Informational |
 | User informational event without KB | 9 | Exception |
-| System informational event with `requiere_accion = true` | 9 | Exception |
+| System informational event with `requires_action = true` | 9 | Exception |
 | Event with no match | 9 | Exception |
 
 **Running the tests:**
@@ -224,22 +228,24 @@ cd services/events
 make test
 ```
 
-- Pending tests show up as `xfail` with their reason.
-- Two guard tests (not `xfail`) check that all 9 rules have at least one case and that each rule's assigned type matches the table in section 2.
+- All tests pass, with no `xfail`.
+- Three guard tests check that all 9 rules have at least one case, that each rule's assigned type matches the table in section 2 and that each of the 9 destinations is reached by one rule.
 
 ### 6. Assumptions and open decisions
 
 - The evaluation order (section 3) is still to be confirmed with the team.
-- Rule 7 is evaluated only by `repeticiones >= umbral`, not by "unknown root cause", so that not every new failure goes to Problems.
-- Rule 7 ignores the input `tipo`: a repeated informational event would also reach Problems and be reclassified as Exception. To be confirmed whether it should be excluded.
-- The output `tipo` is assigned by the rule; the input `tipo` is only used by rules 1 and 3.
+- Rule 7 is evaluated only by `repetitions >= threshold`, not by "unknown root cause", so that not every new failure goes to Problems.
+- Rule 7 ignores the input `event_type`: a repeated informational event would also reach Problems and be reclassified as Exception. To be confirmed whether it should be excluded.
+- The output `event_type` is assigned by the rule; the input `event_type` is only used by rules 1 and 3.
+- Changes and manual triage are destinations of the engine itself; until they exist as services, the contract with Requests (changes) and Incidents (triage) is defined during integration.
 - The rule 2 survey is not modeled in the engine: the destination is `autor_solucion` both when delivering the solution and when the answer is "not resolved".
 - The alert channel used when the threshold is exceeded (rule 3) is not defined.
-- The engine receives `repeticiones` already computed; N and T are external parameters.
-- The KB must store the author of each article to fill `autor_solucion_kb`.
+- The engine receives `repetitions` already computed; N and T are external parameters.
+- The KB must store the author of each article to fill `kb_solution_author`.
 
 ### 7. References
 
-- [`ARCHITECTURE.md`](ARCHITECTURE.md): section 6, Events flow.
-- [`ITIL-MAPPING.md`](ITIL-MAPPING.md): mapping of services to ITIL v4 practices.
-- [`test_rules.py`](../services/events/tests/test_rules.py): parametrized rule tests.
+- [`ARCHITECTURE.md`](../../../docs/ARCHITECTURE.md): section 6, Events flow.
+- [`ITIL-MAPPING.md`](../../../docs/ITIL-MAPPING.md): mapping of services to ITIL v4 practices.
+- [`rules.py`](../events/rules.py): rules engine.
+- [`test_rules.py`](../tests/test_rules.py): parametrized rule tests.

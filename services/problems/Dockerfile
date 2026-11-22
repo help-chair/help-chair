@@ -13,17 +13,14 @@ RUN pip install -r requirements.txt
 FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PATH="/opt/venv/bin:$PATH" \
-    PORT=8005 \
-    WEB_CONCURRENCY=2
+    PATH="/opt/venv/bin:$PATH"
 RUN groupadd --system --gid 10001 app \
  && useradd --system --uid 10001 --gid app --no-create-home --shell /usr/sbin/nologin app
 WORKDIR /app
 COPY --from=builder /opt/venv /opt/venv
 COPY . .
-RUN SECRET_KEY=build-only python manage.py collectstatic --noinput \
+RUN python -m django collectstatic --settings=config.static_settings --noinput \
  && chown -R app:app /app
 USER app
 EXPOSE 8005
-# exec => gunicorn es PID 1 y recibe SIGTERM (cierre con gracia)
-CMD ["sh", "-c", "exec gunicorn config.wsgi:application --bind 0.0.0.0:${PORT} --workers ${WEB_CONCURRENCY} --graceful-timeout 30"]
+CMD ["gunicorn", "--config", "gunicorn.conf.py", "config.wsgi:application"]

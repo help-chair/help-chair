@@ -2,6 +2,11 @@
 __pycache__/
 *.pyc
 .env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
 db.sqlite3
 staticfiles/
 .coverage

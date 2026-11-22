@@ -1,0 +1,55 @@
+# Solo Problems. Los valores privados proceden del entorno del operador/CI.
+x-runtime: &runtime
+  build: .
+  image: ${PROBLEMS_IMAGE:-ghcr.io/help-chair/hc-problems:dev}
+  environment:
+    SECRET_KEY: ${SECRET_KEY:?SECRET_KEY}
+    DATABASE_URL: ${DATABASE_URL:?DATABASE_URL}
+    ALLOWED_HOSTS: ${ALLOWED_HOSTS:?ALLOWED_HOSTS}
+    DEBUG: ${DEBUG:-false}
+    LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    SERVICE_NAME: problems
+    PORT: "8005"
+    WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
+    GRACEFUL_TIMEOUT: ${GRACEFUL_TIMEOUT:-30}
+    DATABASE_CONNECT_TIMEOUT: ${DATABASE_CONNECT_TIMEOUT:-5}
+  dns_opt:
+    - timeout:1
+    - attempts:1
+
+services:
+  problems-db:
+    image: docker.io/library/postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB}
+    ports:
+      - "127.0.0.1:${PROBLEMS_DB_PORT:-5445}:5432"
+    volumes:
+      - problems-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  problems-migrate:
+    <<: *runtime
+    command: ["python", "manage.py", "migrate", "--noinput"]
+    depends_on:
+      problems-db:
+        condition: service_healthy
+    restart: "no"
+
+  problems:
+    <<: *runtime
+    ports:
+      - "127.0.0.1:${PROBLEMS_API_PORT:-8005}:8005"
+    depends_on:
+      problems-migrate:
+        condition: service_completed_successfully
+    stop_grace_period: ${PROBLEMS_STOP_GRACE_PERIOD:-40s}
+
+volumes:
+  problems-data:

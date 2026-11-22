@@ -30,7 +30,10 @@ consumidores, integración de API o conformidad exhaustiva ITIL 4.
 | Identidad | JWT Accesos, validación de sub/empresa/emisor/expiración; permisos KB sin inventar | Accesos |
 | Soluciones | Candidatos accesibles; selección/aplicabilidad, timeout y reintentos pendientes | Eventos |
 
-Problemas usa `/api/v1`, page/page_size y codigo/detalle; Eventos usa
+El contrato de Problemas v0.2.0, actualizado por el [PR #223 integrado](https://github.com/help-chair/help-chair/pull/223),
+usa origen `http://localhost:8005` y rutas completas `/api/problems/v1/...`.
+Referencia fijada: [OpenAPI de Problemas en el merge de #223](https://github.com/help-chair/help-chair/blob/fa8d58a5c256e1095ad030f413ac901c19d56d7c/contracts/problems/openapi.yaml).
+Conserva page/page_size y codigo/detalle/campos; Eventos usa
 `/api/events/v1`, limit/offset y code/detail/fields. Esas diferencias no son una
 convención común aprobada. El contrato de Accesos v0 declara HS256; RS256/JWKS
 está previsto después. No se incorpora una implementación de ninguno.
@@ -58,6 +61,56 @@ Los mocks frontend `KB-028`, `publico/agentes`, resumen, pasos, métricas y
 `error_conocido_id` no se convierten automáticamente en campos del backend.
 El vínculo autoritativo permanece en Problemas; varios errores pueden referenciar
 el mismo artículo, sin FK ni relación inversa maestra.
+
+## Trazabilidad de #112, #134 y #137
+
+Esta matriz distingue evidencia local ya ejecutada de acuerdos pendientes; no
+marca criterios de las issues como cerrados ni sustituye la revisión humana.
+
+| Criterio | Entrega/evidencia disponible | Qué falta |
+|---|---|---|
+| #112/#134: OpenAPI de KB y operaciones | Un YAML en PR #230; cinco operaciones de negocio previstas y dos de salud | Revisión e integración autorizada |
+| #112/#134: DTO consistente con el modelo | Lectura/alta/PATCH contrastados con #228; cuatro artículos de fixture fijados a 4f8573d | Confirmación de consumidores y contraste con el modelo finalmente integrado |
+| #112/#134: entradas, respuestas, errores y ejemplos válidos | 41 ejemplos y 37 negativos aprobados; OpenAPI válido; 16 casos Prism | No prueba API real, permisos, búsqueda o reglas de BD |
+| #112: audiencia, autenticación y referencias por ID | Propuestas explícitas; UUID cabe en articulo_kb_id de texto de hasta 64 caracteres | Acuerdos de Accesos y consumidores; no hay FK externa |
+| #112: revisión registrada y distinción previsto/implementado | Solicitudes a CODEOWNER y seis equipos, matriz A1–A9; x-implementation-status | Respuestas/OK reales, ajustes y aprobación |
+| #137: revisión de ambos contratos | Problemas integrado con prefijo actualizado; KB propuesto en #230 | OK de Eventos, Incidencias y Frontend sobre ambos contratos; comentarios atendidos y merge autorizado |
+
+La [matriz A1–A9 del PR #230](https://github.com/help-chair/help-chair/pull/230#issuecomment-7084100013)
+concentra las preguntas; evitar solicitudes duplicadas. Al corte documental del
+22 de noviembre no hay revisiones ni respuestas de consumidores en ese PR.
+La [aprobación de Pablo en #182](https://github.com/help-chair/help-chair/pull/182#pullrequestreview-5967452203)
+corresponde al commit 67b2dee del contrato anterior de Problemas. No acredita por
+sí sola el OK de los tres equipos exigidos por #137, la revisión del cambio de
+prefijo de #223 ni la aprobación del contrato de KB.
+
+### Checklist para revisión de compatibilidad de ambos contratos
+
+Cada equipo debe registrar el contrato/commit revisado y el resultado, indicando
+un cambio concreto si lo requiere. Estos puntos permanecen abiertos hasta su OK:
+
+- [ ] Eventos, Incidencias y Frontend verifican las URLs completas: Problemas
+  `/api/problems/v1/...` vigente y KB `/api/knowledge/v1/...` propuesto; sin duplicar
+  prefijo en servers/paths y sin imponer que toda API tenga idénticas convenciones.
+- [ ] Problemas/consumidores aceptan el UUID canónico de KB como referencia textual
+  externa de hasta 64 caracteres. Los IDs internos int64 de Problemas no cambian;
+  los ejemplos históricos KB-128 no crean un alias implementado en KB.
+- [ ] Los estados de Problemas y de artículo conservan sus dominios separados;
+  audiencia empresa/soporte no es un estado. Confirmar campos de lectura,
+  escritura, nulabilidad de borrador y autor/fechas gestionados por servidor.
+- [ ] Los clientes interpretan páginas, filtros, vacío y errores: page/page_size
+  en Problemas/KB propuesto frente a limit/offset de Eventos; distinguir 404,
+  503 y timeout de una búsqueda válida sin resultados.
+- [ ] Accesos y consumidores acuerdan permisos y contexto delegado, sin ampliar
+  la audiencia del usuario final por llamar mediante un servicio.
+- [ ] Eventos confirma selección/aplicabilidad antes de auto-responder: los
+  candidatos no implican dificultad fácil ni solución confirmada. Versión,
+  departamento y otros metadatos ausentes requieren un acuerdo separado.
+- [ ] Frontend adapta mocks/DTO a UUID, Markdown y categoría local; no confunde
+  ejemplos y contadores en memoria con integración o métricas reales.
+
+Los ensayos operativos del runtime tienen evidencia separada en los PR #229 y
+#231; no se atribuyen a este contrato ni sustituyen la aprobación de consumidores.
 
 ## Consulta de soluciones y seguridad
 

@@ -88,6 +88,7 @@ STORAGES = {
 
 REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "EXCEPTION_HANDLER": "events.exceptions.custom_exception_handler",
 }
 
 SPECTACULAR_SETTINGS = {
@@ -95,6 +96,7 @@ SPECTACULAR_SETTINGS = {
     "DESCRIPTION": "API del servicio events (contrato en contracts/events/).",
     "VERSION": "0.1.0",
     "SERVE_INCLUDE_SCHEMA": False,
+    "POSTPROCESSING_HOOKS": ["events.serializers.contract_required_postprocessing"],
 }
 
 LOGGING = {

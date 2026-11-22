@@ -16,9 +16,13 @@
 ### Responsabilidad
 <!-- Qué hace esta carpeta y qué NO hace -->
 
+El dominio inicial de artículos y categorías, su admin y migración se documentan en
+[Esquema de artículos (#109 / #132)](docs/article-schema.md).
+La API de negocio y su contrato siguen pendientes; este incremento no implementa CRUD ni búsqueda.
+
 ### Stack tecnológico
 - Lenguaje / framework: Python / Django
-- Base de datos: _por definir por el equipo_ (propia de este servicio)
+- Base de datos: PostgreSQL 16, propia de este servicio.
 
 ### Contrato mínimo de servicio
 - [ ] `Dockerfile` y usuario no root
@@ -47,9 +51,13 @@ Trabaja **solo dentro de esta carpeta**. Si necesitas tocar otra, abre un PR sep
 ### Responsibility
 <!-- What this folder does and does NOT do -->
 
+The initial article/category models, admin and migration are documented in
+[Article schema (#109 / #132)](docs/article-schema.md).
+The business API and contract remain pending; this increment does not implement CRUD or search.
+
 ### Tech stack
 - Language / framework: _to be defined by the team_
-- Database: _to be defined by the team_ (owned by this service)
+- Database: PostgreSQL 16 (owned by this service).
 
 ### Minimum service contract
 See the checklist above.

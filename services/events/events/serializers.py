@@ -154,28 +154,18 @@ class EventReadSerializer(serializers.ModelSerializer):
     )
     reporter_ref = serializers.CharField(read_only=True, allow_null=True, required=False)
     assigned_to_ref = serializers.CharField(read_only=True, allow_null=True, required=False)
-    assigned_group_ref = serializers.CharField(
-        read_only=True, allow_null=True, required=False
-    )
-    sla_policy_id = serializers.IntegerField(
-        read_only=True, allow_null=True, required=False
-    )
+    assigned_group_ref = serializers.CharField(read_only=True, allow_null=True, required=False)
+    sla_policy_id = serializers.IntegerField(read_only=True, allow_null=True, required=False)
     response_due_at = serializers.DateTimeField(read_only=True, allow_null=True, required=False)
-    resolution_due_at = serializers.DateTimeField(
-        read_only=True, allow_null=True, required=False
-    )
+    resolution_due_at = serializers.DateTimeField(read_only=True, allow_null=True, required=False)
     resolved_at = serializers.DateTimeField(read_only=True, allow_null=True, required=False)
     closed_at = serializers.DateTimeField(read_only=True, allow_null=True, required=False)
     closure_code = serializers.ChoiceField(
         choices=ClosureCode.choices, read_only=True, allow_null=True, required=False
     )
     state_reason = serializers.CharField(read_only=True, allow_null=True, required=False)
-    fingerprint = serializers.CharField(
-        min_length=64, max_length=64, read_only=True
-    )
-    occurrence_count = serializers.IntegerField(
-        min_value=1, read_only=True
-    )
+    fingerprint = serializers.CharField(min_length=64, max_length=64, read_only=True)
+    occurrence_count = serializers.IntegerField(min_value=1, read_only=True)
 
     class Meta:
         model = Event

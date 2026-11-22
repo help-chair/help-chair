@@ -9,6 +9,10 @@
 Servicio independiente del equipo 5 para artículos y categorías de conocimiento,
 con PostgreSQL 16 propio. Python 3.12, Django/DRF, uv, Make y Podman en Linux/WSL.
 El [esquema y sus límites](docs/article-schema.md) incluyen migración y admin.
+La [matriz de evidencia y conciliación](docs/foundations-evidence.md) distingue
+pruebas locales, cobertura KB de #111/#135/#136 y revisiones pendientes.
+El [contrato v0 propuesto de #230](https://github.com/help-chair/help-chair/blob/8666c03416c7862e470efaf5c7a273ec32c30087/contracts/knowledge/openapi.yaml)
+está en otra rama; sus operaciones de negocio no están implementadas.
 Las referencias de Accesos son externas; no se consultan otras bases de datos.
 El CRUD REST, búsqueda y permisos de negocio corresponden a incrementos posteriores.
 Contrato: `contracts/knowledge/`; la exportación de las rutas actuales no sustituye
@@ -153,7 +157,7 @@ conservar el volumen y verificar IDs/recuentos; no usar `down -v` o flush.
 
 La integración del esquema depende del PR #228. Build/ejecución local no acreditan
 publicación de imagen, despliegue, pipeline o revisión de consumidores.
-Seguir [CONTRIBUTING](../../CONTRIBUTING.en.md) y CODEOWNERS para la entrega.
+Seguir [CONTRIBUTING](../../CONTRIBUTING.md) y CODEOWNERS para la entrega.
 
 ## English
 
@@ -162,6 +166,10 @@ Seguir [CONTRIBUTING](../../CONTRIBUTING.en.md) y CODEOWNERS para la entrega.
 Team 5 owns this independent knowledge article/category service and its PostgreSQL
 16 database. Use Python 3.12, Django/DRF, uv, Make and Podman on Linux/WSL.
 The [schema and limitations](docs/article-schema.md) cover migration and admin.
+The [evidence and reconciliation](docs/foundations-evidence.md) separates local
+verification, the Knowledge portion of #111/#135/#136 and pending reviews.
+The [proposed contract in #230](https://github.com/help-chair/help-chair/blob/8666c03416c7862e470efaf5c7a273ec32c30087/contracts/knowledge/openapi.yaml)
+lives on a separate branch; its business operations are not implemented.
 Access identities remain external references; no other service database is read.
 REST CRUD, search and business authorization belong to subsequent increments.
 The reviewed v0 contract belongs in `contracts/knowledge/` through #112/#134;
@@ -273,4 +281,4 @@ do not use `down -v` or flush.
 
 The schema depends on PR #228. Local build/run does not prove image publication,
 deployment, pipeline execution or consumer approval. Follow
-[CONTRIBUTING](../../CONTRIBUTING.en.md) and CODEOWNERS for delivery.
+[CONTRIBUTING (Spanish, primary)](../../CONTRIBUTING.md) and CODEOWNERS for delivery.

@@ -2,8 +2,11 @@
 
 Este incremento incorpora artículos con UUID, categorías locales, restricciones
 SQL, migración PostgreSQL y admin. La revisión del equipo y consumidores sigue pendiente.
-Una sola implementación
-cubre el dominio compartido de #109/#132; no cierra ni duplica #133.
+Una sola implementación canónica en [PR #228](https://github.com/help-chair/help-chair/pull/228)
+cubre el esquema compartido de #109/#132 y la misma necesidad expresada en #133:
+artículo, migración inicial, admin y PostgreSQL propio. #133 no necesita un segundo
+modelo o migración. Esta correspondencia no cierra ni reasigna ninguna issue y
+no sustituye la revisión del equipo.
 
 PostgreSQL 16 es el motor adoptado por ROADMAP. Django 5.2 y DRF usan las
 dependencias ya fijadas; no hay nueva dependencia. KB tiene su propia BD:
@@ -82,6 +85,40 @@ No permite eliminar artículos, porque otros servicios podrían referenciarlos;
 se conserva UUID/contenido/última publicación al archivarlos. No se implementa
 todavía una máquina de transiciones, revisión, historial editorial o CRUD REST.
 
+## Correspondencia documental con el contrato publicado para revisión
+
+Fuentes fijadas: [modelos 4f8573d](https://github.com/help-chair/help-chair/blob/4f8573d442de3c01a4f866d5468f3f4ac6e2d4ec/services/knowledge/articles/models.py),
+[migración 4f8573d](https://github.com/help-chair/help-chair/blob/4f8573d442de3c01a4f866d5468f3f4ac6e2d4ec/services/knowledge/articles/migrations/0001_initial.py)
+y [OpenAPI 8666c03, PR #230](https://github.com/help-chair/help-chair/blob/8666c03416c7862e470efaf5c7a273ec32c30087/contracts/knowledge/openapi.yaml).
+El contrato está en una rama independiente; enlazarlo no lo integra en esta rama
+ni significa que consumidores/CODEOWNERS hayan aprobado sus propuestas.
+
+| Modelo o garantía | Correspondencia en OpenAPI v0 | Límite del contraste |
+|---|---|---|
+| Articulo.id, UUID estable | ArticuloBase.id y parámetro ArticuloId: string/uuid; lectura readOnly | Compatible con referencia textual externa; no crea FK entre servicios |
+| Categoria.codigo, PK local de hasta 50 caracteres | CodigoCategoria y campo categoria como código, no objeto ni ID de Eventos | Patrón con final absoluto; catálogo dinámico, sin enum fijo |
+| categoria nullable con FK local/PROTECT | Campo requerido en lectura pero nullable en borrador/archivado; no null en ArticuloPublicado | El esquema JSON no demuestra existencia, actividad o PROTECT en BD |
+| titulo hasta 200, contenido Markdown; borrador incompleto | ArticuloCrear/Actualizar y ArticuloBase permiten texto vacío; Publicado exige carácter no blanco | No hay título único, resumen obligatorio ni arrays de pasos duplicados |
+| estado borrador/publicado/archivado | oneOf ArticuloBorrador/Publicado/Archivado; estado de lectura readOnly | Crear no acepta estado; PATCH no lo acepta; transiciones siguen fuera del runtime entregado |
+| visibilidad empresa/soporte independiente de estado | Enum compartido en escritura/lectura; empresa significa autenticados del stack | No acredita autorización o delegación entre servicios |
+| autor_id UUID externo nullable | Nullable en lectura general; obligatorio no null en Publicado; no aceptado en escritura | La API futura lo deriva de sub validado; no del usuario staff local |
+| creado_en/actualizado_en no null | date-time readOnly, campos requeridos en lectura | UTC y orden temporal se verifican por reglas/modelo, no solo por formato JSON |
+| publicado_en nullable y obligatorio si publicado | ArticuloPublicado lo exige no null; otros estados conservan posibilidad de null o última publicación | No inventa publicación histórica de un borrador o archivado |
+| archivado_en exactamente cuando archivado | No null en ArticuloArchivado; null en Borrador/Publicado | La unicidad de estado y los CHECK se prueban también en PostgreSQL |
+| Publicación completa y fechas coherentes | Variante Publicado restringe campos; descripción conserva reglas de fechas | Categoría activa se valida en full_clean/admin; no hay CHECK entre tablas ni servicio de transición implementado |
+| Datos canónicos | Cuatro ejemplos de lectura reproducen kb_demo.json de 4f8573d | Son datos sintéticos de dominio; Creado/Editado son proyecciones previstas de API |
+
+Problemas conserva el vínculo autoritativo articulo_kb_id de texto hasta 64
+caracteres, compatible con el UUID canónico de KB. Varios errores pueden apuntar
+al mismo artículo. No se añade error_conocido_id inverso ni copia de identidades.
+La validación contractual ya registrada comprueba cuatro proyecciones de fixture;
+ni esa validación ni Prism demuestran reglas de BD, JWT, ranking o integración.
+
+Las cinco operaciones de negocio del PR #230 son previstas. Las rutas health
+sí existen, pero SELECT 1 no demuestra migraciones aplicadas. Conservar las
+decisiones abiertas de permisos, prefijo, errores, paginación y aplicabilidad;
+no convertir este contraste en un acuerdo aprobado.
+
 ## Datos de ejemplo y verificación
 
 `articles/fixtures/kb_demo.json` es la fuente canónica sintética para #111:
@@ -94,15 +131,15 @@ fixture con advertencia de recarga; sin opt-in no carga datos.
 Desde `services/knowledge`, con Python 3.12 y dependencias del lock:
 
 ```bash
-# Configurar antes SECRET_KEY y DATABASE_URL de una BD PostgreSQL propia de ensayo.
+# Configurar antes SECRET_KEY, DATABASE_URL y ALLOWED_HOSTS de una BD PostgreSQL propia de ensayo.
 # make setup instala dependencias; el sistema suministra las variables privadas.
 # .env.example solo documenta nombres vacíos y no se copia ni se carga.
-uv run python manage.py migrate --plan
-uv run python manage.py sqlmigrate articles 0001
+uv run --frozen python manage.py migrate --plan
+uv run --frozen python manage.py sqlmigrate articles 0001
 make migrate
-uv run python manage.py showmigrations articles
+uv run --frozen python manage.py showmigrations articles
 make migrate  # debe informar que no hay migraciones pendientes
-uv run python manage.py makemigrations --check --dry-run
+uv run --frozen python manage.py makemigrations --check --dry-run
 make seed CONFIRM_DEMO=1
 make seed CONFIRM_DEMO=1  # conserva 2 categorías / 4 artículos de demo
 make lint

@@ -188,11 +188,12 @@ No usar down -v, flush o borrado de recursos ajenos para demostrar persistencia.
 
 ### Contrato y límites de evidencia
 
-Contrato integrado: ../../contracts/problems/openapi.yaml (#39/PR182). Mantener
-IDs int64, referencias externas de texto, estados y campos acordados. El PR223
-propone un prefijo distinto y debe comprobarse antes de una integración posterior;
-no se implementa ni modifica ese contrato con esta entrega. El contrato describe
-negocio previsto; admin y health no acreditan CRUD/JWT implementados.
+El [contrato en develop](https://github.com/help-chair/help-chair/blob/develop/contracts/problems/openapi.yaml)
+de #39/PR182 fue actualizado por el [PR223 integrado](https://github.com/help-chair/help-chair/pull/223):
+el prefijo contractual es `/api/problems/v1`. Esta actualización documental no
+modifica la copia contractual de esta rama ni implementa sus endpoints de negocio.
+Conservar IDs int64, referencias externas de texto, estados y campos acordados.
+Admin y health no acreditan CRUD/JWT implementados.
 
 make openapi exige OPENAPI_OUTPUT fuera de contracts y rechaza sobrescribir el
 contrato revisado. La exportación parcial de runtime no sustituye OpenAPI de negocio.
@@ -203,7 +204,10 @@ Registrar las verificaciones propias de Problems: migraciones, seed, lint/test/b
 health normal/fallo/recuperación, UID/PID, logs, SIGTERM, persistencia y escaneo de
 secretos en fuentes, evidencia, metadatos y capas. No atribuirle resultados de KB.
 Un build local no prueba publicación de imagen, CI, despliegue o aprobación.
-Seguir CONTRIBUTING.en.md y CODEOWNERS; no incorporar AGENTS o documentos personales.
+Seguir [CONTRIBUTING.md](../../CONTRIBUTING.md) y CODEOWNERS; no incorporar AGENTS o documentos personales.
+
+La [trazabilidad de criterios y evidencia local](docs/foundations-evidence.md)
+relaciona #110 y la parte de Problems de #135/#136 con archivos y resultados.
 
 ## English
 
@@ -283,8 +287,10 @@ Make/migrate/seed console output is operational. Verify SIGTERM with sufficient
 engine stop time, no SIGKILL/OOM, and persistence across API/DB restart without
 down -v, flush or deleting unrelated resources.
 
-The merged #39 contract remains in ../../contracts/problems/openapi.yaml; PR223's
-proposed prefix must be rechecked before future integration. Preserve bigint IDs,
+The [develop contract](https://github.com/help-chair/help-chair/blob/develop/contracts/problems/openapi.yaml)
+from #39/PR182 was updated by [merged PR223](https://github.com/help-chair/help-chair/pull/223):
+its contractual prefix is `/api/problems/v1`. This documentation update neither
+changes this branch's contract snapshot nor implements business endpoints. Preserve bigint IDs,
 external text IDs and agreed enums/fields. This increment does not implement its
 business API. make openapi requires explicit OPENAPI_OUTPUT outside contracts and
 cannot replace the reviewed contract with a partial runtime schema. Compatibility
@@ -292,5 +298,8 @@ tests read schema definitions only, without editing YAML or importing KB models.
 Record Problems-specific quality, DB, seed, image, health, logging, shutdown,
 persistence and secret-scan results; Knowledge test counts are not Problems
 acceptance evidence. Local build does not prove published images, CI, deployment
-or consumer approval. Follow CONTRIBUTING.en.md/CODEOWNERS and exclude personal
+or consumer approval. Follow [CONTRIBUTING.md](../../CONTRIBUTING.md) and CODEOWNERS and exclude personal
 AGENTS/context documents from product commits.
+
+See the [criteria and local evidence mapping](docs/foundations-evidence.md) for #110
+and the Problems portion of #135/#136, including remaining human reviews.

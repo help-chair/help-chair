@@ -82,3 +82,72 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 3. **Responsive & Mobile-ready:** Diseña con `grid grid-cols-1 md:grid-cols-4` para paneles de métricas y scroll horizontal `overflow-x-auto` para tablas de datos.
 4. **Arquitectura Modular de Features:** Cada práctica ITIL implementa su vista en `src/features/<modulo>/` consumiendo el cascarón compartido `src/components/layout/ServiceDeskLayout.tsx`. Nunca dupliques el `Sidebar` o `Header`.
 5. **Evidencias y Capturas de Figma:** Guarda las capturas de diseño en `frontend/docs/<modulo>/` usando nombres en minúsculas y kebab-case (sin acentos, espacios ni caracteres especiales). No coloques código ni proyectos anidados en `frontend/docs/`.
+
+---
+
+## ✍️ Microcopy y Redacción de la Interfaz
+
+Las palabras en la interfaz deben orientar al usuario y reducir la fricción cognitiva:
+
+1. **Botones de Acción (CTAs):**
+   - Usa voz activa indicando exactamente lo que ocurrirá:
+     - ❌ *Evitar:* `Enviar`, `Aceptar`, `Submit`, `OK`
+     - ✅ *Usar:* `Guardar Cambios`, `Crear Petición`, `Escalar a Nivel 2`, `Activar Cuenta`, `Cerrar Ticket`
+2. **Consistencia de Acciones:**
+   - Si un botón dice `Escalar a Nivel 2`, el mensaje de confirmación/toast debe decir exactamente `Ticket escalado a Nivel 2`.
+3. **Longitud de Línea (< 80 caracteres):**
+   - Para artículos de la Base de Conocimiento (KB), soluciones de problemas y descripciones de tickets, limita el ancho del contenedor (`max-w-prose` o `max-w-2xl`) para maximizar la comodidad de lectura.
+
+---
+
+## 🛡️ Estados de la Interfaz (Carga, Vacío y Error)
+
+Todo componente o tabla que maneje datos asíncronos DEBE contemplar 3 estados:
+
+1. **Estado de Carga (Loading):**
+   - Muestra skeletons (`animate-pulse`) o spinners sutiles mientras la promesa se resuelve.
+2. **Estado Vacío (Empty State) como Invitación:**
+   - Una pantalla sin datos no debe ser solo un texto gris pasivo. Debe orientar e invitar a la acción:
+     ```tsx
+     <Card className="flex flex-col items-center justify-center p-8 text-center">
+       <Inbox className="h-10 w-10 text-slate-400 mb-2" />
+       <h4 className="text-base font-semibold text-slate-800">No hay peticiones pendientes</h4>
+       <p className="text-sm text-slate-500 mb-4">¿Necesitas solicitar equipo, accesos o software?</p>
+       <Button variant="primary" onClick={() => onNuevaPeticion()}>Nueva Petición</Button>
+     </Card>
+     ```
+3. **Estado de Error Resolutivo:**
+   - Explica en lenguaje claro qué ocurrió y proporciona un camino de solución inmediato (botón de reintento):
+     ```tsx
+     <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-800">
+       <p className="font-medium">No se pudo cargar el monitor de eventos.</p>
+       <p className="text-xs text-red-600 mt-1">Verifica tu conexión con el microservicio.</p>
+       <Button variant="outline" size="sm" className="mt-3" onClick={() => recargar()}>Reintentar</Button>
+     </div>
+     ```
+
+---
+
+## ♿ Accesibilidad y Estándares Web Modernos (WCAG 2.1 AA)
+
+1. **IDs Dinámicos y Accesibles (`useId`):**
+   - En formularios y modales, genera IDs únicos con el hook nativo de React para vincular etiquetas y descripciones de error:
+     ```tsx
+     import { useId } from 'react';
+     const id = useId();
+     const errorId = useId();
+     
+     <label htmlFor={id}>Correo corporativo</label>
+     <input id={id} type="email" autoComplete="email" aria-describedby={hasError ? errorId : undefined} />
+     {hasError && <p id={errorId} role="alert">Escribe un correo válido</p>}
+     ```
+2. **Modales Accesibles:**
+   - Deben incluir `role="dialog"`, `aria-modal="true"`, cerrarse con la tecla `Escape`, y bloquear el scroll del fondo (`overflow-hidden`).
+3. **Tablas Responsivas:**
+   - En pantallas pequeñas, nunca permitas que una tabla desborde el layout. Envuelve la tabla en un contenedor horizontal:
+     ```tsx
+     <div className="w-full overflow-x-auto rounded-xl border border-slate-200">
+       <table className="w-full min-w-[640px] text-left text-sm">...</table>
+     </div>
+     ```
+

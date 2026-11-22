@@ -1,0 +1,560 @@
+openapi: 3.0.3
+info:
+  title: Help Chair - Problemas (Gestión de Problemas y Errores Conocidos)
+  version: 0.2.0
+  description: |
+    Contrato v0 (borrador, Fase 1). Dueño: Equipo 5 (Problemas + KB). Consumidores: Incidencias, Eventos, Frontend y Knowledge.
+
+    Práctica ITIL v4 de Gestión de Problemas: causa raíz, incidentes vinculados y errores conocidos.
+
+    - Todas las rutas requieren un token JWT emitido por el servicio de Accesos (`Authorization: Bearer ...`).
+    - Los IDs de otros servicios (`asignado_a_id`, `incidente_id`, `articulo_kb_id`) son texto y no
+      se validan contra su servicio dueño: cada servicio tiene su propia base de datos (sin llaves foráneas).
+    - Estados del problema: registrado -> en_analisis -> causa_identificada -> error_conocido -> resuelto -> cerrado.
+      El estado solo cambia con `POST /api/problems/v1/problemas/{id}/estado/`, no con `PATCH`.
+    - Fechas en ISO 8601 con zona horaria (UTC).
+    - Las rutas usan el prefijo /api/problems/v1, igual que el resto de servicios (el proxy de Vite y el gateway enrutan por /api/<servicio>).
+servers:
+  - url: http://localhost:8005
+    description: Entorno local
+security:
+  - bearerAuth: []
+tags:
+  - name: problemas
+    description: Problemas y sus incidentes vinculados
+  - name: errores-conocidos
+    description: Errores conocidos (causa raíz documentada + workaround)
+paths:
+  /api/problems/v1/problemas/:
+    get:
+      tags: [problemas]
+      operationId: listProblemas
+      summary: Lista problemas (paginado, del más reciente al más antiguo)
+      parameters:
+        - name: estado
+          in: query
+          required: false
+          schema: { $ref: '#/components/schemas/EstadoProblema' }
+        - name: prioridad
+          in: query
+          required: false
+          schema: { $ref: '#/components/schemas/Prioridad' }
+        - name: origen
+          in: query
+          required: false
+          schema: { $ref: '#/components/schemas/Origen' }
+        - $ref: '#/components/parameters/Pagina'
+        - $ref: '#/components/parameters/TamanoPagina'
+      responses:
+        '200':
+          description: Página de problemas
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProblemaPaginado' }
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '404':
+          description: Página fuera de rango
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    post:
+      tags: [problemas]
+      operationId: createProblema
+      summary: Registra un problema
+      description: Se crea en estado `registrado`. `origen` = patron lo usa la detección automática de incidentes repetidos.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProblemaCrear' }
+      responses:
+        '201':
+          description: Problema creado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Problema' }
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+  /api/problems/v1/problemas/{id}/:
+    parameters:
+      - $ref: '#/components/parameters/ProblemaId'
+    get:
+      tags: [problemas]
+      operationId: getProblema
+      summary: Consulta un problema
+      responses:
+        '200':
+          description: Problema encontrado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Problema' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+    patch:
+      tags: [problemas]
+      operationId: updateProblema
+      summary: Actualiza parcialmente un problema
+      description: No cambia el estado; para eso usa `POST /api/problems/v1/problemas/{id}/estado/`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProblemaActualizar' }
+      responses:
+        '200':
+          description: Problema actualizado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Problema' }
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+  /api/problems/v1/problemas/{id}/estado/:
+    parameters:
+      - $ref: '#/components/parameters/ProblemaId'
+    post:
+      tags: [problemas]
+      operationId: changeProblemaEstado
+      summary: Cambia el estado de un problema
+      description: |
+        Al pasar a `resuelto` el servicio llena `resuelto_en`. Pasar a `causa_identificada` o
+        `error_conocido` requiere que el problema tenga `causa_raiz` (en el problema o en esta solicitud).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CambioEstado' }
+      responses:
+        '200':
+          description: Estado cambiado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Problema' }
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409':
+          description: Transición no permitida desde el estado actual (p. ej. reabrir un problema cerrado)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { codigo: transicion_invalida, detalle: 'No se puede pasar de cerrado a en_analisis.' }
+  /api/problems/v1/problemas/{id}/incidentes/:
+    parameters:
+      - $ref: '#/components/parameters/ProblemaId'
+    get:
+      tags: [problemas]
+      operationId: listProblemaIncidentes
+      summary: Lista los incidentes vinculados a un problema
+      responses:
+        '200':
+          description: Incidentes vinculados
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ProblemaIncidente' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+    post:
+      tags: [problemas]
+      operationId: linkProblemaIncidente
+      summary: Vincula un incidente (por su ID en Incidencias) al problema
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VincularIncidente' }
+      responses:
+        '201':
+          description: Incidente vinculado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProblemaIncidente' }
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409':
+          description: El incidente ya está vinculado a este problema
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { codigo: incidente_ya_vinculado, detalle: 'INC-1 ya está vinculado a PRB-42.' }
+  /api/problems/v1/problemas/{id}/incidentes/{incidente_id}/:
+    parameters:
+      - $ref: '#/components/parameters/ProblemaId'
+      - name: incidente_id
+        in: path
+        required: true
+        description: ID del incidente en el servicio de Incidencias
+        schema: { type: string, maxLength: 64, example: INC-1 }
+    delete:
+      tags: [problemas]
+      operationId: unlinkProblemaIncidente
+      summary: Desvincula un incidente del problema
+      responses:
+        '204':
+          description: Incidente desvinculado
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '404':
+          description: El problema no existe o el incidente no está vinculado a él
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /api/problems/v1/errores-conocidos/:
+    get:
+      tags: [errores-conocidos]
+      operationId: listErroresConocidos
+      summary: Lista errores conocidos (paginado, del más reciente al más antiguo)
+      parameters:
+        - name: activo
+          in: query
+          required: false
+          schema: { type: boolean }
+        - name: q
+          in: query
+          required: false
+          description: Búsqueda por texto en título, descripción, causa raíz y workaround
+          schema: { type: string, example: SMTP }
+        - $ref: '#/components/parameters/Pagina'
+        - $ref: '#/components/parameters/TamanoPagina'
+      responses:
+        '200':
+          description: Página de errores conocidos
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorConocidoPaginado' }
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '404':
+          description: Página fuera de rango
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    post:
+      tags: [errores-conocidos]
+      operationId: createErrorConocido
+      summary: Registra un error conocido para un problema
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ErrorConocidoCrear' }
+      responses:
+        '201':
+          description: Error conocido creado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorConocido' }
+        '400':
+          description: Datos inválidos o `problema_id` inexistente
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+  /api/problems/v1/errores-conocidos/{id}/:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer, format: int64, minimum: 1 }
+    get:
+      tags: [errores-conocidos]
+      operationId: getErrorConocido
+      summary: Consulta un error conocido
+      responses:
+        '200':
+          description: Error conocido encontrado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorConocido' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+    patch:
+      tags: [errores-conocidos]
+      operationId: updateErrorConocido
+      summary: Actualiza parcialmente un error conocido (p. ej. desactivarlo o enlazar su artículo KB)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ErrorConocidoActualizar' }
+      responses:
+        '200':
+          description: Error conocido actualizado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorConocido' }
+        '400': { $ref: '#/components/responses/SolicitudInvalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Token JWT emitido por el servicio de Accesos.
+  parameters:
+    ProblemaId:
+      name: id
+      in: path
+      required: true
+      description: ID del problema
+      schema: { type: integer, format: int64, minimum: 1 }
+    Pagina:
+      name: page
+      in: query
+      required: false
+      description: Número de página (empieza en 1)
+      schema: { type: integer, minimum: 1, default: 1 }
+    TamanoPagina:
+      name: page_size
+      in: query
+      required: false
+      description: Elementos por página
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+  responses:
+    SolicitudInvalida:
+      description: Datos inválidos
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            codigo: datos_invalidos
+            detalle: La solicitud tiene campos inválidos.
+            campos: { titulo: Este campo es obligatorio. }
+    NoAutenticado:
+      description: Falta el token JWT o es inválido / expiró
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { codigo: no_autenticado, detalle: 'Token ausente, inválido o expirado.' }
+    NoEncontrado:
+      description: Recurso inexistente
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { codigo: no_encontrado, detalle: No existe el recurso solicitado. }
+  schemas:
+    EstadoProblema:
+      type: string
+      enum: [registrado, en_analisis, causa_identificada, error_conocido, resuelto, cerrado]
+      example: en_analisis
+    Prioridad:
+      type: string
+      enum: [baja, media, alta, critica]
+      example: alta
+    Origen:
+      type: string
+      enum: [manual, patron]
+      description: manual = lo registró una persona; patron = se detectó por incidentes repetidos
+      example: manual
+    Problema:
+      type: object
+      required: [id, titulo, descripcion, estado, prioridad, origen, causa_raiz, asignado_a_id, creado_en, actualizado_en, resuelto_en]
+      properties:
+        id: { type: integer, format: int64, readOnly: true }
+        titulo: { type: string, maxLength: 200 }
+        descripcion: { type: string }
+        estado: { $ref: '#/components/schemas/EstadoProblema' }
+        prioridad: { $ref: '#/components/schemas/Prioridad' }
+        origen: { $ref: '#/components/schemas/Origen' }
+        causa_raiz: { type: string, description: Cadena vacía si aún no se identifica }
+        asignado_a_id: { type: string, maxLength: 64, description: 'ID del usuario en Accesos; cadena vacía si no está asignado' }
+        creado_en: { type: string, format: date-time, readOnly: true }
+        actualizado_en: { type: string, format: date-time, readOnly: true }
+        resuelto_en: { type: string, format: date-time, nullable: true, readOnly: true }
+      example:
+        id: 42
+        titulo: Caída del correo cada lunes
+        descripcion: El servidor de correo deja de responder los lunes a primera hora.
+        estado: error_conocido
+        prioridad: alta
+        origen: patron
+        causa_raiz: El certificado TLS del servidor SMTP no se renueva automáticamente.
+        asignado_a_id: usr-17
+        creado_en: '2026-11-10T14:05:00Z'
+        actualizado_en: '2026-11-12T09:30:00Z'
+        resuelto_en: null
+    ProblemaCrear:
+      type: object
+      required: [titulo, descripcion]
+      properties:
+        titulo: { type: string, minLength: 1, maxLength: 200 }
+        descripcion: { type: string, minLength: 1 }
+        prioridad: { allOf: [{ $ref: '#/components/schemas/Prioridad' }], default: media }
+        origen: { allOf: [{ $ref: '#/components/schemas/Origen' }], default: manual }
+        causa_raiz: { type: string, default: '' }
+        asignado_a_id: { type: string, maxLength: 64, default: '' }
+      example:
+        titulo: Caída del correo cada lunes
+        descripcion: El servidor de correo deja de responder los lunes a primera hora.
+        prioridad: alta
+        origen: manual
+    ProblemaActualizar:
+      type: object
+      minProperties: 1
+      description: Todos los campos son opcionales. El estado se cambia con su propio endpoint.
+      properties:
+        titulo: { type: string, minLength: 1, maxLength: 200 }
+        descripcion: { type: string, minLength: 1 }
+        prioridad: { $ref: '#/components/schemas/Prioridad' }
+        causa_raiz: { type: string }
+        asignado_a_id: { type: string, maxLength: 64 }
+      example:
+        prioridad: critica
+        asignado_a_id: usr-17
+    CambioEstado:
+      type: object
+      required: [estado]
+      properties:
+        estado: { $ref: '#/components/schemas/EstadoProblema' }
+        causa_raiz: { type: string, description: Opcional; se guarda en el problema junto con el cambio }
+      example:
+        estado: causa_identificada
+        causa_raiz: El certificado TLS del servidor SMTP no se renueva automáticamente.
+    ProblemaIncidente:
+      type: object
+      required: [id, problema_id, incidente_id, vinculado_en]
+      properties:
+        id: { type: integer, format: int64, readOnly: true }
+        problema_id: { type: integer, format: int64, readOnly: true }
+        incidente_id: { type: string, maxLength: 64, description: ID del incidente en Incidencias (sin FK) }
+        vinculado_en: { type: string, format: date-time, readOnly: true }
+      example:
+        id: 7
+        problema_id: 42
+        incidente_id: INC-1
+        vinculado_en: '2026-11-10T14:06:00Z'
+    VincularIncidente:
+      type: object
+      required: [incidente_id]
+      properties:
+        incidente_id: { type: string, minLength: 1, maxLength: 64, description: ID del incidente en Incidencias }
+      example:
+        incidente_id: INC-1
+    ErrorConocido:
+      type: object
+      required: [id, problema_id, titulo, descripcion, causa_raiz, workaround, articulo_kb_id, activo, creado_en, actualizado_en]
+      properties:
+        id: { type: integer, format: int64, readOnly: true }
+        problema_id: { type: integer, format: int64, readOnly: true }
+        titulo: { type: string, maxLength: 200 }
+        descripcion: { type: string }
+        causa_raiz: { type: string }
+        workaround: { type: string, description: Solución temporal mientras no hay solución definitiva }
+        articulo_kb_id: { type: string, maxLength: 64, description: 'ID del artículo en Knowledge (sin FK); cadena vacía si no hay' }
+        activo: { type: boolean }
+        creado_en: { type: string, format: date-time, readOnly: true }
+        actualizado_en: { type: string, format: date-time, readOnly: true }
+      example:
+        id: 3
+        problema_id: 42
+        titulo: Certificado SMTP vencido
+        descripcion: El servidor SMTP rechaza conexiones TLS.
+        causa_raiz: El certificado TLS no se renueva automáticamente.
+        workaround: Renovar el certificado a mano y reiniciar el servicio de correo.
+        articulo_kb_id: KB-128
+        activo: true
+        creado_en: '2026-11-12T09:30:00Z'
+        actualizado_en: '2026-11-12T09:30:00Z'
+    ErrorConocidoCrear:
+      type: object
+      required: [problema_id, titulo, descripcion, causa_raiz, workaround]
+      properties:
+        problema_id: { type: integer, format: int64, minimum: 1 }
+        titulo: { type: string, minLength: 1, maxLength: 200 }
+        descripcion: { type: string, minLength: 1 }
+        causa_raiz: { type: string, minLength: 1 }
+        workaround: { type: string, minLength: 1 }
+        articulo_kb_id: { type: string, maxLength: 64, default: '' }
+        activo: { type: boolean, default: true }
+      example:
+        problema_id: 42
+        titulo: Certificado SMTP vencido
+        descripcion: El servidor SMTP rechaza conexiones TLS.
+        causa_raiz: El certificado TLS no se renueva automáticamente.
+        workaround: Renovar el certificado a mano y reiniciar el servicio de correo.
+    ErrorConocidoActualizar:
+      type: object
+      minProperties: 1
+      description: Todos los campos son opcionales. Un error conocido no cambia de problema.
+      properties:
+        titulo: { type: string, minLength: 1, maxLength: 200 }
+        descripcion: { type: string, minLength: 1 }
+        causa_raiz: { type: string, minLength: 1 }
+        workaround: { type: string, minLength: 1 }
+        articulo_kb_id: { type: string, maxLength: 64 }
+        activo: { type: boolean }
+      example:
+        articulo_kb_id: KB-128
+        activo: false
+    Paginado:
+      type: object
+      required: [count, next, previous]
+      description: Envoltura común de las listas paginadas.
+      properties:
+        count: { type: integer, minimum: 0, description: Total de elementos }
+        next: { type: string, format: uri, nullable: true, description: URL de la página siguiente }
+        previous: { type: string, format: uri, nullable: true, description: URL de la página anterior }
+    ProblemaPaginado:
+      allOf:
+        - $ref: '#/components/schemas/Paginado'
+        - type: object
+          required: [results]
+          properties:
+            results:
+              type: array
+              items: { $ref: '#/components/schemas/Problema' }
+      example:
+        count: 1
+        next: null
+        previous: null
+        results:
+          - id: 42
+            titulo: Caída del correo cada lunes
+            descripcion: El servidor de correo deja de responder los lunes a primera hora.
+            estado: error_conocido
+            prioridad: alta
+            origen: patron
+            causa_raiz: El certificado TLS del servidor SMTP no se renueva automáticamente.
+            asignado_a_id: usr-17
+            creado_en: '2026-11-10T14:05:00Z'
+            actualizado_en: '2026-11-12T09:30:00Z'
+            resuelto_en: null
+    ErrorConocidoPaginado:
+      allOf:
+        - $ref: '#/components/schemas/Paginado'
+        - type: object
+          required: [results]
+          properties:
+            results:
+              type: array
+              items: { $ref: '#/components/schemas/ErrorConocido' }
+      example:
+        count: 1
+        next: null
+        previous: null
+        results:
+          - id: 3
+            problema_id: 42
+            titulo: Certificado SMTP vencido
+            descripcion: El servidor SMTP rechaza conexiones TLS.
+            causa_raiz: El certificado TLS no se renueva automáticamente.
+            workaround: Renovar el certificado a mano y reiniciar el servicio de correo.
+            articulo_kb_id: KB-128
+            activo: true
+            creado_en: '2026-11-12T09:30:00Z'
+            actualizado_en: '2026-11-12T09:30:00Z'
+    Error:
+      type: object
+      required: [codigo, detalle]
+      properties:
+        codigo: { type: string, example: no_encontrado }
+        detalle: { type: string }
+        campos:
+          type: object
+          additionalProperties: { type: string }
+          description: Errores por campo (400)

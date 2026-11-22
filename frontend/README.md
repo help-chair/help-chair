@@ -63,7 +63,7 @@ Al arrancar, la SPA decide qué mostrar según el dominio (`src/config/runtime.t
 - [ ] Imagen publicada en `ghcr.io/help-chair/hc-frontend`
 - [x] `requests`/`limits` de recursos declarados (detallados en [`DEPLOYMENT.md`](DEPLOYMENT.md))
 - [x] Cierre ordenado con `SIGTERM`
-- [ ] Workflow de CI propio, filtrado por esta ruta (ver `../CONTRIBUTING.md`)
+- [x] Workflow de CI propio, filtrado por esta ruta (ver `../CONTRIBUTING.md`)
 
 ### Ejecución local
 
@@ -93,14 +93,19 @@ Abre [http://localhost:5173/?site=public](http://localhost:5173/?site=public). E
 
 #### Entrar al Service Desk sin backend
 Mientras `services/access` no exista, el inicio de sesión y la pantalla de Accesos caen en los datos
-simulados de `src/features/access/data.ts` y lo avisan en pantalla. Credenciales de prueba:
+simulados de `src/features/access/data.ts` y lo avisan en pantalla. Credenciales de prueba
+(contraseña `helpchair-demo` para todas):
 
 | Correo | Rol | Para qué sirve |
 |---|---|---|
 | `admin@empresa15.com` | Administrador | Ve todo el menú y administra usuarios |
+| `daniela.ruiz@empresa15.com` | Agente N1 | Eventos e Incidencias, sin Problemas ni Accesos |
+| `marco.estrada@empresa15.com` | Agente N2 | Panel de área, Incidencias escaladas y Problemas |
 | `lucia.ponce@empresa15.com` | Usuario final | Comprueba la navegación según rol |
+| `hugo.navarro@empresa15.com` | Usuario final (bloqueado) | Prueba el error de cuenta bloqueada |
+| `sofia.marin@empresa15.com` | Agente N1 (invitado) | Prueba el error de cuenta sin activar |
 
-La contraseña de ambos es `helpchair-demo`. Para probar contra el contrato real en vez del respaldo:
+Para probar contra el contrato real en vez del respaldo:
 ```bash
 npm run mock:access           # terminal 1: mock de Accesos en http://localhost:8002
 npm run dev                   # terminal 2

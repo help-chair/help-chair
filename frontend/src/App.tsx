@@ -1,6 +1,8 @@
 import { useState } from 'react'
-import { logout as cerrarSesionEnAccesos, setAccessToken } from '@/api/access'
+import { logout as cerrarSesionEnAccesos, setAccessToken, setRefreshToken } from '@/api/access'
 import { ServiceDeskLayout, type TabKey } from '@/components/layout/ServiceDeskLayout'
+import { useHasRole } from '@/auth/roleGuard'
+
 import LoginPage from '@/features/access/LoginPage'
 import { UsersPage } from '@/features/access/UsersPage'
 import { seccionInicial, seccionesVisibles } from '@/features/access/navegacion'
@@ -17,8 +19,10 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<TabKey>('dashboard')
   const [sesion, setSesion] = useState<Sesion | null>(null)
 
-  // Sin sesión no se muestra el Service Desk. El token vive en memoria (ver api/access.ts),
-  // así que al recargar la página se vuelve a pedir el inicio de sesión.
+  // Hooks MUST be called unconditionally (before any early return).
+  const userRole = sesion?.usuario?.rol
+  const canViewRequests = useHasRole(['administrador', 'usuario_final', 'agente_n1', 'agente_n2'], userRole)
+
   if (!sesion) {
     return (
       <LoginPage
@@ -30,15 +34,13 @@ export default function App() {
     )
   }
 
-  // Navegación según rol: el menú y el contenido se limitan a lo que permite el rol.
   const secciones = seccionesVisibles(sesion.usuario.permisos)
-  const tabActual = secciones.includes(activeTab)
-    ? activeTab
-    : seccionInicial(sesion.usuario.permisos)
+  const tabActual = secciones.includes(activeTab) ? activeTab : seccionInicial(sesion.usuario.permisos)
 
   function salir() {
     if (sesion) void cerrarSesionEnAccesos(sesion.refresco).catch(() => undefined)
     setAccessToken(null)
+    setRefreshToken(null)
     setSesion(null)
     setActiveTab('dashboard')
   }
@@ -47,15 +49,27 @@ export default function App() {
     <ServiceDeskLayout
       activeTab={tabActual}
       onSelectTab={setActiveTab}
-      usuario={{ nombre: sesion.usuario.nombre, rol: NOMBRE_ROL[sesion.usuario.rol] }}
+      usuario={{
+        nombre: sesion.usuario.nombre,
+        rol: NOMBRE_ROL[sesion.usuario.rol],
+        rolId: sesion.usuario.rol,
+      }}
       secciones={secciones}
       onLogout={salir}
     >
       {tabActual === 'dashboard' && (
-        <DashboardPage onNavigate={setActiveTab} secciones={secciones} />
+        <DashboardPage onNavigate={setActiveTab} secciones={secciones} rolId={sesion.usuario.rol} />
       )}
       {tabActual === 'events' && <EventsPage />}
-      {tabActual === 'requests' && <RequestsPage />}
+      {tabActual === 'requests' && (
+        canViewRequests ? (
+          <RequestsPage
+            puedeGestionar={sesion.usuario.permisos.includes('tickets:atender')}
+          />
+        ) : (
+          <div className="p-4 text-center text-red-600">No tienes permiso para ver solicitudes.</div>
+        )
+      )}
       {tabActual === 'access' && <UsersPage usuario={sesion.usuario} />}
       {tabActual === 'incidents' && <IncidentsPage />}
       {tabActual === 'problems' && <ProblemsPage />}

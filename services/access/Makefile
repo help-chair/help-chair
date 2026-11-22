@@ -52,8 +52,8 @@ format: ## ruff: corrige estilo y formatea
 build: ## Construye la imagen OCI (Podman o Docker)
 	$(CONTAINER) build -t $(IMAGE):$(TAG) .
 
-seed: ## Datos de ejemplo (cada equipo lo implementa)
-	@echo "TODO: implementar datos de ejemplo de $(SERVICE) (manage.py loaddata / comando propio)"
+seed: ## Carga el catálogo de roles (idempotente)
+	$(RUN) python manage.py seed
 
 openapi: ## Exporta el contrato a contracts/$(SERVICE)/openapi.yaml
 	@mkdir -p ../../contracts/$(SERVICE)

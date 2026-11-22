@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import type { RolId } from '@/features/access/types'
 
 export type TabKey =
   | 'dashboard'
@@ -27,6 +28,8 @@ export type TabKey =
 interface UsuarioDeSesion {
   nombre: string
   rol: string
+  /** Identificador del rol para personalizar textos (p. ej. el título del dashboard). */
+  rolId?: RolId
 }
 
 interface ServiceDeskLayoutProps {
@@ -52,10 +55,16 @@ export function ServiceDeskLayout({
   children,
 }: ServiceDeskLayoutProps) {
   const puedeVer = (seccion: TabKey) => secciones === undefined || secciones.includes(seccion)
+
+  const puedeOperar = puedeVer('events') || puedeVer('incidents') || puedeVer('problems')
+  const puedeAdministrar = puedeVer('access')
+
   const getHeaderTitle = () => {
     switch (activeTab) {
       case 'dashboard':
-        return 'Service Desk · Vista Operativa'
+        return usuario?.rolId === 'usuario_final'
+          ? 'Mi espacio'
+          : 'Service Desk · Vista Operativa'
       case 'events':
         return 'Consola de Monitoreo de Eventos'
       case 'requests':
@@ -79,6 +88,15 @@ export function ServiceDeskLayout({
     .slice(0, 2)
     .join('')
     .toUpperCase()
+
+  const claseBoton = (activo: boolean) =>
+    `w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+      activo
+        ? 'bg-indigo-600 text-white shadow-sm'
+        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+    }`
+
+  const etiquetaGrupo = 'px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-slate-400'
 
   return (
     <div className="flex h-screen bg-slate-100 text-slate-800">
@@ -104,121 +122,89 @@ export function ServiceDeskLayout({
 
           {/* Menú principal */}
           <nav aria-label="Secciones del Service Desk" className="p-4 space-y-1">
-            <p className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Centro de Mando
-            </p>
+            <p className={etiquetaGrupo}>Mi espacio</p>
             <button
               onClick={() => onSelectTab('dashboard')}
               aria-current={activeTab === 'dashboard' ? 'page' : undefined}
-              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                activeTab === 'dashboard'
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-              }`}
+              className={claseBoton(activeTab === 'dashboard')}
             >
               <LayoutDashboard size={18} />
               Dashboard Principal
             </button>
-            {puedeVer('events') && (
-              <button
-                onClick={() => onSelectTab('events')}
-                aria-current={activeTab === 'events' ? 'page' : undefined}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  activeTab === 'events'
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                }`}
-              >
-                <Activity size={18} />
-                Gestión de Eventos
-                <span className="ml-auto bg-slate-800 text-slate-300 text-xs px-2 py-0.5 rounded-full">
-                  5
-                </span>
-              </button>
-            )}
-
-            <p className="pt-4 px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Microservicios ITIL
-            </p>
-            {puedeVer('access') && (
-              <button
-                onClick={() => onSelectTab('access')}
-                aria-current={activeTab === 'access' ? 'page' : undefined}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  activeTab === 'access'
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                }`}
-              >
-                <KeyRound size={18} className={activeTab === 'access' ? '' : 'text-indigo-300'} />
-                <span>Accesos</span>
-              </button>
-            )}
-
-            {puedeVer('incidents') && (
-              <button
-                onClick={() => onSelectTab('incidents')}
-                aria-current={activeTab === 'incidents' ? 'page' : undefined}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  activeTab === 'incidents'
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                }`}
-              >
-                <Flame size={18} className={activeTab === 'incidents' ? '' : 'text-red-400'} />
-                <span>Incidencias</span>
-              </button>
-            )}
-
             {puedeVer('requests') && (
               <button
                 onClick={() => onSelectTab('requests')}
                 aria-current={activeTab === 'requests' ? 'page' : undefined}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  activeTab === 'requests'
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                }`}
+                className={claseBoton(activeTab === 'requests')}
               >
                 <Inbox size={18} className={activeTab === 'requests' ? '' : 'text-purple-400'} />
                 <span>Peticiones</span>
               </button>
             )}
-
-            {puedeVer('problems') && (
-              <button
-                onClick={() => onSelectTab('problems')}
-                aria-current={activeTab === 'problems' ? 'page' : undefined}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  activeTab === 'problems'
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                }`}
-              >
-                <ShieldAlert
-                  size={18}
-                  className={activeTab === 'problems' ? '' : 'text-amber-400'}
-                />
-                <span>Problemas</span>
-              </button>
-            )}
-
             {puedeVer('knowledge') && (
               <button
                 onClick={() => onSelectTab('knowledge')}
                 aria-current={activeTab === 'knowledge' ? 'page' : undefined}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  activeTab === 'knowledge'
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                }`}
+                className={claseBoton(activeTab === 'knowledge')}
               >
-                <BookOpen
-                  size={18}
-                  className={activeTab === 'knowledge' ? '' : 'text-emerald-400'}
-                />
+                <BookOpen size={18} className={activeTab === 'knowledge' ? '' : 'text-emerald-400'} />
                 <span>Base de Conocimiento</span>
               </button>
+            )}
+
+            {puedeOperar && (
+              <>
+                <p className={`pt-4 ${etiquetaGrupo}`}>Operación</p>
+                {puedeVer('events') && (
+                  <button
+                    onClick={() => onSelectTab('events')}
+                    aria-current={activeTab === 'events' ? 'page' : undefined}
+                    className={claseBoton(activeTab === 'events')}
+                  >
+                    <Activity size={18} />
+                    Gestión de Eventos
+                  </button>
+                )}
+                {puedeVer('incidents') && (
+                  <button
+                    onClick={() => onSelectTab('incidents')}
+                    aria-current={activeTab === 'incidents' ? 'page' : undefined}
+                    className={claseBoton(activeTab === 'incidents')}
+                  >
+                    <Flame size={18} className={activeTab === 'incidents' ? '' : 'text-red-400'} />
+                    <span>Incidencias</span>
+                  </button>
+                )}
+                {puedeVer('problems') && (
+                  <button
+                    onClick={() => onSelectTab('problems')}
+                    aria-current={activeTab === 'problems' ? 'page' : undefined}
+                    className={claseBoton(activeTab === 'problems')}
+                  >
+                    <ShieldAlert
+                      size={18}
+                      className={activeTab === 'problems' ? '' : 'text-amber-400'}
+                    />
+                    <span>Problemas</span>
+                  </button>
+                )}
+              </>
+            )}
+
+            {puedeAdministrar && (
+              <>
+                <p className={`pt-4 ${etiquetaGrupo}`}>Administración</p>
+                {puedeVer('access') && (
+                  <button
+                    onClick={() => onSelectTab('access')}
+                    aria-current={activeTab === 'access' ? 'page' : undefined}
+                    className={claseBoton(activeTab === 'access')}
+                  >
+                    <KeyRound size={18} className={activeTab === 'access' ? '' : 'text-indigo-300'} />
+                    <span>Accesos</span>
+                  </button>
+                )}
+              </>
             )}
           </nav>
         </div>

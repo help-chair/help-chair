@@ -1,0 +1,94 @@
+[
+  {
+    "model": "incidents.incident",
+    "pk": 1,
+    "fields": {
+      "title": "Caída total del correo corporativo",
+      "description": "Nadie en la empresa puede enviar ni recibir correos desde las 9:00.",
+      "impact": "alto",
+      "urgency": "alta",
+      "priority": "P1",
+      "status": "asignado",
+      "affected_service": "svc-correo",
+      "reported_by": "usr-monitoreo",
+      "assigned_to": "usr-marta",
+      "assignment_group": "Infraestructura",
+      "source_event_id": "evt-000101",
+      "problem_id": "",
+      "sla_due_at": null,
+      "created_at": "2026-11-17T09:05:00Z",
+      "updated_at": "2026-11-17T09:10:00Z",
+      "resolved_at": null,
+      "closed_at": null
+    }
+  },
+  {
+    "model": "incidents.incident",
+    "pk": 2,
+    "fields": {
+      "title": "No puedo entrar al sistema de nómina",
+      "description": "El área de RH no puede entrar a nómina y hoy es día de pago.",
+      "impact": "medio",
+      "urgency": "alta",
+      "priority": "P2",
+      "status": "en_proceso",
+      "affected_service": "svc-nomina",
+      "reported_by": "usr-ana",
+      "assigned_to": "usr-luis",
+      "assignment_group": "Soporte de aplicaciones",
+      "source_event_id": "evt-000102",
+      "problem_id": "",
+      "sla_due_at": null,
+      "created_at": "2026-11-17T10:00:00Z",
+      "updated_at": "2026-11-17T10:20:00Z",
+      "resolved_at": null,
+      "closed_at": null
+    }
+  },
+  {
+    "model": "incidents.incident",
+    "pk": 3,
+    "fields": {
+      "title": "La VPN va muy lenta desde casa",
+      "description": "Varios usuarios remotos reportan lentitud al conectarse por VPN.",
+      "impact": "medio",
+      "urgency": "media",
+      "priority": "P3",
+      "status": "resuelto",
+      "affected_service": "svc-vpn",
+      "reported_by": "usr-jorge",
+      "assigned_to": "usr-luis",
+      "assignment_group": "Redes",
+      "source_event_id": "",
+      "problem_id": "prb-000007",
+      "sla_due_at": null,
+      "created_at": "2026-11-16T15:30:00Z",
+      "updated_at": "2026-11-16T18:00:00Z",
+      "resolved_at": "2026-11-16T18:00:00Z",
+      "closed_at": null
+    }
+  },
+  {
+    "model": "incidents.incident",
+    "pk": 4,
+    "fields": {
+      "title": "La impresora del piso 2 no imprime",
+      "description": "Los documentos se quedan en cola y no salen.",
+      "impact": "bajo",
+      "urgency": "media",
+      "priority": "P4",
+      "status": "nuevo",
+      "affected_service": "svc-impresion",
+      "reported_by": "usr-pedro",
+      "assigned_to": "",
+      "assignment_group": "",
+      "source_event_id": "",
+      "problem_id": "",
+      "sla_due_at": null,
+      "created_at": "2026-11-17T11:45:00Z",
+      "updated_at": "2026-11-17T11:45:00Z",
+      "resolved_at": null,
+      "closed_at": null
+    }
+  }
+]

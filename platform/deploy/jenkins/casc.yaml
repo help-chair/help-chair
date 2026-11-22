@@ -16,23 +16,23 @@ jenkins:
         - id: "admin"
           name: "Plataforma (administración)"
           password: "${JENKINS_ADMIN_PASSWORD}"
-        - id: "equipo-events"
-          name: "Equipo 1: Eventos"
+        - id: "team-events"
+          name: "Team 1: Events"
           password: "${JENKINS_PASS_EVENTS}"
-        - id: "equipo-access"
-          name: "Equipo 2: Accesos"
+        - id: "team-access"
+          name: "Team 2: Access"
           password: "${JENKINS_PASS_ACCESS}"
-        - id: "equipo-requests"
-          name: "Equipo 3: Peticiones"
+        - id: "team-requests"
+          name: "Team 3: Requests"
           password: "${JENKINS_PASS_REQUESTS}"
-        - id: "equipo-incidents"
-          name: "Equipo 4: Incidencias"
+        - id: "team-incidents"
+          name: "Team 4: Incidents"
           password: "${JENKINS_PASS_INCIDENTS}"
-        - id: "equipo-problems"
-          name: "Equipo 5: Problemas y KB"
+        - id: "team-problems"
+          name: "Team 5: Problems & KB"
           password: "${JENKINS_PASS_PROBLEMS}"
-        - id: "equipo-frontend"
-          name: "Equipo 6: Frontend"
+        - id: "team-frontend"
+          name: "Team 6: Frontend"
           password: "${JENKINS_PASS_FRONTEND}"
 
   # Roles: todos ven todo; cada equipo solo ejecuta y cancela los jobs de su servicio.
@@ -46,49 +46,50 @@ jenkins:
               - "Overall/Administer"
             entries:
               - user: "admin"
-          - name: "lectura"
+          - name: "read"
             description: "Todos los equipos: ver jobs y resultados"
             permissions:
               - "Overall/Read"
               - "Job/Read"
             entries:
-              - user: "equipo-events"
-              - user: "equipo-access"
-              - user: "equipo-requests"
-              - user: "equipo-incidents"
-              - user: "equipo-problems"
-              - user: "equipo-frontend"
+              - user: "team-events"
+              - user: "team-access"
+              - user: "team-requests"
+              - user: "team-incidents"
+              - user: "team-problems"
+              - user: "team-frontend"
         items:
           - name: "events"
             pattern: "events(/.*)?"
-            permissions: &ejecutar ["Job/Build", "Job/Cancel", "Job/Workspace", "Run/Replay"]
+            permissions:
+              &run ["Job/Build", "Job/Cancel", "Job/Workspace", "Run/Replay"]
             entries:
-              - user: "equipo-events"
+              - user: "team-events"
           - name: "access"
             pattern: "access(/.*)?"
-            permissions: *ejecutar
+            permissions: *run
             entries:
-              - user: "equipo-access"
+              - user: "team-access"
           - name: "requests"
             pattern: "requests(/.*)?"
-            permissions: *ejecutar
+            permissions: *run
             entries:
-              - user: "equipo-requests"
+              - user: "team-requests"
           - name: "incidents"
             pattern: "incidents(/.*)?"
-            permissions: *ejecutar
+            permissions: *run
             entries:
-              - user: "equipo-incidents"
+              - user: "team-incidents"
           - name: "problems-knowledge"
             pattern: "(problems|knowledge)(/.*)?"
-            permissions: *ejecutar
+            permissions: *run
             entries:
-              - user: "equipo-problems"
+              - user: "team-problems"
           - name: "frontend"
             pattern: "frontend(/.*)?"
-            permissions: *ejecutar
+            permissions: *run
             entries:
-              - user: "equipo-frontend"
+              - user: "team-frontend"
 
 # Credenciales cifradas dentro de Jenkins; el valor real viene del .env
 credentials:
@@ -119,7 +120,7 @@ unclassified:
 # (o frontend/Jenkinsfile); las ramas sin ese archivo se ignoran solas.
 jobs:
   - script: |
-      def proyectos = [
+      def projects = [
         events   : 'services/events/Jenkinsfile',
         access   : 'services/access/Jenkinsfile',
         requests : 'services/requests/Jenkinsfile',
@@ -128,15 +129,15 @@ jobs:
         knowledge: 'services/knowledge/Jenkinsfile',
         frontend : 'frontend/Jenkinsfile',
       ]
-      proyectos.each { nombre, receta ->
-        multibranchPipelineJob(nombre) {
-          displayName('hc-' + nombre)
-          description('Pipeline de ' + receta + ' (creado por casc.yaml)')
+      projects.each { service, jenkinsfile ->
+        multibranchPipelineJob(service) {
+          displayName('hc-' + service)
+          description('Pipeline de ' + jenkinsfile + ' (creado por casc.yaml)')
           branchSources {
             branchSource {
               source {
                 github {
-                  id('hc-' + nombre)
+                  id('hc-' + service)
                   repoOwner('help-chair')
                   repository('help-chair')
                   repositoryUrl('https://github.com/help-chair/help-chair')
@@ -151,7 +152,7 @@ jobs:
             }
           }
           factory {
-            workflowBranchProjectFactory { scriptPath(receta) }
+            workflowBranchProjectFactory { scriptPath(jenkinsfile) }
           }
           // Poll SCM: sin URL pública no hay webhook; se revisa GitHub cada 2 minutos
           triggers {

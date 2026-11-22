@@ -14,9 +14,9 @@ Jenkins ejecuta el `Jenkinsfile` de cada servicio (`make lint test`, `make build
 | Usuarios, roles, credenciales, jobs y disparadores | `casc.yaml` (JCasC + Job DSL) | ✅ |
 | Cómo se levanta (puerto, volumen) | `compose.yaml` | ✅ |
 | **Secretos** (contraseñas y tokens) | `platform/deploy/jenkins/.env` | ❌ **Nunca** |
-| Historial de builds, workspaces y cachés | Volumen `hc-jenkins_jenkins-home` | ❌ (se respalda aparte, ver §6) |
+| Historial de builds, workspaces y cachés | Volumen `local_jenkins-home` | ❌ (se respalda aparte, ver §6) |
 
-Usuarios: `admin` (Plataforma) y uno por equipo: `equipo-events`, `equipo-access`, `equipo-requests`, `equipo-incidents`, `equipo-problems` (Problemas + KB) y `equipo-frontend`.
+Usuarios: `admin` (Plataforma) y uno por equipo: `team-events`, `team-access`, `team-requests`, `team-incidents`, `team-problems` (Problemas + KB) y `team-frontend`.
 
 | Rol | Puede |
 |---|---|
@@ -52,7 +52,7 @@ Desde la raíz del repo:
 ```bash
 cp platform/deploy/jenkins/.env.example platform/deploy/jenkins/.env
 # Edita .env: una contraseña distinta por usuario (mínimo 16 caracteres) y los tokens del paso 3.
-docker compose -f platform/deploy/jenkins/compose.yaml up -d --build
+docker compose -f platform/deploy/local/compose.yaml --profile ci up -d --build jenkins
 ```
 
 La primera construcción descarga los plugins y tarda de 1 a 3 minutos. Jenkins queda en **http://localhost:8090** (8090 porque el 8080 lo usa el frontend).
@@ -62,20 +62,20 @@ Las contraseñas se reparten **por mensaje privado** a cada equipo, nunca en el 
 ## 5. Verificación (después de instalar o cambiar algo)
 
 1. `http://localhost:8090` pide iniciar sesión (no hay acceso anónimo ni registro).
-2. `admin` ve **Administrar Jenkins**; `equipo-incidents` no lo ve.
-3. Aparecen los 7 jobs; `equipo-incidents` puede pulsar **Scan Multibranch Pipeline Now** en `incidents` y no en `events`.
+2. `admin` ve **Administrar Jenkins**; `team-incidents` no lo ve.
+3. Aparecen los 7 jobs; `team-incidents` puede pulsar **Scan Multibranch Pipeline Now** en `incidents` y no en `events`.
 4. En **Administrar Jenkins → Credentials** aparecen `github-readonly` y `ghcr-push`.
 5. En `events` → **Scan Multibranch Pipeline Log** aparece `Checking branches...` y `develop` con su `Jenkinsfile`.
-6. En los logs no hay errores: `docker compose -f platform/deploy/jenkins/compose.yaml logs jenkins | grep SEVERE`.
+6. En los logs no hay errores: `docker compose -f platform/deploy/local/compose.yaml --profile ci logs jenkins | grep SEVERE`.
 
 ## 6. Operación
 
 | Tarea | Cómo |
 |---|---|
 | Cambiar usuarios, roles, jobs o plugins | Editar `casc.yaml` o `plugins.txt` → PR → `up -d --build` |
-| Cambiar una contraseña o un token | Editar `.env` → `docker compose -f platform/deploy/jenkins/compose.yaml up -d` (recrea el contenedor) |
-| Ver logs | `docker compose -f platform/deploy/jenkins/compose.yaml logs -f jenkins` |
-| Apagar sin perder datos | `docker compose -f platform/deploy/jenkins/compose.yaml down` (**sin** `-v`) |
+| Cambiar una contraseña o un token | Editar `.env` → `docker compose -f platform/deploy/local/compose.yaml --profile ci up -d jenkins` (recrea el contenedor) |
+| Ver logs | `docker compose -f platform/deploy/local/compose.yaml --profile ci logs -f jenkins` |
+| Apagar sin perder datos | `docker compose -f platform/deploy/local/compose.yaml --profile ci stop jenkins` (**sin** `-v`) |
 | Actualizar Jenkins | Cambiar la versión en `Dockerfile` (y la de uv si hace falta) → PR → `up -d --build` |
 
 ### Respaldo y restauración
@@ -85,7 +85,7 @@ Las contraseñas se reparten **por mensaje privado** a cada equipo, nunca en el 
 - **Historial (opcional):** respaldar el volumen:
 
 ```bash
-docker run --rm -v hc-jenkins_jenkins-home:/data -v "$PWD":/backup alpine \
+docker run --rm -v local_jenkins-home:/data -v "$PWD":/backup alpine \
   tar czf /backup/jenkins-home-$(date +%F).tgz -C /data .
 ```
 
@@ -95,7 +95,7 @@ Si se pierde el volumen, Jenkins se reconstruye igual desde el repo y el `.env`.
 
 1. En la VM: instalar Docker, clonar el repo y copiar el `.env`.
 2. Cambiar `JENKINS_URL` en `.env` a la URL pública (de preferencia HTTPS, detrás de un proxy inverso).
-3. `docker compose -f platform/deploy/jenkins/compose.yaml up -d --build`.
+3. `docker compose -f platform/deploy/local/compose.yaml --profile ci up -d --build jenkins`.
 4. Con URL pública, configurar en GitHub un **webhook** (`<JENKINS_URL>github-webhook/`, eventos *push* y *pull request*).
    El escaneo cada 2 minutos puede quedarse como respaldo o subirse a 15 minutos para gastar menos API.
 5. **No exponer el puerto 8090 directo a internet sin HTTPS.**
@@ -115,4 +115,5 @@ Si se pierde el volumen, Jenkins se reconstruye igual desde el repo y el `.env`.
 | El escaneo se queda en `Getting remote pull requests...` | Token de GitHub inválido o vencido. Revisa `GITHUB_TOKEN`. |
 | Un plugin "no existe" al construir | Fin de línea CRLF en `plugins.txt`. La carpeta tiene `.gitattributes` con `eol=lf`; vuelve a sacar el archivo con `git checkout -- platform/deploy/jenkins/`. |
 | `curl -X POST` a Jenkins devuelve 403 aunque el usuario tenga permiso | Jenkins exige un *crumb* (protección CSRF). Usa la interfaz o pide primero `/crumbIssuer/api/json`. |
-| El puerto 8090 ya está ocupado | Cambia `"8090:8080"` en `compose.yaml` y `JENKINS_URL` en `.env`. |
+| El puerto 8090 ya está ocupado | Cambia `"8090:8080"` en `platform/deploy/local/compose.yaml` y `JENKINS_URL` en `.env`. |
+

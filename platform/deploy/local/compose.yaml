@@ -217,6 +217,21 @@ services:
     restart: unless-stopped
     ports: ["8080:8080"]
 
+  
+  # CI/CD (issue #85). Opcional: solo arranca con --profile ci.
+  # Requiere platform/deploy/jenkins/.env (copia de .env.example). Ver docs/runbooks/jenkins.md
+  jenkins:
+    profiles: ["ci"]
+    build: ../jenkins
+    image: ghcr.io/help-chair/hc-jenkins:dev
+    restart: unless-stopped
+    env_file: ../jenkins/.env
+    # 8090 en el host porque el 8080 ya lo usa el frontend
+    ports: ["8090:8080"]
+    volumes:
+      - jenkins-home:/var/jenkins_home
+
+
 volumes:
   events-data:
   access-data:
@@ -224,3 +239,4 @@ volumes:
   incidents-data:
   problems-data:
   knowledge-data:
+  jenkins-home:

@@ -12,7 +12,8 @@ Jenkins ejecuta el `Jenkinsfile` de cada servicio (`make lint test`, `make build
 | Versión de Jenkins, `make` y `uv` | `Dockerfile` | ✅ |
 | Plugins | `plugins.txt` | ✅ |
 | Usuarios, roles, credenciales, jobs y disparadores | `casc.yaml` (JCasC + Job DSL) | ✅ |
-| Cómo se levanta (puerto, volumen) | `compose.yaml` | ✅ |
+| Cómo se levanta (puerto, volumen) | Servicio `jenkins` (perfil `ci`) en `platform/deploy/local/compose.yaml` | ✅ |
+
 | **Secretos** (contraseñas y tokens) | `platform/deploy/jenkins/.env` | ❌ **Nunca** |
 | Historial de builds, workspaces y cachés | Volumen `local_jenkins-home` | ❌ (se respalda aparte, ver §6) |
 

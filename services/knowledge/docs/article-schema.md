@@ -88,22 +88,23 @@ todavía una máquina de transiciones, revisión, historial editorial o CRUD RES
 dos categorías y cuatro artículos (borrador, publicado empresa, publicado soporte,
 archivado), con UUID fijos y un autor ficticio explícito. No crea usuarios ni
 contraseñas. Recargar sobrescribe esos mismos ejemplos; usar solo en una BD de
-ensayo, no para reemplazar datos reales. No se añade un segundo seed:
-`make seed` queda para #111.
+ensayo, no para reemplazar datos reales. `make seed CONFIRM_DEMO=1` reutiliza esta
+fixture con advertencia de recarga; sin opt-in no carga datos.
 
 Desde `services/knowledge`, con Python 3.12 y dependencias del lock:
 
 ```bash
 # Configurar antes SECRET_KEY y DATABASE_URL de una BD PostgreSQL propia de ensayo.
-# make setup copia un .env.example todavía pendiente de corregir en #111.
+# make setup instala dependencias; el sistema suministra las variables privadas.
+# .env.example solo documenta nombres vacíos y no se copia ni se carga.
 uv run python manage.py migrate --plan
 uv run python manage.py sqlmigrate articles 0001
 make migrate
 uv run python manage.py showmigrations articles
 make migrate  # debe informar que no hay migraciones pendientes
 uv run python manage.py makemigrations --check --dry-run
-uv run python manage.py loaddata kb_demo
-uv run python manage.py loaddata kb_demo  # conserva 2 categorías / 4 artículos
+make seed CONFIRM_DEMO=1
+make seed CONFIRM_DEMO=1  # conserva 2 categorías / 4 artículos de demo
 make lint
 make test
 ```
@@ -116,9 +117,10 @@ El readiness actual solo ejecuta SELECT 1: no demuestra migraciones aplicadas.
 
 ## Dependencias y alcance pendiente
 
-`contracts/knowledge/openapi.yaml` sigue ausente: esta tabla es un mapping
-propuesto, no una correspondencia revisada o aprobada. #134/#112 deben confirmar
-tipos/nullabilidad, rutas, operaciones, errores y permisos con consumidores.
+El contrato previsto `contracts/knowledge/openapi.yaml` se entrega en el incremento
+separado #134/#112; este cambio de cimientos no lo incluye. Esta tabla es un mapping
+propuesto, no una correspondencia aprobada: deben confirmarse tipos, nulabilidad,
+rutas, operaciones, errores y permisos con consumidores.
 Los mocks frontend son provisionales: `KB-028`, `publico/agentes`, arrays de
 síntomas/pasos y `error_conocido_id` no son el contrato aprobado.
 
@@ -127,8 +129,8 @@ Problemas conserva el vínculo autoritativo ErrorConocido.articulo_kb_id (texto
 inversa maestra ni una FK entre servicios. Accesos identifica usuarios con UUID,
 pero KB todavía no implementa validación JWT/empresa ni permisos editoriales.
 
-#111 integra PostgreSQL/variables/arranque/seed; #135 coordina calidad y #136 el
-README operativo. Este incremento aporta sus propias pruebas y documentación.
+#111 integra PostgreSQL/variables/arranque/seed, pruebas operativas y README.
+Este incremento del esquema aporta sus propias pruebas y documentación.
 CRUD/publicación/búsqueda corresponden a fase II; uso/feedback a fase III.
 Revisión avanzada, snapshots completos, adjuntos y aprobaciones multinivel no
 pertenecen a esta migración. No cerrar #109 por disponer solo de esta rama:

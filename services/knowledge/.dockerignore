@@ -1,6 +1,14 @@
 .venv
 .git
 .env
+.env.*
+**/.env*
+*.pem
+*.key
+**/*.pem
+**/*.key
+secrets
+**/secrets
 __pycache__
 *.pyc
 db.sqlite3

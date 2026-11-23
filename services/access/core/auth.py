@@ -24,6 +24,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from . import events
+from .errors import ErrorSerializer
 from .models import EstadoUsuario, Rol
 
 TOKEN_TIPO = "Bearer"
@@ -242,7 +243,13 @@ class RefrescoSerializer(serializers.Serializer):
         "refresco y el usuario con sus permisos. El de acceso lleva los claims "
         "`empresa`, `rol` y `permisos`. Solo entran los usuarios en estado `activo`."
     ),
-    responses={200: SesionSerializer},
+    responses={
+        200: SesionSerializer,
+        400: ErrorSerializer,
+        401: ErrorSerializer,
+        403: ErrorSerializer,
+        423: ErrorSerializer,
+    },
 )
 class LoginView(TokenObtainPairView):
     serializer_class = LoginSerializer
@@ -253,7 +260,11 @@ class LoginView(TokenObtainPairView):
     summary="Renueva la sesión",
     description="Entrega una sesión nueva a partir de un token de refresco válido.",
     request=RefrescoSerializer,
-    responses={200: SesionSerializer},
+    responses={
+        200: SesionSerializer,
+        400: ErrorSerializer,
+        401: ErrorSerializer,
+    },
 )
 class RefreshView(TokenRefreshView):
     serializer_class = RefrescoSerializer

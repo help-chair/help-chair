@@ -16,18 +16,18 @@ describe('api problems', () => {
   it('lista problemas con la ruta del contrato', async () => {
     const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(json(VACIO))
     await listarProblemas()
-    expect(spy.mock.calls[0][0]).toBe('/api/v1/problemas/')
+    expect(spy.mock.calls[0][0]).toBe('/api/problems/v1/problemas/')
   })
 
   it('pasa los filtros como query', async () => {
     const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(json(VACIO))
     await listarProblemas({ estado: 'en_analisis', prioridad: 'alta' })
-    expect(String(spy.mock.calls[0][0])).toBe('/api/v1/problemas/?estado=en_analisis&prioridad=alta')
+    expect(String(spy.mock.calls[0][0])).toBe('/api/problems/v1/problemas/?estado=en_analisis&prioridad=alta')
   })
 
   it('lista errores conocidos con filtros', async () => {
     const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(json(VACIO))
     await listarErroresConocidos({ activo: true, q: 'SMTP' })
-    expect(String(spy.mock.calls[0][0])).toBe('/api/v1/errores-conocidos/?activo=true&q=SMTP')
+    expect(String(spy.mock.calls[0][0])).toBe('/api/problems/v1/errores-conocidos/?activo=true&q=SMTP')
   })
 })

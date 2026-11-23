@@ -13,10 +13,10 @@
 
 ### Excepción: Problems y Knowledge
 
-Los cambios de entorno de [Problems (PR #231)](https://github.com/help-chair/help-chair/pull/231)
-y [Knowledge (PR #229)](https://github.com/help-chair/help-chair/pull/229) están
-pendientes de aprobación e integración. Esta excepción se aplica con esos cambios;
-no modifica el flujo de los demás servicios.
+Esta excepción corresponde a los cambios de entorno de
+[Problems (PR #231)](https://github.com/help-chair/help-chair/pull/231) y
+[Knowledge (PR #229)](https://github.com/help-chair/help-chair/pull/229) y se aplica
+una vez integrados ambos PR; no modifica el flujo de los demás servicios.
 
 En ambos, `make setup` solo instala dependencias: no crea, copia ni carga `.env`.
 El servicio consume el entorno real del proceso y exige PostgreSQL también en

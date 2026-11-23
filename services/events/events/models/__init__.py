@@ -1,5 +1,5 @@
 from .base import AuditModel
-from .catalog import BusinessService, EventSource, PriorityMatrix, SlaPolicy
+from .catalog import BusinessService, EventSource, PriorityMatrix, RecurrencePolicy, SlaPolicy
 from .choices import (
     ALLOWED_TRANSITIONS,
     TERMINAL_STATES,
@@ -12,6 +12,7 @@ from .choices import (
     EventType,
     Impact,
     Priority,
+    RecurrenceAction,
     ServiceImportance,
     SourceKind,
     Urgency,
@@ -41,4 +42,6 @@ __all__ = [
     "SlaPolicy",
     "SourceKind",
     "Urgency",
+    "RecurrencePolicy",
+    "RecurrenceAction",
 ]

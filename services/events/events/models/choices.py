@@ -115,3 +115,8 @@ class ActorType(models.TextChoices):
     USER = "USER", "Usuario"
     SYSTEM = "SYSTEM", "Sistema"
     RULE = "RULE", "Regla"
+
+
+class RecurrenceAction(models.TextChoices):
+    WATCH_ALERT = "WATCH_ALERT", "Vigilar y alertar"
+    CREATE_PROBLEM = "CREATE_PROBLEM", "Crear problema"

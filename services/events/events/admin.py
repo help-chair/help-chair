@@ -6,6 +6,7 @@ from .models import (
     EventHistory,
     EventSource,
     PriorityMatrix,
+    RecurrencePolicy,
     SlaPolicy,
 )
 
@@ -42,6 +43,24 @@ class EventSourceAdmin(admin.ModelAdmin):
     list_filter = ("kind", "is_active")
     search_fields = ("name",)
     exclude = ("api_key_hash",)
+
+
+@admin.register(RecurrencePolicy)
+class RecurrencePolicyAdmin(admin.ModelAdmin):
+    list_display = (
+        "__str__",
+        "event_type",
+        "category",
+        "service",
+        "threshold_count",
+        "window_days",
+        "action",
+        "is_active",
+    )
+    list_filter = ("action", "is_active", "event_type", "category", "service")
+    search_fields = ("service__code", "service__name")
+    list_select_related = ("service",)
+    list_editable = ("is_active", "action")
 
 
 class EventHistoryInline(admin.TabularInline):

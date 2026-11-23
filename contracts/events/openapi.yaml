@@ -1,1033 +1,1419 @@
 openapi: 3.0.3
 info:
-  title: Help Chair - Eventos (Gestión de Eventos)
+  title: Help Chair - events
   version: 0.1.0
-  description: |
-    Contrato v0 (borrador, fase 1). Dueño: Equipo 1 (Eventos). Consumidores: Frontend (Service Desk y onboarding),
-    Peticiones, Incidencias, Problemas y Accesos. Práctica ITIL v4: Monitoring and Event Management.
-
-    Eventos es el punto de entrada del stack: recibe, deduplica, clasifica, prioriza y enruta eventos
-    (reglas en `services/events/docs/rules.md`) y guarda el catálogo de servicios, la matriz de prioridad y los SLA
-    de la empresa. Modelo de datos: `services/events/docs/README.md`.
-
-    **Convenciones**
-    - Se sirve dentro del stack de cada empresa en `/api/events/v1` (el gateway resuelve la empresa por el `Host`).
-    - Identificadores y enumeraciones en inglés, igual que el modelo (`NEW`, `P1`, `EXCEPTION`...); textos en español.
-    - Todas las fechas son `date-time` UTC (ISO 8601).
-    - Los campos opcionales sin valor se devuelven como `null` (la BD guarda cadena vacía en texto); el objeto `service` de `GET /events/{id}` se omite si no hay servicio.
-    - Los eventos **no se borran**: su ciclo de vida se gestiona con transiciones de estado y queda en el historial.
-    - Errores: `{code, detail, fields}`, igual que el contrato del gateway.
-    - Los mensajes asíncronos (`event.routed`, `event.state_changed`) están en `contracts/messages/event-envelope.json`.
-
-    **Deduplicación.** Si llega un evento con la misma huella (`fingerprint`, calculada por el servidor) que uno
-    abierto, no se crea otro: se incrementa `occurrence_count` y la respuesta es 200. Si el anterior ya está
-    cerrado, rechazado o cancelado, se crea uno nuevo (201).
-
-    **Autenticación.** JWT emitido por Accesos (claims: empresa, rol, expiración). Las operaciones de
-    configuración exigen rol administrador. La ingesta de eventos de sistema con clave de API (`X-API-Key`)
-    entra en la fase 4.
-servers:
-  - url: http://localhost:8001/api/events/v1
-    description: Entorno local (directo al servicio)
-  - url: https://{subdomain}.help-chair.com/api/events/v1
-    description: Stack de una empresa (a través del gateway)
-    variables:
-      subdomain:
-        default: empresa15
-tags:
-  - name: events
-    description: Registro, consulta y ciclo de vida de eventos
-  - name: config
-    description: Catálogo de servicios, matriz de prioridad, SLA y recurrencia (onboarding)
-  - name: sources
-    description: Fuentes de eventos de sistema (fase 4)
-security:
-  - bearerAuth: []
+  description: API del servicio events (contrato en contracts/events/).
 paths:
-  /events:
+  /api/v1/events:
     get:
-      tags: [events]
       operationId: listEvents
-      summary: Lista eventos con filtros y paginación
       parameters:
-        - { name: state, in: query, schema: { $ref: '#/components/schemas/EventState' } }
-        - { name: event_type, in: query, schema: { $ref: '#/components/schemas/EventType' } }
-        - { name: category, in: query, schema: { $ref: '#/components/schemas/EventCategory' } }
-        - { name: priority, in: query, schema: { $ref: '#/components/schemas/Priority' } }
-        - { name: origin, in: query, schema: { $ref: '#/components/schemas/EventOrigin' } }
-        - { name: service_code, in: query, schema: { type: string } }
-        - { name: assigned_to_ref, in: query, schema: { type: string } }
-        - name: open
-          in: query
-          description: true = solo eventos abiertos (ni CLOSED, ni REJECTED, ni CANCELLED); false = solo los finalizados
-          schema: { type: boolean }
-        - { name: created_from, in: query, schema: { type: string, format: date-time } }
-        - { name: created_to, in: query, schema: { type: string, format: date-time } }
-        - name: search
-          in: query
-          description: Texto contenido en título o mensaje
-          schema: { type: string, maxLength: 100 }
-        - name: ordering
-          in: query
-          description: Campo de orden; prefijo `-` para descendente
-          schema:
-            type: string
-            enum: [created_at, -created_at, last_seen_at, -last_seen_at, priority, -priority, resolution_due_at, -resolution_due_at]
-            default: -created_at
-        - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/Offset'
-      responses:
-        '200':
-          description: Página de eventos
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/EventPage' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '422': { $ref: '#/components/responses/Unprocessable' }
-    post:
-      tags: [events]
-      operationId: registerEvent
-      summary: Registra un evento (de usuario o de sistema)
-      description: |
-        Calcula la huella, deduplica, clasifica, calcula la prioridad con la matriz y las reglas de destino y deja el
-        mensaje en el *outbox* (misma transacción). El evento nace en estado `NEW` y con `closed_at` vacío.
-
-        - **201**: evento nuevo.
-        - **200**: ya había un evento abierto con la misma huella; se incrementó `occurrence_count`.
-
-        `origin` se declara en la v0; con clave de API (fase 4) el servidor lo fuerza a `SYSTEM`.
-        `event_type` y `category` son pistas: el motor de reglas puede reclasificar el tipo.
-        Si se envía `ingestion_key`, reintentar con la misma clave no cuenta como una nueva ocurrencia.
+      - in: query
+        name: assigned_to_ref
+        schema:
+          type: string
+      - in: query
+        name: category
+        schema:
+          type: string
+          enum:
+          - CHANGE
+          - FAILURE
+          - GENERAL
+          - REQUEST
+          - SECURITY
+      - in: query
+        name: created_from
+        schema:
+          type: string
+      - in: query
+        name: created_to
+        schema:
+          type: string
+      - in: query
+        name: event_type
+        schema:
+          type: string
+          enum:
+          - EXCEPTION
+          - INFORMATION
+          - WARNING
+      - in: query
+        name: limit
+        schema:
+          type: integer
+      - in: query
+        name: offset
+        schema:
+          type: integer
+      - in: query
+        name: open
+        schema:
+          type: boolean
+      - in: query
+        name: ordering
+        schema:
+          type: string
+      - in: query
+        name: origin
+        schema:
+          type: string
+          enum:
+          - SYSTEM
+          - USER
+      - in: query
+        name: priority
+        schema:
+          type: string
+          enum:
+          - P1
+          - P2
+          - P3
+          - P4
+      - in: query
+        name: search
+        schema:
+          type: string
+      - in: query
+        name: service_code
+        schema:
+          type: string
+      - in: query
+        name: state
+        schema:
+          type: string
+          enum:
+          - ASSIGNED
+          - CANCELLED
+          - CLOSED
+          - IN_PROGRESS
+          - NEW
+          - ON_HOLD
+          - REJECTED
+          - REOPENED
+          - RESOLVED
+      tags:
+      - v1
       security:
-        - bearerAuth: []
-        - apiKeyAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/EventCreate' }
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
       responses:
         '200':
-          description: Evento duplicado; se incrementó el contador de ocurrencias
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/EventRead' }
+              schema:
+                $ref: '#/components/schemas/EventPage'
+          description: ''
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Datos inválidos
+    post:
+      operationId: registerEvent
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EventCreate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/EventCreate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/EventCreate'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
         '201':
-          description: Evento nuevo
-          headers:
-            Location: { schema: { type: string }, description: 'Ruta del recurso (`/events/{id}`)' }
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/EventRead' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '422': { $ref: '#/components/responses/Unprocessable' }
-  /events/{id}:
-    parameters:
-      - $ref: '#/components/parameters/EventId'
+              schema:
+                $ref: '#/components/schemas/EventRead'
+          description: ''
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventRead'
+          description: ''
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Datos inválidos
+  /api/v1/events/{id}:
     get:
-      tags: [events]
       operationId: getEvent
-      summary: Detalle de un evento
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
       responses:
         '200':
-          description: Evento con su servicio y su historial de enrutamiento
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/EventDetail' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '404': { $ref: '#/components/responses/NotFound' }
+              schema:
+                $ref: '#/components/schemas/EventDetail'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Evento no encontrado
     patch:
-      tags: [events]
       operationId: updateEvent
-      summary: Asigna o reclasifica un evento
-      description: |
-        Solo campos de gestión: asignación, impacto, urgencia y categoría. Cambiar impacto o urgencia recalcula
-        `priority` con la matriz. Cada cambio queda en el historial (`ASSIGNMENT`, `CLASSIFICATION`, `PRIORITY_CHANGE`).
-        El estado **no** se cambia aquí: usa `POST /events/{id}/transitions`.
-      requestBody:
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
         required: true
+      tags:
+      - v1
+      requestBody:
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/EventUpdate' }
+            schema:
+              $ref: '#/components/schemas/EventUpdate'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/EventUpdate'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/EventUpdate'
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
       responses:
         '200':
-          description: Evento actualizado
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/EventRead' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '404': { $ref: '#/components/responses/NotFound' }
-        '409': { $ref: '#/components/responses/Conflict' }
-        '422': { $ref: '#/components/responses/Unprocessable' }
-  /events/{id}/transitions:
-    parameters:
-      - $ref: '#/components/parameters/EventId'
-    get:
-      tags: [events]
-      operationId: listAllowedTransitions
-      summary: Estados a los que puede pasar el evento
-      description: Las transiciones permitidas están definidas en código (`ALLOWED_TRANSITIONS`).
-      responses:
-        '200':
-          description: Estado actual y estados permitidos
+              schema:
+                $ref: '#/components/schemas/EventRead'
+          description: ''
+        '404':
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/AllowedTransitions' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '404': { $ref: '#/components/responses/NotFound' }
-    post:
-      tags: [events]
-      operationId: transitionEvent
-      summary: Cambia el estado del evento
-      description: |
-        Ciclo de vida: `NEW → ASSIGNED → IN_PROGRESS ⇄ ON_HOLD → RESOLVED → CLOSED`, además de `REJECTED`,
-        `CANCELLED` y `REOPENED`. `reason` es obligatorio al pasar a `REJECTED` o `CANCELLED`.
-        Al pasar a `RESOLVED` o `CLOSED` se puede indicar `closure_code`. Registra el cambio en el historial.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/EventTransition' }
-      responses:
-        '200':
-          description: Evento con su nuevo estado
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/EventRead' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '404': { $ref: '#/components/responses/NotFound' }
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Evento no encontrado
         '409':
-          description: La transición no está permitida desde el estado actual
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-              example: { code: invalid_transition, detail: 'No se puede pasar de CLOSED a IN_PROGRESS' }
-        '422': { $ref: '#/components/responses/Unprocessable' }
-  /events/{id}/history:
-    parameters:
-      - $ref: '#/components/parameters/EventId'
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Conflicto de estado
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Datos inválidos
+  /api/v1/events/{id}/history:
     get:
-      tags: [events]
       operationId: listEventHistory
-      summary: Bitácora de cambios del evento (solo inserción)
       parameters:
-        - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/Offset'
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: query
+        name: limit
+        schema:
+          type: integer
+      - in: query
+        name: offset
+        schema:
+          type: integer
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
       responses:
         '200':
-          description: Página del historial, del más reciente al más antiguo
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/EventHistoryPage' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '404': { $ref: '#/components/responses/NotFound' }
-  /services:
-    get:
-      tags: [config]
-      operationId: listServices
-      summary: Catálogo de servicios de la empresa
-      parameters:
-        - { name: importance, in: query, schema: { $ref: '#/components/schemas/ServiceImportance' } }
-        - { name: is_active, in: query, schema: { type: boolean } }
-      responses:
-        '200':
-          description: Servicios (sin paginación)
           content:
             application/json:
               schema:
-                type: array
-                items: { $ref: '#/components/schemas/BusinessService' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
+                $ref: '#/components/schemas/EventHistoryPage'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Evento no encontrado
+  /api/v1/events/{id}/transitions:
+    get:
+      operationId: listAllowedTransitions
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AllowedTransitions'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Evento no encontrado
     post:
-      tags: [config]
-      operationId: createService
-      summary: Crea un servicio (requiere rol administrador)
-      requestBody:
+      operationId: transitionEvent
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
         required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/BusinessServiceCreate' }
-      responses:
-        '201':
-          description: Servicio creado
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/BusinessService' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '409': { $ref: '#/components/responses/Conflict' }
-        '422': { $ref: '#/components/responses/Unprocessable' }
-  /services/{code}:
-    parameters:
-      - $ref: '#/components/parameters/ServiceCode'
-    get:
-      tags: [config]
-      operationId: getService
-      summary: Detalle de un servicio
-      responses:
-        '200':
-          description: Servicio
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/BusinessService' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '404': { $ref: '#/components/responses/NotFound' }
-    patch:
-      tags: [config]
-      operationId: updateService
-      summary: Modifica un servicio (requiere rol administrador)
-      description: El `code` no se puede cambiar. Para retirar un servicio usa `is_active = false`.
+      tags:
+      - v1
       requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/BusinessServiceUpdate' }
-      responses:
-        '200':
-          description: Servicio actualizado
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/BusinessService' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-        '422': { $ref: '#/components/responses/Unprocessable' }
-    delete:
-      tags: [config]
-      operationId: deleteService
-      summary: Elimina un servicio sin uso (requiere rol administrador)
-      description: Si hay eventos o políticas que lo referencian responde 409; en ese caso desactívalo con `PATCH`.
-      responses:
-        '204': { description: Eliminado }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-        '409': { $ref: '#/components/responses/Conflict' }
-  /priority-matrix:
-    get:
-      tags: [config]
-      operationId: getPriorityMatrix
-      summary: Matriz de prioridad (impacto × urgencia → prioridad)
-      description: Siempre devuelve las 9 combinaciones (se siembran con `make seed`).
-      responses:
-        '200':
-          description: Las 9 celdas de la matriz
-          content:
-            application/json:
-              schema:
-                type: array
-                items: { $ref: '#/components/schemas/PriorityMatrixEntry' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-  /priority-matrix/{impact}/{urgency}:
-    parameters:
-      - { name: impact, in: path, required: true, schema: { $ref: '#/components/schemas/Impact' } }
-      - { name: urgency, in: path, required: true, schema: { $ref: '#/components/schemas/Urgency' } }
-    put:
-      tags: [config]
-      operationId: setPriorityMatrixCell
-      summary: Define la prioridad de una celda (requiere rol administrador)
-      description: Los eventos ya registrados conservan su prioridad; el cambio aplica a los nuevos.
-      requestBody:
-        required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [priority]
-              properties:
-                priority: { $ref: '#/components/schemas/Priority' }
-      responses:
-        '200':
-          description: Celda actualizada
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/PriorityMatrixEntry' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '422': { $ref: '#/components/responses/Unprocessable' }
-  /sla-policies:
-    get:
-      tags: [config]
-      operationId: listSlaPolicies
-      summary: Políticas de SLA
-      parameters:
-        - { name: service_code, in: query, description: 'Filtra por servicio; usa `default` para la política general', schema: { type: string } }
-        - { name: priority, in: query, schema: { $ref: '#/components/schemas/Priority' } }
-      responses:
-        '200':
-          description: Políticas (sin paginación)
-          content:
-            application/json:
-              schema:
-                type: array
-                items: { $ref: '#/components/schemas/SlaPolicy' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-    post:
-      tags: [config]
-      operationId: createSlaPolicy
-      summary: Crea una política de SLA (requiere rol administrador)
-      description: Único por (`service_code`, `priority`); con `service_code` nulo (política general) es único por prioridad.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/SlaPolicyCreate' }
-      responses:
-        '201':
-          description: Política creada
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/SlaPolicy' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '409': { $ref: '#/components/responses/Conflict' }
-        '422': { $ref: '#/components/responses/Unprocessable' }
-  /sla-policies/{id}:
-    parameters:
-      - $ref: '#/components/parameters/SlaPolicyId'
-    get:
-      tags: [config]
-      operationId: getSlaPolicy
-      summary: Detalle de una política de SLA
-      responses:
-        '200':
-          description: Política
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/SlaPolicy' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '404': { $ref: '#/components/responses/NotFound' }
-    patch:
-      tags: [config]
-      operationId: updateSlaPolicy
-      summary: Modifica los tiempos de una política (requiere rol administrador)
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/SlaPolicyUpdate' }
-      responses:
-        '200':
-          description: Política actualizada
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/SlaPolicy' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-        '422': { $ref: '#/components/responses/Unprocessable' }
-    delete:
-      tags: [config]
-      operationId: deleteSlaPolicy
-      summary: Elimina una política de SLA (requiere rol administrador)
-      responses:
-        '204': { description: Eliminada }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-        '409': { $ref: '#/components/responses/Conflict' }
-  /recurrence-policies:
-    get:
-      tags: [config]
-      operationId: listRecurrencePolicies
-      summary: Umbrales de recurrencia (N veces en T días) de las reglas 3 y 7
-      responses:
-        '200':
-          description: Políticas (sin paginación)
-          content:
-            application/json:
-              schema:
-                type: array
-                items: { $ref: '#/components/schemas/RecurrencePolicy' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-    post:
-      tags: [config]
-      operationId: createRecurrencePolicy
-      summary: Crea un umbral de recurrencia (requiere rol administrador)
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/RecurrencePolicyCreate' }
-      responses:
-        '201':
-          description: Política creada
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/RecurrencePolicy' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '422': { $ref: '#/components/responses/Unprocessable' }
-  /recurrence-policies/{id}:
-    parameters:
-      - { name: id, in: path, required: true, schema: { type: integer, format: int64, minimum: 1 } }
-    patch:
-      tags: [config]
-      operationId: updateRecurrencePolicy
-      summary: Modifica un umbral de recurrencia (requiere rol administrador)
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/RecurrencePolicyUpdate' }
-      responses:
-        '200':
-          description: Política actualizada
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/RecurrencePolicy' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-        '422': { $ref: '#/components/responses/Unprocessable' }
-    delete:
-      tags: [config]
-      operationId: deleteRecurrencePolicy
-      summary: Elimina un umbral de recurrencia (requiere rol administrador)
-      responses:
-        '204': { description: Eliminada }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-  /sources:
-    get:
-      tags: [sources]
-      operationId: listSources
-      summary: Fuentes de eventos registradas (fase 4)
-      responses:
-        '200':
-          description: Fuentes (sin paginación; nunca incluye la clave de API)
-          content:
-            application/json:
-              schema:
-                type: array
-                items: { $ref: '#/components/schemas/EventSource' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-    post:
-      tags: [sources]
-      operationId: createSource
-      summary: Registra una fuente y genera su clave de API (fase 4, requiere rol administrador)
-      description: La clave se entrega **una sola vez** en esta respuesta; el servicio guarda solo su hash.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/EventSourceCreate' }
-      responses:
-        '201':
-          description: Fuente creada
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/EventSourceCreated' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '409': { $ref: '#/components/responses/Conflict' }
-        '422': { $ref: '#/components/responses/Unprocessable' }
-  /sources/{id}:
-    parameters:
-      - { name: id, in: path, required: true, schema: { type: integer, format: int64, minimum: 1 } }
-    patch:
-      tags: [sources]
-      operationId: updateSource
-      summary: Activa o desactiva una fuente (fase 4, requiere rol administrador)
-      requestBody:
-        required: true
-        content:
-          application/json:
+              $ref: '#/components/schemas/EventTransition'
+          application/x-www-form-urlencoded:
             schema:
-              type: object
-              properties:
-                name: { type: string, maxLength: 100 }
-                is_active: { type: boolean }
+              $ref: '#/components/schemas/EventTransition'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/EventTransition'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
       responses:
         '200':
-          description: Fuente actualizada
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/EventSource' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-        '422': { $ref: '#/components/responses/Unprocessable' }
-    delete:
-      tags: [sources]
-      operationId: deleteSource
-      summary: Elimina una fuente sin eventos (fase 4, requiere rol administrador)
-      description: Si tiene eventos asociados responde 409; desactívala con `PATCH`.
-      responses:
-        '204': { description: Eliminada }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-        '409': { $ref: '#/components/responses/Conflict' }
+              schema:
+                $ref: '#/components/schemas/EventRead'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Evento no encontrado
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Transición no permitida
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Datos inválidos
 components:
-  securitySchemes:
-    bearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
-      description: Token JWT emitido por el servicio de Accesos
-    apiKeyAuth:
-      type: apiKey
-      in: header
-      name: X-API-Key
-      description: Clave de una fuente de eventos de sistema (fase 4)
-  parameters:
-    EventId:
-      name: id
-      in: path
-      required: true
-      description: ID del evento
-      schema: { type: string, format: uuid }
-    ServiceCode:
-      name: code
-      in: path
-      required: true
-      description: Código (slug) del servicio
-      schema: { type: string, example: correo }
-    SlaPolicyId:
-      name: id
-      in: path
-      required: true
-      description: ID de la política de SLA
-      schema: { type: integer, format: int64, minimum: 1 }
-    Limit:
-      name: limit
-      in: query
-      description: Tamaño de página
-      schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
-    Offset:
-      name: offset
-      in: query
-      description: Posición inicial
-      schema: { type: integer, minimum: 0, default: 0 }
-  responses:
-    Unauthorized:
-      description: Falta el token o no es válido
-      content:
-        application/json:
-          schema: { $ref: '#/components/schemas/Error' }
-    Forbidden:
-      description: El rol del usuario no permite la operación
-      content:
-        application/json:
-          schema: { $ref: '#/components/schemas/Error' }
-    NotFound:
-      description: El recurso no existe
-      content:
-        application/json:
-          schema: { $ref: '#/components/schemas/Error' }
-    Conflict:
-      description: Conflicto con el estado actual (duplicado, recurso en uso o estado no válido)
-      content:
-        application/json:
-          schema: { $ref: '#/components/schemas/Error' }
-    Unprocessable:
-      description: Datos inválidos
-      content:
-        application/json:
-          schema: { $ref: '#/components/schemas/Error' }
   schemas:
-    EventOrigin:
-      type: string
-      enum: [USER, SYSTEM]
-      description: Quién genera el evento
-    EventType:
-      type: string
-      enum: [INFORMATION, WARNING, EXCEPTION]
-      description: Clasificación ITIL
-    EventCategory:
-      type: string
-      enum: [SECURITY, REQUEST, FAILURE, CHANGE, GENERAL]
-      description: SECURITY = seguridad o credenciales; REQUEST = solicitud del catálogo; FAILURE = falla o degradación; CHANGE = cambio de configuración o infraestructura
-    EventState:
-      type: string
-      enum: [NEW, ASSIGNED, IN_PROGRESS, ON_HOLD, RESOLVED, CLOSED, REJECTED, CANCELLED, REOPENED]
-    Impact:
-      type: string
-      enum: [HIGH, MEDIUM, LOW]
-    Urgency:
-      type: string
-      enum: [HIGH, MEDIUM, LOW]
-    Priority:
-      type: string
-      enum: [P1, P2, P3, P4]
-      description: P1 Crítica, P2 Alta, P3 Media, P4 Baja
-    ServiceImportance:
-      type: string
-      enum: [CRITICAL, HIGH, MEDIUM, LOW]
-    Destination:
-      type: string
-      enum: [LOG_ONLY, SOLUTION_AUTHOR, EVENTS, ACCESS, REQUESTS, INCIDENTS, PROBLEMS]
-      description: Destino que decide el motor de reglas (ver docs/rules.md)
-    RoutingStatus:
-      type: string
-      enum: [PENDING, SENT, ACKNOWLEDGED, FAILED]
-    ClosureCode:
-      type: string
-      enum: [AUTO_LOGGED, KB_RESOLVED, SOLVED, NOT_APPLICABLE]
-    ChangeType:
-      type: string
-      enum: [STATE_CHANGE, ASSIGNMENT, PRIORITY_CHANGE, CLASSIFICATION, ROUTING, NOTE, SYSTEM]
-    ActorType:
-      type: string
-      enum: [USER, SYSTEM, RULE]
-    RecurrenceAction:
-      type: string
-      enum: [WATCH_ALERT, CREATE_PROBLEM]
-    SourceKind:
-      type: string
-      enum: [SERVICE, WEBHOOK, USER_FORM, INTERNAL]
-    ImpactNullable:
-      type: string
-      nullable: true
-      enum: [HIGH, MEDIUM, LOW, null]
-    UrgencyNullable:
-      type: string
-      nullable: true
-      enum: [HIGH, MEDIUM, LOW, null]
-    PriorityNullable:
-      type: string
-      nullable: true
-      enum: [P1, P2, P3, P4, null]
-      description: P1 Crítica, P2 Alta, P3 Media, P4 Baja; nulo mientras no se calcula
-    ClosureCodeNullable:
-      type: string
-      nullable: true
-      enum: [AUTO_LOGGED, KB_RESOLVED, SOLVED, NOT_APPLICABLE, null]
-    EventStateNullable:
-      type: string
-      nullable: true
-      enum: [NEW, ASSIGNED, IN_PROGRESS, ON_HOLD, RESOLVED, CLOSED, REJECTED, CANCELLED, REOPENED, null]
+    AllowedTransitions:
+      type: object
+      properties:
+        state:
+          enum:
+          - NEW
+          - ASSIGNED
+          - IN_PROGRESS
+          - ON_HOLD
+          - RESOLVED
+          - CLOSED
+          - REJECTED
+          - CANCELLED
+          - REOPENED
+          type: string
+          description: |-
+            * `NEW` - Nuevo
+            * `ASSIGNED` - Asignado
+            * `IN_PROGRESS` - En proceso
+            * `ON_HOLD` - En espera
+            * `RESOLVED` - Resuelto
+            * `CLOSED` - Cerrado
+            * `REJECTED` - Rechazado
+            * `CANCELLED` - Cancelado
+            * `REOPENED` - Reabierto
+          x-spec-enum-id: 26b55371c2d27c73
+        allowed:
+          type: array
+          items:
+            enum:
+            - NEW
+            - ASSIGNED
+            - IN_PROGRESS
+            - ON_HOLD
+            - RESOLVED
+            - CLOSED
+            - REJECTED
+            - CANCELLED
+            - REOPENED
+            type: string
+            description: |-
+              * `NEW` - Nuevo
+              * `ASSIGNED` - Asignado
+              * `IN_PROGRESS` - En proceso
+              * `ON_HOLD` - En espera
+              * `RESOLVED` - Resuelto
+              * `CLOSED` - Cerrado
+              * `REJECTED` - Rechazado
+              * `CANCELLED` - Cancelado
+              * `REOPENED` - Reabierto
+            x-spec-enum-id: 26b55371c2d27c73
+      required:
+      - state
+      - allowed
+    BusinessService:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        code:
+          type: string
+          maxLength: 50
+          pattern: ^[-a-zA-Z0-9_]+$
+        name:
+          type: string
+          maxLength: 120
+        description:
+          type: string
+          readOnly: true
+          nullable: true
+        importance:
+          enum:
+          - CRITICAL
+          - HIGH
+          - MEDIUM
+          - LOW
+          type: string
+          description: |-
+            * `CRITICAL` - Crítica
+            * `HIGH` - Alta
+            * `MEDIUM` - Media
+            * `LOW` - Baja
+          x-spec-enum-id: 6eec03a881f1909b
+        owner_department_ref:
+          type: string
+          readOnly: true
+          nullable: true
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - code
+      - created_at
+      - description
+      - id
+      - importance
+      - name
+      - owner_department_ref
+      - updated_at
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+        detail:
+          type: string
+        fields:
+          type: object
+          additionalProperties:
+            type: string
+      required:
+      - code
+      - detail
     EventCreate:
       type: object
-      required: [origin, title, message]
       properties:
-        origin: { $ref: '#/components/schemas/EventOrigin' }
-        title: { type: string, minLength: 1, maxLength: 200, example: Timeout en el gateway de pagos }
-        message: { type: string, minLength: 1, example: 'El servicio de pagos no responde desde hace 5 minutos' }
-        event_type: { $ref: '#/components/schemas/EventType' }
-        category: { $ref: '#/components/schemas/EventCategory' }
-        service_code: { type: string, description: Código del servicio afectado, example: pagos }
-        source_name: { type: string, maxLength: 100, description: Nombre de la fuente registrada (fase 4), example: nagios-prod }
-        impact: { $ref: '#/components/schemas/Impact' }
-        urgency: { $ref: '#/components/schemas/Urgency' }
+        origin:
+          enum:
+          - USER
+          - SYSTEM
+          type: string
+          description: |-
+            * `USER` - Usuario
+            * `SYSTEM` - Sistema
+          x-spec-enum-id: c20504cec4a5f74c
+        title:
+          type: string
+          maxLength: 200
+          minLength: 1
+        message:
+          type: string
+          minLength: 1
+        event_type:
+          enum:
+          - INFORMATION
+          - WARNING
+          - EXCEPTION
+          type: string
+          description: |-
+            * `INFORMATION` - Información
+            * `WARNING` - Advertencia
+            * `EXCEPTION` - Excepción
+          x-spec-enum-id: 425ba315bdcf7bd3
+        category:
+          enum:
+          - SECURITY
+          - REQUEST
+          - FAILURE
+          - CHANGE
+          - GENERAL
+          type: string
+          description: |-
+            * `SECURITY` - Seguridad
+            * `REQUEST` - Petición
+            * `FAILURE` - Falla
+            * `CHANGE` - Cambio
+            * `GENERAL` - General
+          x-spec-enum-id: ab3cd7d417906b7b
+        service_code:
+          type: string
+          nullable: true
+        source_name:
+          type: string
+          nullable: true
+        impact:
+          enum:
+          - HIGH
+          - MEDIUM
+          - LOW
+          type: string
+          description: |-
+            * `HIGH` - Alto
+            * `MEDIUM` - Medio
+            * `LOW` - Bajo
+          x-spec-enum-id: 78c22d37671e32a7
+        urgency:
+          enum:
+          - HIGH
+          - MEDIUM
+          - LOW
+          type: string
+          description: |-
+            * `HIGH` - Alta
+            * `MEDIUM` - Media
+            * `LOW` - Baja
+          x-spec-enum-id: 576365ee6afc2afc
         action_required:
           type: boolean
           default: true
-          description: false = informativo que no requiere acción (regla 1)
         payload:
           type: object
-          additionalProperties: true
-          description: Datos crudos del evento (se usan para la huella y se conservan)
+          additionalProperties: {}
         occurred_at:
           type: string
           format: date-time
-          description: Cuándo ocurrió; por omisión, la hora de recepción
         ingestion_key:
           type: string
           maxLength: 100
-          description: Clave de idempotencia; reintentar con la misma clave no cuenta como otra ocurrencia
-    EventUpdate:
-      type: object
-      minProperties: 1
-      properties:
-        assigned_to_ref: { type: string, nullable: true, maxLength: 64, description: Usuario asignado (referencia a Accesos) }
-        assigned_group_ref: { type: string, nullable: true, maxLength: 64, description: Grupo o departamento asignado (referencia a Accesos) }
-        impact: { $ref: '#/components/schemas/Impact' }
-        urgency: { $ref: '#/components/schemas/Urgency' }
-        category: { $ref: '#/components/schemas/EventCategory' }
-        note: { type: string, description: Comentario que se guarda en el historial }
-    EventTransition:
-      type: object
-      required: [to_state]
-      properties:
-        to_state: { $ref: '#/components/schemas/EventState' }
-        reason: { type: string, description: Obligatorio al pasar a REJECTED o CANCELLED }
-        closure_code: { $ref: '#/components/schemas/ClosureCode' }
-    AllowedTransitions:
-      type: object
-      required: [state, allowed]
-      properties:
-        state: { $ref: '#/components/schemas/EventState' }
-        allowed:
-          type: array
-          items: { $ref: '#/components/schemas/EventState' }
-    EventRead:
-      type: object
-      required: [id, origin, event_type, category, title, message, payload, state, action_required, fingerprint, occurrence_count, first_seen_at, last_seen_at, created_at, updated_at]
-      properties:
-        id: { type: string, format: uuid }
-        origin: { $ref: '#/components/schemas/EventOrigin' }
-        event_type:
-          allOf: [{ $ref: '#/components/schemas/EventType' }]
-          description: Tipo asignado por el motor de reglas (puede diferir del declarado al registrar)
-        category: { $ref: '#/components/schemas/EventCategory' }
-        title: { type: string, maxLength: 200 }
-        message: { type: string }
-        payload: { type: object, additionalProperties: true }
-        service_code: { type: string, nullable: true }
-        source_name: { type: string, nullable: true }
-        impact: { $ref: '#/components/schemas/ImpactNullable' }
-        urgency: { $ref: '#/components/schemas/UrgencyNullable' }
-        priority: { $ref: '#/components/schemas/PriorityNullable' }
-        state: { $ref: '#/components/schemas/EventState' }
-        action_required: { type: boolean }
-        fingerprint: { type: string, minLength: 64, maxLength: 64, description: SHA-256 en hexadecimal calculado por el servidor }
-        occurrence_count: { type: integer, minimum: 1 }
-        first_seen_at: { type: string, format: date-time }
-        last_seen_at: { type: string, format: date-time }
-        reporter_ref: { type: string, nullable: true, description: Usuario a notificar (referencia a Accesos) }
-        assigned_to_ref: { type: string, nullable: true }
-        assigned_group_ref: { type: string, nullable: true }
-        sla_policy_id: { type: integer, format: int64, nullable: true }
-        response_due_at: { type: string, format: date-time, nullable: true }
-        resolution_due_at: { type: string, format: date-time, nullable: true }
-        resolved_at: { type: string, format: date-time, nullable: true }
-        closed_at: { type: string, format: date-time, nullable: true, description: Nula al registrar }
-        closure_code: { $ref: '#/components/schemas/ClosureCodeNullable' }
-        state_reason: { type: string, nullable: true, description: Motivo de rechazo o cancelación }
-        created_at: { type: string, format: date-time }
-        updated_at: { type: string, format: date-time }
-      example:
-        id: 7c9e6679-7425-40de-944b-e07fc1f90ae7
-        origin: SYSTEM
-        event_type: EXCEPTION
-        category: FAILURE
-        title: Timeout en el gateway de pagos
-        message: El servicio de pagos no responde desde hace 5 minutos
-        payload: { host: pagos-01, latency_ms: 5000 }
-        service_code: pagos
-        source_name: null
-        impact: HIGH
-        urgency: HIGH
-        priority: P1
-        state: NEW
-        action_required: true
-        fingerprint: 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08
-        occurrence_count: 1
-        first_seen_at: '2026-11-20T10:00:00Z'
-        last_seen_at: '2026-11-20T10:00:00Z'
-        reporter_ref: null
-        assigned_to_ref: null
-        assigned_group_ref: null
-        sla_policy_id: 3
-        response_due_at: '2026-11-20T10:15:00Z'
-        resolution_due_at: '2026-11-20T12:00:00Z'
-        resolved_at: null
-        closed_at: null
-        closure_code: null
-        state_reason: null
-        created_at: '2026-11-20T10:00:00Z'
-        updated_at: '2026-11-20T10:00:00Z'
-    EventListItem:
-      type: object
-      required: [id, origin, event_type, category, title, state, occurrence_count, last_seen_at, created_at]
-      properties:
-        id: { type: string, format: uuid }
-        origin: { $ref: '#/components/schemas/EventOrigin' }
-        event_type: { $ref: '#/components/schemas/EventType' }
-        category: { $ref: '#/components/schemas/EventCategory' }
-        title: { type: string }
-        priority: { $ref: '#/components/schemas/PriorityNullable' }
-        state: { $ref: '#/components/schemas/EventState' }
-        service_code: { type: string, nullable: true }
-        destination:
-          type: string
-          nullable: true
-          enum: [LOG_ONLY, SOLUTION_AUTHOR, EVENTS, ACCESS, REQUESTS, INCIDENTS, PROBLEMS, null]
-          description: Último destino decidido por el motor (se llena desde la fase 3)
-        assigned_to_ref: { type: string, nullable: true }
-        occurrence_count: { type: integer, minimum: 1 }
-        last_seen_at: { type: string, format: date-time }
-        resolution_due_at: { type: string, format: date-time, nullable: true }
-        created_at: { type: string, format: date-time }
-    EventPage:
-      type: object
-      required: [count, results]
-      properties:
-        count: { type: integer, minimum: 0, description: Total de eventos que cumplen el filtro }
-        next: { type: string, format: uri, nullable: true }
-        previous: { type: string, format: uri, nullable: true }
-        results:
-          type: array
-          items: { $ref: '#/components/schemas/EventListItem' }
-    RoutingEntry:
-      type: object
-      required: [destination, rule_code, status]
-      properties:
-        destination: { $ref: '#/components/schemas/Destination' }
-        rule_code: { type: string, example: R6, description: 'Regla aplicada (R1 a R9)' }
-        status: { $ref: '#/components/schemas/RoutingStatus' }
-        destination_ref: { type: string, nullable: true, description: ID en el servicio destino (o el autor si el destino es SOLUTION_AUTHOR) }
-        attempts: { type: integer, minimum: 0 }
-        last_error: { type: string, nullable: true }
-        routed_at: { type: string, format: date-time, nullable: true }
+      required:
+      - origin
+      - title
+      - message
     EventDetail:
-      allOf:
-        - $ref: '#/components/schemas/EventRead'
-        - type: object
-          properties:
-            service:
-              description: Servicio afectado; se omite si el evento no tiene servicio
-              allOf: [{ $ref: '#/components/schemas/BusinessService' }]
-            routing:
-              type: array
-              description: Decisiones de destino y su entrega (se llena desde la fase 3)
-              items: { $ref: '#/components/schemas/RoutingEntry' }
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        origin:
+          enum:
+          - USER
+          - SYSTEM
+          type: string
+          description: |-
+            * `USER` - Usuario
+            * `SYSTEM` - Sistema
+          x-spec-enum-id: c20504cec4a5f74c
+        event_type:
+          enum:
+          - INFORMATION
+          - WARNING
+          - EXCEPTION
+          type: string
+          description: |-
+            * `INFORMATION` - Información
+            * `WARNING` - Advertencia
+            * `EXCEPTION` - Excepción
+          x-spec-enum-id: 425ba315bdcf7bd3
+        category:
+          enum:
+          - SECURITY
+          - REQUEST
+          - FAILURE
+          - CHANGE
+          - GENERAL
+          type: string
+          description: |-
+            * `SECURITY` - Seguridad
+            * `REQUEST` - Petición
+            * `FAILURE` - Falla
+            * `CHANGE` - Cambio
+            * `GENERAL` - General
+          x-spec-enum-id: ab3cd7d417906b7b
+        title:
+          type: string
+          maxLength: 200
+        message:
+          type: string
+        payload:
+          type: object
+          additionalProperties: {}
+          readOnly: true
+        service_code:
+          type: string
+          readOnly: true
+          nullable: true
+        source_name:
+          type: string
+          readOnly: true
+          nullable: true
+        impact:
+          enum:
+          - HIGH
+          - MEDIUM
+          - LOW
+          - null
+          type: string
+          description: |-
+            * `HIGH` - Alto
+            * `MEDIUM` - Medio
+            * `LOW` - Bajo
+          x-spec-enum-id: 78c22d37671e32a7
+          readOnly: true
+          nullable: true
+        urgency:
+          enum:
+          - HIGH
+          - MEDIUM
+          - LOW
+          - null
+          type: string
+          description: |-
+            * `HIGH` - Alta
+            * `MEDIUM` - Media
+            * `LOW` - Baja
+          x-spec-enum-id: 576365ee6afc2afc
+          readOnly: true
+          nullable: true
+        priority:
+          enum:
+          - P1
+          - P2
+          - P3
+          - P4
+          - null
+          type: string
+          description: |-
+            * `P1` - Crítica
+            * `P2` - Alta
+            * `P3` - Media
+            * `P4` - Baja
+          x-spec-enum-id: b7452e68baad1acc
+          readOnly: true
+          nullable: true
+        state:
+          enum:
+          - NEW
+          - ASSIGNED
+          - IN_PROGRESS
+          - ON_HOLD
+          - RESOLVED
+          - CLOSED
+          - REJECTED
+          - CANCELLED
+          - REOPENED
+          type: string
+          description: |-
+            * `NEW` - Nuevo
+            * `ASSIGNED` - Asignado
+            * `IN_PROGRESS` - En proceso
+            * `ON_HOLD` - En espera
+            * `RESOLVED` - Resuelto
+            * `CLOSED` - Cerrado
+            * `REJECTED` - Rechazado
+            * `CANCELLED` - Cancelado
+            * `REOPENED` - Reabierto
+          x-spec-enum-id: 26b55371c2d27c73
+          default: NEW
+        action_required:
+          type: boolean
+        fingerprint:
+          type: string
+          readOnly: true
+          maxLength: 64
+          minLength: 64
+        occurrence_count:
+          type: integer
+          minimum: 1
+          readOnly: true
+        first_seen_at:
+          type: string
+          format: date-time
+        last_seen_at:
+          type: string
+          format: date-time
+        reporter_ref:
+          type: string
+          readOnly: true
+          nullable: true
+        assigned_to_ref:
+          type: string
+          readOnly: true
+          nullable: true
+        assigned_group_ref:
+          type: string
+          readOnly: true
+          nullable: true
+        sla_policy_id:
+          type: integer
+          readOnly: true
+          nullable: true
+        response_due_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        resolution_due_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        resolved_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        closed_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        closure_code:
+          enum:
+          - AUTO_LOGGED
+          - KB_RESOLVED
+          - SOLVED
+          - NOT_APPLICABLE
+          - null
+          type: string
+          description: |-
+            * `AUTO_LOGGED` - Registrado automáticamente
+            * `KB_RESOLVED` - Resuelto por la KB
+            * `SOLVED` - Resuelto
+            * `NOT_APPLICABLE` - No aplica
+          x-spec-enum-id: 691f78771f0af0b0
+          readOnly: true
+          nullable: true
+        state_reason:
+          type: string
+          readOnly: true
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        service:
+          $ref: '#/components/schemas/BusinessService'
+        routing:
+          type: array
+          items:
+            type: object
+            additionalProperties: {}
+          readOnly: true
+      required:
+      - id
+      - origin
+      - event_type
+      - category
+      - title
+      - message
+      - payload
+      - state
+      - action_required
+      - fingerprint
+      - occurrence_count
+      - first_seen_at
+      - last_seen_at
+      - created_at
+      - updated_at
     EventHistoryEntry:
       type: object
-      required: [id, changed_at, change_type, actor_type]
       properties:
-        id: { type: integer, format: int64 }
-        changed_at: { type: string, format: date-time }
-        change_type: { $ref: '#/components/schemas/ChangeType' }
-        actor_type: { $ref: '#/components/schemas/ActorType' }
-        actor_ref: { type: string, nullable: true }
-        from_state: { $ref: '#/components/schemas/EventStateNullable' }
-        to_state: { $ref: '#/components/schemas/EventStateNullable' }
-        field_name: { type: string, nullable: true }
-        old_value: { nullable: true, description: Valor anterior (JSON) }
-        new_value: { nullable: true, description: Valor nuevo (JSON) }
-        description: { type: string, nullable: true }
-        rule_code: { type: string, nullable: true, example: R6 }
-        metadata: { type: object, additionalProperties: true }
+        id:
+          type: integer
+          readOnly: true
+        changed_at:
+          type: string
+          format: date-time
+        change_type:
+          enum:
+          - STATE_CHANGE
+          - ASSIGNMENT
+          - PRIORITY_CHANGE
+          - CLASSIFICATION
+          - ROUTING
+          - NOTE
+          - SYSTEM
+          type: string
+          description: |-
+            * `STATE_CHANGE` - Cambio de estado
+            * `ASSIGNMENT` - Asignación
+            * `PRIORITY_CHANGE` - Cambio de prioridad
+            * `CLASSIFICATION` - Clasificación
+            * `ROUTING` - Enrutamiento
+            * `NOTE` - Nota
+            * `SYSTEM` - Sistema
+          x-spec-enum-id: 95e53cf35134fdc4
+          readOnly: true
+        actor_type:
+          enum:
+          - USER
+          - SYSTEM
+          - RULE
+          type: string
+          description: |-
+            * `USER` - Usuario
+            * `SYSTEM` - Sistema
+            * `RULE` - Regla
+          x-spec-enum-id: 200c7bfb0eaa7d7f
+          readOnly: true
+        actor_ref:
+          type: string
+          readOnly: true
+          nullable: true
+        from_state:
+          enum:
+          - NEW
+          - ASSIGNED
+          - IN_PROGRESS
+          - ON_HOLD
+          - RESOLVED
+          - CLOSED
+          - REJECTED
+          - CANCELLED
+          - REOPENED
+          - null
+          type: string
+          description: |-
+            * `NEW` - Nuevo
+            * `ASSIGNED` - Asignado
+            * `IN_PROGRESS` - En proceso
+            * `ON_HOLD` - En espera
+            * `RESOLVED` - Resuelto
+            * `CLOSED` - Cerrado
+            * `REJECTED` - Rechazado
+            * `CANCELLED` - Cancelado
+            * `REOPENED` - Reabierto
+          x-spec-enum-id: 26b55371c2d27c73
+          readOnly: true
+          nullable: true
+        to_state:
+          enum:
+          - NEW
+          - ASSIGNED
+          - IN_PROGRESS
+          - ON_HOLD
+          - RESOLVED
+          - CLOSED
+          - REJECTED
+          - CANCELLED
+          - REOPENED
+          - null
+          type: string
+          description: |-
+            * `NEW` - Nuevo
+            * `ASSIGNED` - Asignado
+            * `IN_PROGRESS` - En proceso
+            * `ON_HOLD` - En espera
+            * `RESOLVED` - Resuelto
+            * `CLOSED` - Cerrado
+            * `REJECTED` - Rechazado
+            * `CANCELLED` - Cancelado
+            * `REOPENED` - Reabierto
+          x-spec-enum-id: 26b55371c2d27c73
+          readOnly: true
+          nullable: true
+        field_name:
+          type: string
+          readOnly: true
+          nullable: true
+        old_value:
+          nullable: true
+        new_value:
+          nullable: true
+        description:
+          type: string
+          readOnly: true
+          nullable: true
+        rule_code:
+          type: string
+          readOnly: true
+          nullable: true
+        metadata: {}
+      required:
+      - id
+      - changed_at
+      - change_type
+      - actor_type
     EventHistoryPage:
       type: object
-      required: [count, results]
       properties:
-        count: { type: integer, minimum: 0 }
-        next: { type: string, format: uri, nullable: true }
-        previous: { type: string, format: uri, nullable: true }
+        count:
+          type: integer
+        next:
+          type: string
+          format: uri
+          nullable: true
+        previous:
+          type: string
+          format: uri
+          nullable: true
         results:
           type: array
-          items: { $ref: '#/components/schemas/EventHistoryEntry' }
-    BusinessServiceCreate:
+          items:
+            $ref: '#/components/schemas/EventHistoryEntry'
+      required:
+      - count
+      - results
+    EventListItem:
       type: object
-      required: [code, name, importance]
       properties:
-        code: { type: string, pattern: '^[-a-zA-Z0-9_]+$', maxLength: 50, example: pagos, description: Slug único; no se puede cambiar }
-        name: { type: string, maxLength: 120, example: Pasarela de pagos }
-        description: { type: string, nullable: true }
-        importance: { $ref: '#/components/schemas/ServiceImportance' }
-        owner_department_ref: { type: string, nullable: true, maxLength: 64, description: Departamento dueño (vive en Accesos) }
-        is_active: { type: boolean, default: true }
-    BusinessServiceUpdate:
-      type: object
-      minProperties: 1
-      properties:
-        name: { type: string, maxLength: 120 }
-        description: { type: string, nullable: true }
-        importance: { $ref: '#/components/schemas/ServiceImportance' }
-        owner_department_ref: { type: string, nullable: true, maxLength: 64 }
-        is_active: { type: boolean }
-    BusinessService:
-      allOf:
-        - $ref: '#/components/schemas/BusinessServiceCreate'
-        - type: object
-          required: [id, created_at, updated_at]
-          properties:
-            id: { type: integer, format: int64 }
-            created_at: { type: string, format: date-time }
-            updated_at: { type: string, format: date-time }
-    PriorityMatrixEntry:
-      type: object
-      required: [impact, urgency, priority]
-      properties:
-        impact: { $ref: '#/components/schemas/Impact' }
-        urgency: { $ref: '#/components/schemas/Urgency' }
-        priority: { $ref: '#/components/schemas/Priority' }
-    SlaPolicyCreate:
-      type: object
-      required: [priority, response_minutes, resolution_minutes]
-      properties:
-        service_code: { type: string, nullable: true, description: 'Nulo = política general de la empresa' }
-        priority: { $ref: '#/components/schemas/Priority' }
-        response_minutes: { type: integer, minimum: 1, example: 15 }
-        resolution_minutes: { type: integer, minimum: 1, example: 120 }
-        uses_business_hours: { type: boolean, default: false, description: 'false = 24x7 (versión mínima)' }
-    SlaPolicyUpdate:
-      type: object
-      minProperties: 1
-      properties:
-        response_minutes: { type: integer, minimum: 1 }
-        resolution_minutes: { type: integer, minimum: 1 }
-        uses_business_hours: { type: boolean }
-    SlaPolicy:
-      allOf:
-        - $ref: '#/components/schemas/SlaPolicyCreate'
-        - type: object
-          required: [id, created_at, updated_at]
-          properties:
-            id: { type: integer, format: int64 }
-            created_at: { type: string, format: date-time }
-            updated_at: { type: string, format: date-time }
-    RecurrencePolicyCreate:
-      type: object
-      required: [threshold_count, window_days, action]
-      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        origin:
+          enum:
+          - USER
+          - SYSTEM
+          type: string
+          description: |-
+            * `USER` - Usuario
+            * `SYSTEM` - Sistema
+          x-spec-enum-id: c20504cec4a5f74c
         event_type:
+          enum:
+          - INFORMATION
+          - WARNING
+          - EXCEPTION
           type: string
-          nullable: true
-          enum: [INFORMATION, WARNING, EXCEPTION, null]
-          description: Nulo = cualquier tipo
+          description: |-
+            * `INFORMATION` - Información
+            * `WARNING` - Advertencia
+            * `EXCEPTION` - Excepción
+          x-spec-enum-id: 425ba315bdcf7bd3
         category:
+          enum:
+          - SECURITY
+          - REQUEST
+          - FAILURE
+          - CHANGE
+          - GENERAL
+          type: string
+          description: |-
+            * `SECURITY` - Seguridad
+            * `REQUEST` - Petición
+            * `FAILURE` - Falla
+            * `CHANGE` - Cambio
+            * `GENERAL` - General
+          x-spec-enum-id: ab3cd7d417906b7b
+        title:
+          type: string
+          maxLength: 200
+        priority:
+          enum:
+          - P1
+          - P2
+          - P3
+          - P4
+          - null
+          type: string
+          description: |-
+            * `P1` - Crítica
+            * `P2` - Alta
+            * `P3` - Media
+            * `P4` - Baja
+          x-spec-enum-id: b7452e68baad1acc
+          readOnly: true
+          nullable: true
+        state:
+          enum:
+          - NEW
+          - ASSIGNED
+          - IN_PROGRESS
+          - ON_HOLD
+          - RESOLVED
+          - CLOSED
+          - REJECTED
+          - CANCELLED
+          - REOPENED
+          type: string
+          description: |-
+            * `NEW` - Nuevo
+            * `ASSIGNED` - Asignado
+            * `IN_PROGRESS` - En proceso
+            * `ON_HOLD` - En espera
+            * `RESOLVED` - Resuelto
+            * `CLOSED` - Cerrado
+            * `REJECTED` - Rechazado
+            * `CANCELLED` - Cancelado
+            * `REOPENED` - Reabierto
+          x-spec-enum-id: 26b55371c2d27c73
+        service_code:
+          type: string
+          readOnly: true
+          nullable: true
+        destination:
+          enum:
+          - LOG_ONLY
+          - SOLUTION_AUTHOR
+          - EVENTS
+          - ACCESS
+          - REQUESTS
+          - INCIDENTS
+          - PROBLEMS
+          - null
+          description: |-
+            * `LOG_ONLY` - LOG_ONLY
+            * `SOLUTION_AUTHOR` - SOLUTION_AUTHOR
+            * `EVENTS` - EVENTS
+            * `ACCESS` - ACCESS
+            * `REQUESTS` - REQUESTS
+            * `INCIDENTS` - INCIDENTS
+            * `PROBLEMS` - PROBLEMS
+            * `None` - None
+          x-spec-enum-id: 8b9a00bba7e9c3c6
+          readOnly: true
+          nullable: true
+        assigned_to_ref:
+          type: string
+          readOnly: true
+          nullable: true
+        occurrence_count:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        last_seen_at:
+          type: string
+          format: date-time
+        resolution_due_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - id
+      - origin
+      - event_type
+      - category
+      - title
+      - state
+      - occurrence_count
+      - last_seen_at
+      - created_at
+    EventPage:
+      type: object
+      properties:
+        count:
+          type: integer
+        next:
+          type: string
+          format: uri
+          nullable: true
+        previous:
+          type: string
+          format: uri
+          nullable: true
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/EventListItem'
+      required:
+      - count
+      - results
+    EventRead:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        origin:
+          enum:
+          - USER
+          - SYSTEM
+          type: string
+          description: |-
+            * `USER` - Usuario
+            * `SYSTEM` - Sistema
+          x-spec-enum-id: c20504cec4a5f74c
+        event_type:
+          enum:
+          - INFORMATION
+          - WARNING
+          - EXCEPTION
+          type: string
+          description: |-
+            * `INFORMATION` - Información
+            * `WARNING` - Advertencia
+            * `EXCEPTION` - Excepción
+          x-spec-enum-id: 425ba315bdcf7bd3
+        category:
+          enum:
+          - SECURITY
+          - REQUEST
+          - FAILURE
+          - CHANGE
+          - GENERAL
+          type: string
+          description: |-
+            * `SECURITY` - Seguridad
+            * `REQUEST` - Petición
+            * `FAILURE` - Falla
+            * `CHANGE` - Cambio
+            * `GENERAL` - General
+          x-spec-enum-id: ab3cd7d417906b7b
+        title:
+          type: string
+          maxLength: 200
+        message:
+          type: string
+        payload:
+          type: object
+          additionalProperties: {}
+          readOnly: true
+        service_code:
+          type: string
+          readOnly: true
+          nullable: true
+        source_name:
+          type: string
+          readOnly: true
+          nullable: true
+        impact:
+          enum:
+          - HIGH
+          - MEDIUM
+          - LOW
+          - null
+          type: string
+          description: |-
+            * `HIGH` - Alto
+            * `MEDIUM` - Medio
+            * `LOW` - Bajo
+          x-spec-enum-id: 78c22d37671e32a7
+          readOnly: true
+          nullable: true
+        urgency:
+          enum:
+          - HIGH
+          - MEDIUM
+          - LOW
+          - null
+          type: string
+          description: |-
+            * `HIGH` - Alta
+            * `MEDIUM` - Media
+            * `LOW` - Baja
+          x-spec-enum-id: 576365ee6afc2afc
+          readOnly: true
+          nullable: true
+        priority:
+          enum:
+          - P1
+          - P2
+          - P3
+          - P4
+          - null
+          type: string
+          description: |-
+            * `P1` - Crítica
+            * `P2` - Alta
+            * `P3` - Media
+            * `P4` - Baja
+          x-spec-enum-id: b7452e68baad1acc
+          readOnly: true
+          nullable: true
+        state:
+          enum:
+          - NEW
+          - ASSIGNED
+          - IN_PROGRESS
+          - ON_HOLD
+          - RESOLVED
+          - CLOSED
+          - REJECTED
+          - CANCELLED
+          - REOPENED
+          type: string
+          description: |-
+            * `NEW` - Nuevo
+            * `ASSIGNED` - Asignado
+            * `IN_PROGRESS` - En proceso
+            * `ON_HOLD` - En espera
+            * `RESOLVED` - Resuelto
+            * `CLOSED` - Cerrado
+            * `REJECTED` - Rechazado
+            * `CANCELLED` - Cancelado
+            * `REOPENED` - Reabierto
+          x-spec-enum-id: 26b55371c2d27c73
+          default: NEW
+        action_required:
+          type: boolean
+        fingerprint:
+          type: string
+          readOnly: true
+          maxLength: 64
+          minLength: 64
+        occurrence_count:
+          type: integer
+          minimum: 1
+          readOnly: true
+        first_seen_at:
+          type: string
+          format: date-time
+        last_seen_at:
+          type: string
+          format: date-time
+        reporter_ref:
+          type: string
+          readOnly: true
+          nullable: true
+        assigned_to_ref:
+          type: string
+          readOnly: true
+          nullable: true
+        assigned_group_ref:
+          type: string
+          readOnly: true
+          nullable: true
+        sla_policy_id:
+          type: integer
+          readOnly: true
+          nullable: true
+        response_due_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        resolution_due_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        resolved_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        closed_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        closure_code:
+          enum:
+          - AUTO_LOGGED
+          - KB_RESOLVED
+          - SOLVED
+          - NOT_APPLICABLE
+          - null
+          type: string
+          description: |-
+            * `AUTO_LOGGED` - Registrado automáticamente
+            * `KB_RESOLVED` - Resuelto por la KB
+            * `SOLVED` - Resuelto
+            * `NOT_APPLICABLE` - No aplica
+          x-spec-enum-id: 691f78771f0af0b0
+          readOnly: true
+          nullable: true
+        state_reason:
+          type: string
+          readOnly: true
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - id
+      - origin
+      - event_type
+      - category
+      - title
+      - message
+      - payload
+      - state
+      - action_required
+      - fingerprint
+      - occurrence_count
+      - first_seen_at
+      - last_seen_at
+      - created_at
+      - updated_at
+    EventTransition:
+      type: object
+      properties:
+        to_state:
+          enum:
+          - NEW
+          - ASSIGNED
+          - IN_PROGRESS
+          - ON_HOLD
+          - RESOLVED
+          - CLOSED
+          - REJECTED
+          - CANCELLED
+          - REOPENED
+          type: string
+          description: |-
+            * `NEW` - Nuevo
+            * `ASSIGNED` - Asignado
+            * `IN_PROGRESS` - En proceso
+            * `ON_HOLD` - En espera
+            * `RESOLVED` - Resuelto
+            * `CLOSED` - Cerrado
+            * `REJECTED` - Rechazado
+            * `CANCELLED` - Cancelado
+            * `REOPENED` - Reabierto
+          x-spec-enum-id: 26b55371c2d27c73
+        reason:
+          type: string
+        closure_code:
+          enum:
+          - AUTO_LOGGED
+          - KB_RESOLVED
+          - SOLVED
+          - NOT_APPLICABLE
+          type: string
+          description: |-
+            * `AUTO_LOGGED` - Registrado automáticamente
+            * `KB_RESOLVED` - Resuelto por la KB
+            * `SOLVED` - Resuelto
+            * `NOT_APPLICABLE` - No aplica
+          x-spec-enum-id: 691f78771f0af0b0
+      required:
+      - to_state
+    EventUpdate:
+      type: object
+      description: 'PATCH /events/{id}: solo campos de gestión. Todos opcionales,
+        pero al menos uno.'
+      properties:
+        assigned_to_ref:
           type: string
           nullable: true
-          enum: [SECURITY, REQUEST, FAILURE, CHANGE, GENERAL, null]
-          description: Nulo = cualquier categoría
-        service_code: { type: string, nullable: true }
-        threshold_count: { type: integer, minimum: 1, description: N, example: 5 }
-        window_days: { type: integer, minimum: 1, description: T, example: 7 }
-        action: { $ref: '#/components/schemas/RecurrenceAction' }
-        is_active: { type: boolean, default: true }
-    RecurrencePolicyUpdate:
-      type: object
-      minProperties: 1
-      properties:
-        threshold_count: { type: integer, minimum: 1 }
-        window_days: { type: integer, minimum: 1 }
-        action: { $ref: '#/components/schemas/RecurrenceAction' }
-        is_active: { type: boolean }
-    RecurrencePolicy:
-      allOf:
-        - $ref: '#/components/schemas/RecurrencePolicyCreate'
-        - type: object
-          required: [id, created_at, updated_at]
-          properties:
-            id: { type: integer, format: int64 }
-            created_at: { type: string, format: date-time }
-            updated_at: { type: string, format: date-time }
-    EventSourceCreate:
-      type: object
-      required: [name, kind]
-      properties:
-        name: { type: string, maxLength: 100, example: nagios-prod }
-        kind: { $ref: '#/components/schemas/SourceKind' }
-    EventSource:
-      type: object
-      required: [id, name, kind, is_active, created_at]
-      properties:
-        id: { type: integer, format: int64 }
-        name: { type: string }
-        kind: { $ref: '#/components/schemas/SourceKind' }
-        is_active: { type: boolean }
-        created_at: { type: string, format: date-time }
-    EventSourceCreated:
-      allOf:
-        - $ref: '#/components/schemas/EventSource'
-        - type: object
-          required: [api_key]
-          properties:
-            api_key: { type: string, description: Se muestra una sola vez; solo se guarda su hash }
-    Error:
-      type: object
-      required: [code, detail]
-      properties:
-        code: { type: string, example: invalid_transition }
-        detail: { type: string }
-        fields:
-          type: object
-          additionalProperties: { type: string }
-          description: Errores por campo (422)
+          maxLength: 64
+        assigned_group_ref:
+          type: string
+          nullable: true
+          maxLength: 64
+        impact:
+          enum:
+          - HIGH
+          - MEDIUM
+          - LOW
+          type: string
+          description: |-
+            * `HIGH` - Alto
+            * `MEDIUM` - Medio
+            * `LOW` - Bajo
+          x-spec-enum-id: 78c22d37671e32a7
+        urgency:
+          enum:
+          - HIGH
+          - MEDIUM
+          - LOW
+          type: string
+          description: |-
+            * `HIGH` - Alta
+            * `MEDIUM` - Media
+            * `LOW` - Baja
+          x-spec-enum-id: 576365ee6afc2afc
+        category:
+          enum:
+          - SECURITY
+          - REQUEST
+          - FAILURE
+          - CHANGE
+          - GENERAL
+          type: string
+          description: |-
+            * `SECURITY` - Seguridad
+            * `REQUEST` - Petición
+            * `FAILURE` - Falla
+            * `CHANGE` - Cambio
+            * `GENERAL` - General
+          x-spec-enum-id: ab3cd7d417906b7b
+        note:
+          type: string
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: sessionid

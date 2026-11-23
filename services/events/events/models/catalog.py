@@ -2,7 +2,16 @@ from django.db import models
 from django.db.models import Q
 
 from .base import AuditModel
-from .choices import Impact, Priority, ServiceImportance, SourceKind, Urgency
+from .choices import (
+    EventCategory,
+    EventType,
+    Impact,
+    Priority,
+    RecurrenceAction,
+    ServiceImportance,
+    SourceKind,
+    Urgency,
+)
 
 
 class BusinessService(AuditModel):
@@ -33,6 +42,7 @@ class SlaPolicy(AuditModel):
         on_delete=models.CASCADE,
         related_name="sla_policies",
     )
+
     priority = models.CharField(max_length=10, choices=Priority.choices)
     response_minutes = models.PositiveIntegerField()
     resolution_minutes = models.PositiveIntegerField()
@@ -86,3 +96,46 @@ class EventSource(AuditModel):
 
     def __str__(self) -> str:
         return self.name
+
+
+class RecurrencePolicy(AuditModel):
+    """Umbral de recurrencia (N veces en T días) de las reglas 3 y 7.
+
+    Un campo vacío significa "cualquiera". Gana la política activa más específica.
+    """
+
+    event_type = models.CharField(max_length=12, choices=EventType.choices)
+    category = models.CharField(
+        max_length=15, choices=EventCategory.choices, blank=True, default=""
+    )
+
+    service = models.ForeignKey(
+        BusinessService,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="recurrence_policies",
+    )
+
+    threshold_count = models.PositiveIntegerField()
+    window_days = models.PositiveIntegerField()
+    action = models.CharField(
+        max_length=20, choices=RecurrenceAction.choices, default=RecurrenceAction.WATCH_ALERT
+    )
+
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "recurrence_policy"
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(threshold_count__gte=1), name="ck_recurrence_threshold_gte_1"
+            ),
+            models.CheckConstraint(
+                condition=Q(window_days__gte=1), name="ck_recurrence_window_gte_1"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        scope = f"{self.event_type or '*'}/{self.category or '*'}"
+        return f"{scope}: {self.threshold_count} en {self.window_days} d"

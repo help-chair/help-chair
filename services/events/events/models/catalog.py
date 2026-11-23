@@ -1,8 +1,19 @@
+from django.core.exceptions import ValidationError
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.db.models import Q
 
 from .base import AuditModel
-from .choices import Impact, Priority, ServiceImportance, SourceKind, Urgency
+from .choices import (
+    EventCategory,
+    EventType,
+    Impact,
+    ModifierField,
+    Priority,
+    ServiceImportance,
+    SourceKind,
+    Urgency,
+)
 
 
 class BusinessService(AuditModel):
@@ -71,6 +82,44 @@ class PriorityMatrix(AuditModel):
 
     def __str__(self) -> str:
         return f"{self.impact} x {self.urgency} -> {self.priority}"
+
+
+class PriorityModifier(AuditModel):
+    code = models.SlugField(max_length=50, unique=True)
+    condition_field = models.CharField(max_length=20, choices=ModifierField.choices)
+    condition_value = models.CharField(max_length=50)
+    levels_delta = models.SmallIntegerField(
+        validators=[MinValueValidator(-3), MaxValueValidator(3)]
+    )
+    is_active = models.BooleanField(default=True)
+
+    VALID_VALUES = {
+        ModifierField.SERVICE_IMPORTANCE: ServiceImportance.values,
+        ModifierField.EVENT_CATEGORY: EventCategory.values,
+        ModifierField.EVENT_TYPE: EventType.values,
+    }
+
+    class Meta:
+        db_table = "priority_modifier"
+        ordering = ["code"]
+
+    def __str__(self) -> str:
+        condition = f"{self.condition_field}={self.condition_value}"
+        return f"{self.code} · {condition} ({self.levels_delta:+d})"
+
+    def clean(self):
+        super().clean()
+        if self.levels_delta == 0:
+            raise ValidationError({"levels_delta": "No puede ser cero."})
+        if self.condition_field == ModifierField.OCCURRENCE_COUNT:
+            if not self.condition_value.isdigit() or int(self.condition_value) < 1:
+                raise ValidationError({"condition_value": "Debe ser un entero mayor que cero."})
+            return
+        valid_values = self.VALID_VALUES.get(self.condition_field, [])
+        if self.condition_value not in valid_values:
+            raise ValidationError(
+                {"condition_value": f"Valores válidos: {', '.join(valid_values)}."}
+            )
 
 
 class EventSource(AuditModel):

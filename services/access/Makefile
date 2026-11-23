@@ -55,9 +55,12 @@ build: ## Construye la imagen OCI (Podman o Docker)
 seed: ## Carga el catálogo de roles (idempotente)
 	$(RUN) python manage.py seed
 
-openapi: ## Exporta el contrato a contracts/$(SERVICE)/openapi.yaml
-	@mkdir -p ../../contracts/$(SERVICE)
-	$(RUN) python manage.py spectacular --file ../../contracts/$(SERVICE)/openapi.yaml --validate
+openapi: ## Genera el esquema a build/ y lo compara con el contrato (nunca lo sobreescribe)
+	@mkdir -p build
+	$(RUN) python manage.py spectacular --file build/openapi.generado.yaml --validate
+	@echo
+	$(RUN) python tools/reconcilia_contrato.py \
+		build/openapi.generado.yaml ../../contracts/$(SERVICE)/openapi.yaml
 
 lock: ## (requiere uv) Actualiza uv.lock y regenera requirements*.txt
 	uv lock -q

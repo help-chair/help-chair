@@ -80,6 +80,11 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Sesion' }
+        '400':
+          description: Falta el correo o la contraseña, o vienen mal formados
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
         '401':
           description: Correo o contraseña incorrectos (misma respuesta en ambos casos)
           content:
@@ -101,6 +106,10 @@ paths:
       tags: [autenticacion]
       operationId: refreshToken
       summary: Renueva el token de acceso
+      description: >-
+        El token de refresco viaja en el cuerpo de la petición, en el campo `refresco`.
+        La migración a cookie httpOnly está planificada para la fase 4 (issue #195);
+        en la v1 este contrato se mantiene con `refresco` en el cuerpo.
       security: []
       requestBody:
         required: true
@@ -117,6 +126,11 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Sesion' }
+        '400':
+          description: Falta el campo `refresco` en el cuerpo
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
         '401':
           description: Token de refresco inválido, revocado o expirado
           content:

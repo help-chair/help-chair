@@ -16,7 +16,8 @@ import { useNow, useTickets } from './useTickets'
  * services/incidents publique su API (contracts/incidents/openapi.yaml).
  */
 export function IncidentsPage() {
-  const { tickets, escalations, escalate, close, create, markCalled } = useTickets()
+  const { tickets, escalations, carga, recargar, escalate, close, create, markCalled } =
+    useTickets()
   const now = useNow()
   const [modalOpen, setModalOpen] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
@@ -97,14 +98,40 @@ export function IncidentsPage() {
         )}
       </div>
 
-      <MetricsRow metrics={computeMetrics(tickets, now)} />
-      <TicketTable
-        tickets={tickets}
-        highlightId={highlightId}
-        onEscalate={handleEscalate}
-        onClose={handleClose}
-      />
-      <EscalationPanel escalations={escalations} now={now} onMarkCalled={handleMarkCalled} />
+      {carga === 'cargando' && (
+        <div className="rounded-xl border border-border bg-white p-8 text-center text-sm text-slate-500">
+          Cargando incidentes…
+        </div>
+      )}
+
+      {carga === 'error' && (
+        <div
+          role="alert"
+          className="rounded-xl border border-red-200 bg-red-50 p-6 text-sm text-red-700"
+        >
+          <p className="font-semibold">No se pudieron cargar los incidentes.</p>
+          <p className="mt-1 text-xs text-red-700">
+            Verifica que el servicio de Incidencias esté disponible o levanta el mock con{' '}
+            <code className="font-mono">npm run mock:incidents</code>.
+          </p>
+          <Button size="sm" variant="outline" className="mt-3" onClick={recargar}>
+            Reintentar
+          </Button>
+        </div>
+      )}
+
+      {carga === 'lista' && (
+        <>
+          <MetricsRow metrics={computeMetrics(tickets, now)} />
+          <TicketTable
+            tickets={tickets}
+            highlightId={highlightId}
+            onEscalate={handleEscalate}
+            onClose={handleClose}
+          />
+          <EscalationPanel escalations={escalations} now={now} onMarkCalled={handleMarkCalled} />
+        </>
+      )}
       <NewTicketModal
         open={modalOpen}
         onClose={() => setModalOpen(false)}

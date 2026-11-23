@@ -65,8 +65,8 @@ curl http://localhost:8002/health/ready
 |---|---|---|
 | `GET` | `/health/live` | El proceso responde. |
 | `GET` | `/health/ready` | El proceso responde y la base es alcanzable. |
-| `POST` | `/api/access/v1/login` | Valida credenciales y entrega `access` y `refresh`. |
-| `POST` | `/api/access/v1/refresh` | Entrega un `access` nuevo a partir de un `refresh` válido. |
+| `POST` | `/api/access/v1/login` | Valida credenciales y entrega `acceso` y `refresco`. |
+| `POST` | `/api/access/v1/refresh` | Entrega un `acceso` nuevo a partir de un `refresco` válido, enviado en el cuerpo de la petición. |
 | `GET` | `/api/docs/` | Documentación navegable (Swagger). |
 
 Ejemplo de inicio de sesión:

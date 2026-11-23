@@ -13,6 +13,7 @@ ifeq ($(OS),Windows_NT)
 else
   ifneq ($(shell command -v uv 2>/dev/null),)
     MODE      := uv
+		RUN				:= uv run
     PYTHON    := uv run python
     SETUP     := uv sync
   else
@@ -23,7 +24,7 @@ else
 endif
 
 .DEFAULT_GOAL := help
-.PHONY: help setup run migrate makemigrations test lint format build seed openapi lock clean
+.PHONY: help setup run migrate makemigrations test lint format build seed openapi contracts-check lock clean
 
 help: ## Muestra esta ayuda
 	@echo "Servicio $(SERVICE) · modo: $(MODE)"
@@ -67,6 +68,9 @@ seed: ## Informa si hay datos de ejemplo para cargar
 openapi: ## Exporta el contrato a contracts/$(SERVICE)/openapi.yaml
 	@mkdir -p ../../contracts/$(SERVICE)
 	$(PYTHON) manage.py spectacular --file ../../contracts/$(SERVICE)/openapi.yaml --validate
+
+contracts-check:
+	$(RUN) openapi-spec-validator ../../contracts/events/openapi.yaml
 
 lock: ## (requiere uv) Actualiza uv.lock y regenera requirements*.txt
 	uv lock -q

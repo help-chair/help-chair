@@ -15,17 +15,17 @@
 
 ## 2. Ciclo de vida de un evento
 
-![Ciclo de vida de un evento](life_cycle_event.png)
+![Ciclo de vida de un evento](diagrams/life_cycle_event.png)
 
 
 ## 3. Diagrama entidad-relación
 
-![Diagrama entidad-relación](Related_entity.png)
+![Diagrama entidad-relación](diagrams/Related_entity.png)
 
 
 ## 4. Diagrama de tablas
 
-![Diagrama de tablas](Table_Diagram.webp)
+![Diagrama de tablas](diagrams/Table_Diagram.webp)
 
 
 Las transiciones permitidas se definen **en código** (un diccionario `ALLOWED_TRANSITIONS`), no en una tabla. Un evento de usuario cerrado recibe encuesta; uno cancelado recibe los motivos; uno de sistema no recibe respuesta.
@@ -411,6 +411,105 @@ podman compose -f platform/deploy/local/compose.yaml down
 | Las 9 reglas como pruebas parametrizadas | `tests/test_rules.py` (`xfail` donde falte implementación) |
 | Borrador OpenAPI y esquema del mensaje común | `contracts/events/openapi.yaml`, `contracts/messages/` (`make openapi`) |
 
+### Mock del contrato OpenAPI (Prism)
+
+Los demás equipos (Frontend, Peticiones, Incidencias, Problemas y Accesos) pueden trabajar contra Eventos **sin esperar la implementación**: Prism lee `contracts/events/openapi.yaml` y responde con los ejemplos del contrato, validando además lo que recibe (401 sin token, 422 con cuerpo inválido). No usa base de datos ni el servicio Django.
+
+#### 1. Levantar el mock con Podman (sin instalar nada en el host)
+
+Funciona desde cualquier carpeta del repositorio:
+
+```bash
+podman run --rm -it --name hc-events-mock -p 8011:4010 \
+  -v "$(git rev-parse --show-toplevel)/contracts/events/openapi.yaml:/spec/openapi.yaml:ro,Z" \
+  docker.io/stoplight/prism:4 mock -h 0.0.0.0 /spec/openapi.yaml
+```
+
+| Opción | Para qué sirve |
+|---|---|
+| `--rm` | Elimina el contenedor al detenerlo |
+| `-it` | TTY interactiva: `Ctrl + C` detiene el mock limpiamente |
+| `--name hc-events-mock` | Nombre fijo para detenerlo fácilmente |
+| `-p 8011:4010` | Expone el puerto interno de Prism (4010) en el `8011` del host |
+| `-v ...:ro,Z` | Monta el contrato de solo lectura; `Z` aplica la etiqueta de SELinux (Fedora) |
+| `-h 0.0.0.0` | Prism escucha en todas las interfaces dentro del contenedor |
+| `docker.io/stoplight/prism:4` | Nombre completo de la imagen: evita que Podman pregunte de qué registro descargarla |
+
+Sin contenedores (requiere Node.js), desde `services/events`:
+
+```bash
+npx @stoplight/prism-cli mock ../../contracts/events/openapi.yaml -p 8011
+```
+
+El mock queda en `http://127.0.0.1:8011`. **Las rutas no llevan el prefijo `/api/events/v1`** (por ejemplo, `/events`, no `/api/events/v1/events`).
+
+#### 2. Probarlo con `curl` (en otra terminal)
+
+Usa `127.0.0.1` y `-4` para evitar problemas con IPv6 (`::1`) en Podman rootless.
+
+```bash
+B=http://127.0.0.1:8011
+H='Authorization: Bearer x'
+
+# Evento nuevo (201). Sin "Prefer" responde 200 (el caso "duplicado"): ver la nota de abajo
+curl -i -4 -X POST $B/events -H "$H" -H 'Content-Type: application/json' \
+  -H 'Prefer: code=201' -d '{"origin":"USER","title":"t","message":"m"}'
+
+# Lista y detalle
+curl -i -4 "$B/events?state=NEW&limit=5" -H "$H"
+curl -i -4 $B/events/7c9e6679-7425-40de-944b-e07fc1f90ae7 -H "$H"
+
+# Transición inválida simulada (409)
+curl -i -4 -X POST $B/events/7c9e6679-7425-40de-944b-e07fc1f90ae7/transitions \
+  -H "$H" -H 'Content-Type: application/json' -H 'Prefer: code=409' -d '{"to_state":"IN_PROGRESS"}'
+
+# El mock valida la entrada
+curl -i -4 -X POST $B/events -H "$H" -H 'Content-Type: application/json' -d '{"origin":"USER","title":"t"}'   # 422 (falta message)
+curl -i -4 $B/events                                                                                         # 401 (sin token)
+```
+
+**Cómo elige Prism la respuesta:**
+- Por defecto devuelve el código **2xx más bajo** del contrato. Para `POST /events` es el `200` (evento duplicado); usa `-H 'Prefer: code=201'` para el evento nuevo.
+- `-H 'Prefer: code=<código>'` fuerza cualquier otra respuesta definida (409, 404, 403…).
+- Devuelve los `example` del contrato; donde no hay ejemplo genera datos de relleno (`"string"`).
+#### 3. Revisar la cabecera `sl-violations`
+
+Prism añade `sl-violations` cuando su respuesta **no cumple el esquema del propio contrato**. Con el contrato actual no debe aparecer:
+
+```bash
+curl -si -4 -X POST $B/events -H "$H" -H 'Content-Type: application/json' -H 'Prefer: code=201' \
+  -d '{"origin":"USER","title":"t","message":"m"}' | grep -i '^sl-violations' || echo "sin violaciones"
+```
+
+Si aparece, hay un defecto en el contrato. Caso típico: un campo que puede ser `null` (por ejemplo `closure_code`) declarado con `allOf` + `nullable: true`, que en OpenAPI 3.0 **no** admite `null`. Se declara con un enum que incluya `null` (`ClosureCodeNullable`, `PriorityNullable`…). `tests/test_contracts.py` lo vigila.
+
+#### 4. Detener el mock
+
+- `Ctrl + C` en la terminal donde corre.
+- Si quedó en segundo plano o suspendido: `podman stop hc-events-mock`.
+#### 5. Usarlo desde otros servicios y desde el Frontend
+
+- **Servicios:** apunta el cliente HTTP de pruebas a `http://127.0.0.1:8011` (sin el prefijo `/api/events/v1`).
+- **Frontend:** el proxy de desarrollo (`/api/events`) reenvía sin reescribir rutas y solo el gateway tiene una opción para quitar el prefijo (`VITE_GATEWAY_MOCK`). Mientras no exista una equivalente para Eventos, llama al mock directamente.
+#### 6. Validar el contrato
+
+```bash
+cd services/events
+uv run openapi-spec-validator ../../contracts/events/openapi.yaml   # debe imprimir: ...openapi.yaml: OK
+make test                                                            # incluye tests/test_contracts.py
+```
+
+#### Problemas frecuentes
+
+| Síntoma | Causa y solución |
+|---|---|
+| Podman pregunta de qué registro descargar la imagen | Usa el nombre completo `docker.io/stoplight/prism:4` |
+| `permission denied` al leer `/spec/openapi.yaml` | Falta `:Z` en el volumen (SELinux) |
+| `curl: (7)` o `(56)` sin respuesta | Usa `127.0.0.1` y `-4` en lugar de `localhost` |
+| `address already in use` | Cambia el puerto del host: `-p 8012:4010` |
+| 404 en `/api/events/v1/events` | El mock no usa el prefijo: llama a `/events` |
+| El mock no refleja mis cambios al contrato | Prism no recarga el archivo: detén el mock y vuelve a levantarlo |
+
 ---
 
 ## English
@@ -440,3 +539,25 @@ curl -i http://localhost:8001/health/ready                  # 200 with the DB up
 - Never edit a migration that is already merged into `develop`; create a new one with `make makemigrations`.
 - Admin: `uv run python manage.py createsuperuser`, then <http://localhost:8001/admin/>.
 - Image: `make build` (Podman) and `podman compose -f platform/deploy/local/compose.yaml up -d --build events`.
+
+### OpenAPI contract mock (Prism)
+
+Other teams can work against Events **without waiting for the implementation**: Prism reads `contracts/events/openapi.yaml`, answers with the contract's examples and validates what it receives (401 without a token, 422 for an invalid body). No database, no Django service.
+
+```bash
+# from anywhere inside the repository
+podman run --rm -it --name hc-events-mock -p 8011:4010 \
+  -v "$(git rev-parse --show-toplevel)/contracts/events/openapi.yaml:/spec/openapi.yaml:ro,Z" \
+  docker.io/stoplight/prism:4 mock -h 0.0.0.0 /spec/openapi.yaml
+
+# without containers (Node.js), from services/events
+npx @stoplight/prism-cli mock ../../contracts/events/openapi.yaml -p 8011
+```
+
+- The mock listens on `http://127.0.0.1:8011`; **routes have no `/api/events/v1` prefix** (`/events`).
+- `Z` applies the SELinux label (Fedora); use the full image name `docker.io/stoplight/prism:4` so Podman does not prompt for a registry.
+- Prism returns the **lowest 2xx** by default: `POST /events` answers `200` (duplicate); add `-H 'Prefer: code=201'` for a new event. `Prefer: code=<n>` forces any other documented response.
+- Test with `curl -i -4 http://127.0.0.1:8011/events -H 'Authorization: Bearer x'`.
+- The `sl-violations` response header means the mock response does not match the contract's own schema; it must not appear. A nullable field declared with `allOf` + `nullable: true` is the typical cause (OpenAPI 3.0 rejects `null` there): use an enum that includes `null`.
+- Stop with `Ctrl + C` or `podman stop hc-events-mock`. Prism does not reload the file: restart it after editing the contract.
+- Validate the contract: `uv run openapi-spec-validator ../../contracts/events/openapi.yaml` and `make test`.

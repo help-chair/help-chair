@@ -1,9 +1,13 @@
-import { useEffect, useReducer, useState } from 'react'
-import { createSampleData, nextTicketId } from './data'
+import { useCallback, useEffect, useReducer, useState } from 'react'
+import { cargarIncidentesConRespaldo } from './api'
+import { nextTicketId } from './data'
 import type { Escalation, NewTicketInput, Ticket } from './types'
 
-// Estado del módulo, en memoria (se pierde al recargar). Para conectarlo a services/incidents,
-// cambia el cuerpo de estas acciones por llamadas a la API en src/api/; los componentes no cambian.
+// Estado del módulo: carga desde services/incidents (con respaldo a datos de ejemplo) y
+// las acciones de gestión (escalar, cerrar, crear, marcar llamada) siguen en memoria
+// hasta que el backend exponga esos endpoints.
+
+export type EstadoCarga = 'cargando' | 'lista' | 'error'
 
 interface TicketsState {
   tickets: Ticket[]
@@ -11,6 +15,7 @@ interface TicketsState {
 }
 
 type Action =
+  | { type: 'load'; tickets: Ticket[]; escalations: Escalation[] }
   | { type: 'escalate'; ticketId: string; at: string }
   | { type: 'close'; ticketId: string; at: string }
   | { type: 'create'; ticket: Ticket }
@@ -18,6 +23,8 @@ type Action =
 
 function ticketsReducer(state: TicketsState, action: Action): TicketsState {
   switch (action.type) {
+    case 'load':
+      return { tickets: action.tickets, escalations: action.escalations }
     case 'escalate': {
       const ticket = state.tickets.find((item) => item.id === action.ticketId)
       if (!ticket || ticket.status !== 'abierto' || ticket.level === 3) return state
@@ -63,7 +70,26 @@ function ticketsReducer(state: TicketsState, action: Action): TicketsState {
 
 /** Tickets y escalamientos de Incidentes con sus acciones: escalar, cerrar, crear y marcar llamada. */
 export function useTickets() {
-  const [state, dispatch] = useReducer(ticketsReducer, undefined, () => createSampleData())
+  const [state, dispatch] = useReducer(ticketsReducer, undefined, () => ({
+    tickets: [],
+    escalations: [],
+  }))
+  const [carga, setCarga] = useState<EstadoCarga>('cargando')
+
+  const recargar = useCallback(() => {
+    setCarga('cargando')
+    cargarIncidentesConRespaldo().then(
+      (datos) => {
+        dispatch({ type: 'load', ...datos })
+        setCarga('lista')
+      },
+      () => setCarga('error'),
+    )
+  }, [])
+
+  useEffect(() => {
+    recargar()
+  }, [recargar])
 
   /** Sube el caso un nivel y devuelve el nivel nuevo, o `null` si ya no se puede escalar. */
   function escalate(ticketId: string) {
@@ -99,7 +125,7 @@ export function useTickets() {
     dispatch({ type: 'markCalled', escalationId, at: new Date().toISOString() })
   }
 
-  return { ...state, escalate, close, create, markCalled }
+  return { ...state, carga, recargar, escalate, close, create, markCalled }
 }
 
 /** Hora actual que se renueva cada minuto («hace 12 min», «nuevo en la última hora»). */

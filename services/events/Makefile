@@ -62,8 +62,9 @@ format: ## ruff: corrige estilo y formatea
 build: ## Construye con Podman (usa CONTAINER=docker para Docker)
 	$(CONTAINER) build -t $(IMAGE):$(TAG) .
 
-seed: ## Informa si hay datos de ejemplo para cargar
-	@echo "$(SERVICE): no hay datos de ejemplo definidos para cargar."
+seed: ## Siembra la matriz de prioridad y los modificadores por defecto
+	$(PYTHON) manage.py migrate --noinput
+	$(PYTHON) manage.py seed_priority
 
 openapi: ## Exporta el contrato a contracts/$(SERVICE)/openapi.yaml
 	@mkdir -p ../../contracts/$(SERVICE)

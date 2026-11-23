@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Help Chair - Problemas (Gestión de Problemas y Errores Conocidos)
-  version: 0.1.0
+  version: 0.2.0
   description: |
     Contrato v0 (borrador, Fase 1). Dueño: Equipo 5 (Problemas + KB). Consumidores: Incidencias, Eventos, Frontend y Knowledge.
 
@@ -11,10 +11,11 @@ info:
     - Los IDs de otros servicios (`asignado_a_id`, `incidente_id`, `articulo_kb_id`) son texto y no
       se validan contra su servicio dueño: cada servicio tiene su propia base de datos (sin llaves foráneas).
     - Estados del problema: registrado -> en_analisis -> causa_identificada -> error_conocido -> resuelto -> cerrado.
-      El estado solo cambia con `POST /problemas/{id}/estado/`, no con `PATCH`.
+      El estado solo cambia con `POST /api/problems/v1/problemas/{id}/estado/`, no con `PATCH`.
     - Fechas en ISO 8601 con zona horaria (UTC).
+    - Las rutas usan el prefijo /api/problems/v1, igual que el resto de servicios (el proxy de Vite y el gateway enrutan por /api/<servicio>).
 servers:
-  - url: http://localhost:8005/api/v1
+  - url: http://localhost:8005
     description: Entorno local
 security:
   - bearerAuth: []
@@ -24,7 +25,7 @@ tags:
   - name: errores-conocidos
     description: Errores conocidos (causa raíz documentada + workaround)
 paths:
-  /problemas/:
+  /api/problems/v1/problemas/:
     get:
       tags: [problemas]
       operationId: listProblemas
@@ -75,7 +76,7 @@ paths:
               schema: { $ref: '#/components/schemas/Problema' }
         '400': { $ref: '#/components/responses/SolicitudInvalida' }
         '401': { $ref: '#/components/responses/NoAutenticado' }
-  /problemas/{id}/:
+  /api/problems/v1/problemas/{id}/:
     parameters:
       - $ref: '#/components/parameters/ProblemaId'
     get:
@@ -94,7 +95,7 @@ paths:
       tags: [problemas]
       operationId: updateProblema
       summary: Actualiza parcialmente un problema
-      description: No cambia el estado; para eso usa `POST /problemas/{id}/estado/`.
+      description: No cambia el estado; para eso usa `POST /api/problems/v1/problemas/{id}/estado/`.
       requestBody:
         required: true
         content:
@@ -109,7 +110,7 @@ paths:
         '400': { $ref: '#/components/responses/SolicitudInvalida' }
         '401': { $ref: '#/components/responses/NoAutenticado' }
         '404': { $ref: '#/components/responses/NoEncontrado' }
-  /problemas/{id}/estado/:
+  /api/problems/v1/problemas/{id}/estado/:
     parameters:
       - $ref: '#/components/parameters/ProblemaId'
     post:
@@ -139,7 +140,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
               example: { codigo: transicion_invalida, detalle: 'No se puede pasar de cerrado a en_analisis.' }
-  /problemas/{id}/incidentes/:
+  /api/problems/v1/problemas/{id}/incidentes/:
     parameters:
       - $ref: '#/components/parameters/ProblemaId'
     get:
@@ -180,7 +181,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
               example: { codigo: incidente_ya_vinculado, detalle: 'INC-1 ya está vinculado a PRB-42.' }
-  /problemas/{id}/incidentes/{incidente_id}/:
+  /api/problems/v1/problemas/{id}/incidentes/{incidente_id}/:
     parameters:
       - $ref: '#/components/parameters/ProblemaId'
       - name: incidente_id
@@ -201,7 +202,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
-  /errores-conocidos/:
+  /api/problems/v1/errores-conocidos/:
     get:
       tags: [errores-conocidos]
       operationId: listErroresConocidos
@@ -252,7 +253,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
         '401': { $ref: '#/components/responses/NoAutenticado' }
-  /errores-conocidos/{id}/:
+  /api/problems/v1/errores-conocidos/{id}/:
     parameters:
       - name: id
         in: path

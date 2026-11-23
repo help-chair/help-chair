@@ -60,6 +60,25 @@ erDiagram
 
 `PROBLEMA_INCIDENTE` tiene una restricción única `(problema_id, incidente_id)`: un incidente no puede vincularse dos veces al mismo problema.
 
+### Responsabilidad y rutas operativas
+
+Se conservan los aportes compatibles de #205: Problems registra causas y errores
+conocidos, vincula incidentes por ID y mantiene workarounds; Incidencias conserva
+la atención de incidentes y Knowledge conserva los artículos. El origen patron es
+un dato del modelo, no evidencia de un detector implementado. La autenticación del
+admin es local Django; la identidad de negocio corresponde a Accesos.
+
+| Método | Ruta existente | Uso |
+|---|---|---|
+| GET | /health/live | Proceso disponible |
+| GET | /health/ready | Conexión a BD comprobada |
+| GET | /api/schema/ | Esquema parcial del runtime |
+| GET | /api/docs/ | Swagger del runtime |
+
+La política confirmada por Pablo exige PostgreSQL y entorno real incluso en local
+/tests; las indicaciones anteriores de #205 sobre .env/defaults/SQLite se sustituyen
+por las instrucciones de esta guía. La aceptación del equipo sigue pendiente.
+
 ### Configuración del entorno del proceso
 
 El sistema/CI suministra las variables antes del arranque. No se crea, copia ni
@@ -190,8 +209,8 @@ No usar down -v, flush o borrado de recursos ajenos para demostrar persistencia.
 
 El [contrato en develop](https://github.com/help-chair/help-chair/blob/develop/contracts/problems/openapi.yaml)
 de #39/PR182 fue actualizado por el [PR223 integrado](https://github.com/help-chair/help-chair/pull/223):
-el prefijo contractual es `/api/problems/v1`. Esta actualización documental no
-modifica la copia contractual de esta rama ni implementa sus endpoints de negocio.
+el prefijo contractual es `/api/problems/v1`. El merge de develop incorpora ese contrato; la conciliación no modifica sus
+definiciones ni implementa sus endpoints de negocio.
 Conservar IDs int64, referencias externas de texto, estados y campos acordados.
 Admin y health no acreditan CRUD/JWT implementados.
 
@@ -218,6 +237,16 @@ images without requiring Docker Desktop. The diagram above preserves the merged
 Models, initial migration, model tests and Django admin remain unchanged. Local
 admin authentication does not implement Access JWT or business authorization.
 REST CRUD, API transitions and the N/T detector belong to subsequent increments.
+
+### Responsibility and operational routes
+
+Compatible #205 contributions are retained: Problems records underlying causes,
+incident references and known errors/workarounds; Incidents handles incidents,
+Knowledge owns articles and Access owns business identities. The patron origin is
+a model value, not an implemented detector. Existing GET routes are /health/live,
+/health/ready, /api/schema/ and /api/docs/; schema/Swagger describe partial runtime.
+Pablo confirmed PostgreSQL and process environment even for local/tests; this guide
+supersedes #205 advice about .env/default secrets/SQLite, pending team acceptance.
 
 ### Process configuration
 
@@ -289,8 +318,8 @@ down -v, flush or deleting unrelated resources.
 
 The [develop contract](https://github.com/help-chair/help-chair/blob/develop/contracts/problems/openapi.yaml)
 from #39/PR182 was updated by [merged PR223](https://github.com/help-chair/help-chair/pull/223):
-its contractual prefix is `/api/problems/v1`. This documentation update neither
-changes this branch's contract snapshot nor implements business endpoints. Preserve bigint IDs,
+its contractual prefix is `/api/problems/v1`. The develop merge brings that contract into this branch; conflict resolution
+does not modify its definitions or implement business endpoints. Preserve bigint IDs,
 external text IDs and agreed enums/fields. This increment does not implement its
 business API. make openapi requires explicit OPENAPI_OUTPUT outside contracts and
 cannot replace the reviewed contract with a partial runtime schema. Compatibility

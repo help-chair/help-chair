@@ -57,3 +57,19 @@ Merged PR223 defines `/api/problems/v1` in develop's planned contract; backend
 business endpoints are not implemented by this documentation. CODEOWNER approval,
 team acceptance and authorized integration remain pending. This mapping neither
 closes the issues nor certifies the Knowledge portion of the shared tasks.
+
+## Conciliación con develop
+
+PR205 ya integrado: se conservaron alcance, aislamiento, puertos, comandos y rutas
+operativas compatibles, con la política confirmada de entorno real y PostgreSQL.
+La resolución modifica solo README y el inventario vacío de variables de Problems;
+los demás cambios entran desde develop sin edición manual de otros servicios.
+
+Tras conciliar origin/develop (0842431), se repitieron las verificaciones en un
+PostgreSQL16.16 privado nuevo: make lint, 50 pruebas (6.26s, cobertura95%), build,
+migraciones desde vacío/repetidas y checks Django/drift correctos. La evidencia
+actual se publica en el mismo PR231; no sustituye la aprobación humana.
+
+After merging develop, the current isolated PostgreSQL16.16 run passed 50 tests,
+lint/build, empty/repeated migrations and Django/drift checks. Evidence is local,
+not CI; team approval remains pending.

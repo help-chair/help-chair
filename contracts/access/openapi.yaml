@@ -80,6 +80,11 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Sesion' }
+        '400':
+          description: Falta el correo o la contraseña, o vienen mal formados
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
         '401':
           description: Correo o contraseña incorrectos (misma respuesta en ambos casos)
           content:
@@ -121,6 +126,11 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Sesion' }
+        '400':
+          description: Falta el campo `refresco` en el cuerpo
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
         '401':
           description: Token de refresco inválido, revocado o expirado
           content:

@@ -101,11 +101,13 @@ Un usuario tiene uno de cuatro estados: `activo`, `invitado` (creado sin contras
 
 Los permisos no se preguntan por rol sino por permiso (`tickets:ver`, `tickets:atender`, `tickets:escalar`, `empresa:configurar`, `usuarios:administrar`), para que un cambio de roles no rompa a los servicios que los consumen.
 
-Para exportar el contrato después de cambiar la API:
+El contrato de [`contracts/access/openapi.yaml`](../../contracts/access/openapi.yaml) se escribe a mano, porque declara endpoints que este servicio todavía no sirve y que Plataforma y Frontend ya necesitan leer. Para comprobar que el código y el contrato siguen concordando:
 
 ```bash
 make openapi
 ```
+
+Genera el esquema desde el código a `build/openapi.generado.yaml`, que no se versiona, y lo compara con el contrato. Nunca escribe sobre el contrato. Falla si el código sirve una operación que el contrato no declara, o si los campos de una respuesta no concuerdan entre los dos.
 
 ### Variables de entorno
 

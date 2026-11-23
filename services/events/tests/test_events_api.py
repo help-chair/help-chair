@@ -118,6 +118,23 @@ def test_ingestion_key_is_idempotent_and_hidden(api_client):
 
 
 @pytest.mark.django_db
+def test_blank_ingestion_key_is_rejected(api_client):
+    response = api_client.post(
+        "/api/v1/events",
+        {
+            "origin": "USER",
+            "title": "Evento con clave vacía",
+            "message": "La clave de ingesta no puede estar vacía",
+            "ingestion_key": "",
+        },
+        format="json",
+    )
+
+    assert response.status_code == 422
+    assert "ingestion_key.0" in response.json()["fields"]
+
+
+@pytest.mark.django_db
 def test_validation_error_returns_422(api_client):
     response = api_client.post(
         "/api/v1/events",
@@ -207,3 +224,24 @@ def test_detail_not_found_and_priority_matrix(api_client, service):
 
     missing = api_client.get("/api/v1/events/00000000-0000-0000-0000-000000000000")
     assert missing.status_code == 404
+    assert missing.json()["code"] == "not_found"
+    assert missing.json()["detail"]
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "headers",
+    [
+        {},
+        {"HTTP_AUTHORIZATION": "Bearer token-validado-en-gateway"},
+        {"HTTP_X_API_KEY": "api-key-validada-en-gateway"},
+        {
+            "HTTP_AUTHORIZATION": "Bearer token-validado-en-gateway",
+            "HTTP_X_API_KEY": "api-key-validada-en-gateway",
+        },
+    ],
+)
+def test_internal_service_accepts_optional_gateway_credentials(api_client, headers):
+    response = api_client.get("/api/v1/events", **headers)
+
+    assert response.status_code == 200

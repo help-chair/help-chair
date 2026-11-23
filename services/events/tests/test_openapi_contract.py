@@ -79,27 +79,42 @@ def test_generated_schema_is_valid(generated_schema):
     validate(generated_schema)
 
 
+def test_generated_schema_matches_frozen_v1_contract(generated_schema, contract_schema):
+    assert generated_schema["info"]["version"] == contract_schema["info"]["version"] == "1.0.0"
+    assert generated_schema["servers"] == contract_schema["servers"]
+    assert set(generated_schema["paths"]) == set(contract_schema["paths"])
+    assert (
+        generated_schema["components"]["securitySchemes"]
+        == contract_schema["components"]["securitySchemes"]
+    )
+
+    for path in generated_schema["paths"].values():
+        for operation in path.values():
+            if isinstance(operation, dict) and "operationId" in operation:
+                assert operation["security"] == [{"bearerAuth": []}, {"apiKeyAuth": []}]
+
+
 def test_issue_paths_and_operation_ids(generated_schema, contract_schema):
     generated_paths = generated_schema["paths"]
     contract_paths = contract_schema["paths"]
 
-    for generated_path, contract_path, methods in (
-        (" /api/v1/events".strip(), "/events", {"get", "post"}),
-        (" /api/v1/events/{id}".strip(), "/events/{id}", {"get"}),
+    for path, methods in (
+        ("/events", {"get", "post"}),
+        ("/events/{id}", {"get"}),
     ):
-        assert generated_path in generated_paths
-        assert contract_path in contract_paths
+        assert path in generated_paths
+        assert path in contract_paths
         for method in methods:
-            assert method in generated_paths[generated_path]
-            assert method in contract_paths[contract_path]
+            assert method in generated_paths[path]
+            assert method in contract_paths[path]
 
-    assert generated_paths["/api/v1/events"]["get"]["operationId"] == "listEvents"
-    assert generated_paths["/api/v1/events"]["post"]["operationId"] == "registerEvent"
-    assert generated_paths["/api/v1/events/{id}"]["get"]["operationId"] == "getEvent"
+    assert generated_paths["/events"]["get"]["operationId"] == "listEvents"
+    assert generated_paths["/events"]["post"]["operationId"] == "registerEvent"
+    assert generated_paths["/events/{id}"]["get"]["operationId"] == "getEvent"
 
 
 def test_list_query_parameters(generated_schema):
-    parameters = generated_schema["paths"]["/api/v1/events"]["get"].get("parameters", [])
+    parameters = generated_schema["paths"]["/events"]["get"].get("parameters", [])
     names = {parameter["name"] for parameter in parameters if parameter["in"] == "query"}
     expected = {
         "state",
@@ -120,12 +135,37 @@ def test_list_query_parameters(generated_schema):
     assert names == expected
 
 
+def test_list_query_constraints_match_view_validation(generated_schema):
+    parameters = {
+        parameter["name"]: parameter["schema"]
+        for parameter in generated_schema["paths"]["/events"]["get"]["parameters"]
+        if parameter["in"] == "query"
+    }
+
+    assert parameters["created_from"]["format"] == "date-time"
+    assert parameters["created_to"]["format"] == "date-time"
+    assert parameters["search"]["maxLength"] == 100
+    assert parameters["limit"]["minimum"] == 1
+    assert parameters["limit"]["maximum"] == 200
+    assert parameters["offset"]["minimum"] == 0
+    assert set(parameters["ordering"]["enum"]) == {
+        "created_at",
+        "-created_at",
+        "last_seen_at",
+        "-last_seen_at",
+        "priority",
+        "-priority",
+        "resolution_due_at",
+        "-resolution_due_at",
+    }
+
+
 @pytest.mark.parametrize(
     ("path", "method", "expected_codes"),
     [
-        (" /api/v1/events".strip(), "get", {"200", "422"}),
-        (" /api/v1/events".strip(), "post", {"200", "201", "422"}),
-        (" /api/v1/events/{id}".strip(), "get", {"200", "404"}),
+        ("/events", "get", {"200", "422"}),
+        ("/events", "post", {"200", "201", "422"}),
+        ("/events/{id}", "get", {"200", "404"}),
     ],
 )
 def test_issue_response_codes(generated_schema, path, method, expected_codes):

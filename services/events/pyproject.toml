@@ -34,7 +34,7 @@ package = false
 DJANGO_SETTINGS_MODULE = "config.settings"
 python_files = ["test_*.py"]
 testpaths = ["tests"]
-addopts = "-q --cov=. --cov-report=term-missing:skip-covered"
+addopts = "-q --cov=. --cov-report=term-missing:skip-covered --cov-fail-under=60"
 filterwarnings = ["ignore:No directory at:UserWarning"]
 
 [tool.coverage.run]

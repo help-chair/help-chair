@@ -1,5 +1,5 @@
 from django.db.models import Q
-from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
+from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, OpenApiTypes, extend_schema
 from rest_framework import serializers, status
 from rest_framework.exceptions import ValidationError
 from rest_framework.generics import get_object_or_404
@@ -26,6 +26,17 @@ from .serializers import (
 )
 from .services import register_event
 
+ALLOWED_ORDERING = (
+    "created_at",
+    "-created_at",
+    "last_seen_at",
+    "-last_seen_at",
+    "priority",
+    "-priority",
+    "resolution_due_at",
+    "-resolution_due_at",
+)
+
 
 class EventLimitOffsetPagination(LimitOffsetPagination):
     default_limit = 50
@@ -48,12 +59,12 @@ class EventListCreateView(APIView):
             OpenApiParameter("service_code", str),
             OpenApiParameter("assigned_to_ref", str),
             OpenApiParameter("open", bool),
-            OpenApiParameter("created_from", str),
-            OpenApiParameter("created_to", str),
-            OpenApiParameter("search", str),
-            OpenApiParameter("ordering", str),
-            OpenApiParameter("limit", int),
-            OpenApiParameter("offset", int),
+            OpenApiParameter("created_from", OpenApiTypes.DATETIME),
+            OpenApiParameter("created_to", OpenApiTypes.DATETIME),
+            OpenApiParameter("search", {"type": "string", "maxLength": 100}),
+            OpenApiParameter("ordering", str, enum=ALLOWED_ORDERING),
+            OpenApiParameter("limit", {"type": "integer", "minimum": 1, "maximum": 200}),
+            OpenApiParameter("offset", {"type": "integer", "minimum": 0}),
         ],
     )
     def get(self, request):
@@ -124,16 +135,7 @@ class EventListCreateView(APIView):
             if offset_value < 0:
                 raise ValidationError({"offset": "Debe ser mayor o igual que cero."})
 
-        allowed_ordering = {
-            "created_at",
-            "-created_at",
-            "last_seen_at",
-            "-last_seen_at",
-            "priority",
-            "-priority",
-            "resolution_due_at",
-            "-resolution_due_at",
-        }
+        allowed_ordering = set(ALLOWED_ORDERING)
         ordering = request.query_params.get("ordering", "-created_at")
         if ordering not in allowed_ordering:
             raise ValidationError({"ordering": "Valor de ordenación no válido."})
@@ -144,7 +146,7 @@ class EventListCreateView(APIView):
 
     @extend_schema(
         operation_id="registerEvent",
-        request=EventCreateSerializer,
+        request={"application/json": EventCreateSerializer},
         responses={
             201: EventReadSerializer,
             200: EventReadSerializer,

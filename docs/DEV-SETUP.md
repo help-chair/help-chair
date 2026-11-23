@@ -10,9 +10,36 @@
 | Podman (o Docker) + `podman compose` | Imágenes y entorno local completo | Para `make build` / `make up` |
 
 ## Backend (cada carpeta de `services/<x>`)
+
+### Excepción: Problems y Knowledge
+
+Los cambios de entorno de [Problems (PR #231)](https://github.com/help-chair/help-chair/pull/231)
+y [Knowledge (PR #229)](https://github.com/help-chair/help-chair/pull/229) están
+pendientes de aprobación e integración. Esta excepción se aplica con esos cambios;
+no modifica el flujo de los demás servicios.
+
+En ambos, `make setup` solo instala dependencias: no crea, copia ni carga `.env`.
+El servicio consume el entorno real del proceso y exige PostgreSQL también en
+local y pruebas, sin fallback SQLite. `SECRET_KEY`, `DATABASE_URL` y `ALLOWED_HOSTS`
+son obligatorias; `SECRET_KEY` lo sigue siendo con DEBUG o pytest. Una variable
+obligatoria ausente o vacía, o una URL de BD inválida, impide arrancar con un error
+que identifica el nombre, sin revelar el valor. `.env.example` es solo un
+inventario de nombres con asignaciones vacías y comentarios, no una fuente de
+configuración para ejecutar.
+
+Suministrar los valores privadamente desde el entorno o un gestor de secretos;
+nunca incluirlos en Git, chat, argumentos, logs o imágenes. Consultar los README
+de [Problems](../services/problems/README.md) y
+[Knowledge](../services/knowledge/README.md) para su Compose propio y las
+instrucciones del proveedor seguro. En Linux/WSL, `--env-file /dev/null` evita la
+autocarga de `.env` por Compose. El `make up` global no acredita la adaptación de
+estas variables para ambos servicios.
+
+### Flujo genérico
+
 ```bash
 cd services/<x>
-make setup     # crea .env y el entorno virtual (con uv o, si no hay uv, con venv + pip)
+make setup     # crea .env y el entorno virtual, salvo la excepción anterior (uv o venv + pip)
 make test      # pytest con cobertura
 make lint      # ruff
 make run       # servidor en el puerto del servicio (ver tabla)

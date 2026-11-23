@@ -1,4 +1,4 @@
-"""Modelos del servicio access: departamentos, roles, usuarios y perfiles.
+"""Modelos del servicio access: departamentos, roles, usuarios, perfiles y activación.
 
 La empresa no es un modelo. Cada empresa corre su propio stack con su propia
 base de datos, así que la empresa es configuración del despliegue
@@ -9,7 +9,10 @@ Los identificadores de rol y de permiso son los mismos que declara
 que los demás equipos leen del contrato.
 """
 
+import hashlib
+import secrets
 import uuid
+from datetime import timedelta
 
 from django.contrib.auth.models import (
     AbstractBaseUser,
@@ -225,3 +228,113 @@ class Perfil(models.Model):
 
     def __str__(self) -> str:
         return f"Perfil de {self.usuario.correo}"
+
+
+class ActivationToken(models.Model):
+    """Enlace de un solo uso con el que alguien define su contraseña por primera vez.
+
+    Lo usan tanto el administrador inicial (`/internal/v1/bootstrap-admin`) como
+    los usuarios invitados. Del token solo se guarda el hash: el valor en claro
+    existe una vez, viaja por correo y no se puede recuperar desde la base.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        "core.Usuario",
+        on_delete=models.CASCADE,
+        related_name="activation_tokens",
+    )
+    token_hash = models.CharField(max_length=64, unique=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    used_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "token de activación"
+        verbose_name_plural = "tokens de activación"
+
+    def __str__(self) -> str:
+        return f"Activación de {self.user_id}"
+
+    @staticmethod
+    def hash_of(raw_token: str) -> str:
+        """SHA-256 del token.
+
+        Basta un hash rápido porque el token es aleatorio de 256 bits: no hay
+        nada que adivinar por fuerza bruta, a diferencia de una contraseña.
+        """
+        return hashlib.sha256(raw_token.encode()).hexdigest()
+
+    @classmethod
+    def issue(cls, user, horas: int) -> tuple["ActivationToken", str]:
+        """Emite un token nuevo y devuelve (registro, token en claro).
+
+        Los tokens anteriores del usuario se invalidan: si se reenvía la
+        invitación, el enlace viejo deja de servir.
+        """
+        cls.objects.filter(user=user, used_at__isnull=True).update(used_at=timezone.now())
+        raw = secrets.token_urlsafe(32)
+        registro = cls.objects.create(
+            user=user,
+            token_hash=cls.hash_of(raw),
+            expires_at=timezone.now() + timedelta(hours=horas),
+        )
+        return registro, raw
+
+    @property
+    def is_usable(self) -> bool:
+        return self.used_at is None and self.expires_at > timezone.now()
+
+    def consume(self) -> None:
+        self.used_at = timezone.now()
+        self.save(update_fields=["used_at"])
+
+
+class OutboxMessage(models.Model):
+    """Mensaje pendiente de publicar en el broker (patrón *outbox*).
+
+    El evento se guarda en la **misma transacción** que el cambio que lo
+    provocó, así nunca hay un login registrado sin su evento ni al revés. Un
+    publicador posterior lee las filas sin `published_at` y las manda al broker.
+
+    `id` es también la clave de idempotencia del sobre
+    (`contracts/messages/event-envelope.json`): si el publicador reintenta, el
+    consumidor reconoce el duplicado.
+    """
+
+    ORIGIN = "access"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    type = models.CharField(max_length=80)
+    version = models.PositiveSmallIntegerField(default=1)
+    occurred_at = models.DateTimeField()
+    payload = models.JSONField(default=dict)
+    created_at = models.DateTimeField(auto_now_add=True)
+    published_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["created_at"]
+        indexes = [models.Index(fields=["published_at", "created_at"])]
+        verbose_name = "mensaje de salida"
+        verbose_name_plural = "mensajes de salida"
+
+    def __str__(self) -> str:
+        return f"{self.type} ({self.id})"
+
+    def as_envelope(self, published_at=None) -> dict:
+        """Sobre común que espera el equipo de Eventos.
+
+        `timestamp` es cuándo se publica y `occurred_at` cuándo pasó el hecho:
+        no son lo mismo, y un mensaje que esperó en la cola los tiene distintos.
+        """
+        momento = published_at or timezone.now()
+        return {
+            "id": str(self.id),
+            "type": self.type,
+            "version": self.version,
+            "origin": self.ORIGIN,
+            "timestamp": momento.isoformat(),
+            "occurred_at": self.occurred_at.isoformat(),
+            "payload": self.payload,
+        }

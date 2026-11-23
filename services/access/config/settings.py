@@ -34,6 +34,8 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "rest_framework",
+    # Guarda los refrescos revocados: sin esto, /logout no podría revocar nada.
+    "rest_framework_simplejwt.token_blacklist",
     "drf_spectacular",
     "core",
 ]
@@ -116,10 +118,21 @@ AUTH_USER_MODEL = "core.Usuario"
 # Intentos fallidos de inicio de sesión antes de bloquear la cuenta.
 INTENTOS_ANTES_DE_BLOQUEAR = env.int("INTENTOS_ANTES_DE_BLOQUEAR", default=3)
 
+# Activación de cuentas. El enlace lleva un token de un solo uso; el servicio
+# guarda solo su hash, así que ni leyendo la base se puede reconstruir.
+ACTIVACION_VIGENCIA_HORAS = env.int("ACTIVACION_VIGENCIA_HORAS", default=72)
+LONGITUD_MINIMA_CONTRASENA = 12
+LONGITUD_MAXIMA_CONTRASENA = 128
+
+# Secreto compartido con el aprovisionador para /internal/v1/bootstrap-admin.
+# Vacío a propósito: sin token configurado el endpoint rechaza todo, en vez de
+# quedar abierto. El stack real lo inyecta como variable de entorno.
+PROVISIONER_TOKEN = env("PROVISIONER_TOKEN", default="")
+
 SPECTACULAR_SETTINGS = {
     "TITLE": "Help Chair - access",
     "DESCRIPTION": "API del servicio access (contrato en contracts/access/).",
-    "VERSION": "0.1.0",
+    "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
 }
 

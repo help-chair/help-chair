@@ -1,10 +1,5 @@
-"""Pruebas parametrizadas de las 9 reglas de destino (TDD).
-
-Especificación: docs/rules.md. Cada caso corresponde a una fila de sus tablas.
-
-El motor (``events.rules.evaluate``) aún es un esqueleto: las pruebas de reglas
-quedan ``xfail`` (strict) hasta implementarlo. Al implementarlo, quitar la marca
-``engine_pending``.
+"""
+Pruebas del motor de reglas (``events.rules.evaluate``): un caso por regla y casos de borde.
 
 Orden de evaluación asumido (la primera que coincide es la que se considera):
     4 → 2 → 7 → 8 → 5 → 6 → 3 → 1 → 9
@@ -12,168 +7,162 @@ Orden de evaluación asumido (la primera que coincide es la que se considera):
 
 import pytest
 
-from events.models.choices import Destination, EventCategory, EventOrigin, EventType
-from events.rules import Decision, EventInput, evaluate
-
-engine_pending = pytest.mark.xfail(
-    reason="Motor de reglas pendiente de implementar (TDD, issue #67)",
-    raises=NotImplementedError,
-    strict=True,
-)
+from events.rules import Category, Decision, Destination, Event, EventType, Origin, evaluate
 
 
-def make_event(origin=EventOrigin.SYSTEM, event_type=EventType.INFORMATION, **fields) -> EventInput:
+def evt(origin=Origin.SYSTEM, event_type=EventType.INFORMATIVE, **fields) -> Event:
     """Construye un evento con valores por defecto; solo se indica lo relevante."""
-    return EventInput(origin=origin, event_type=event_type, **fields)
+    return Event(origin=origin, event_type=event_type, **fields)
 
 
-CASES_BY_RULE = [
+CASOS_POR_REGLA = [
     pytest.param(
-        make_event(EventOrigin.SYSTEM, EventType.INFORMATION, action_required=False),
-        Decision(1, Destination.LOG_ONLY, EventType.INFORMATION),
-        id="rule1-system-informational-log-only",
+        evt(Origin.SYSTEM, EventType.INFORMATIVE, requires_action=False),
+        Decision(1, Destination.LOG, EventType.INFORMATIVE),
+        id="regla1-informativo-de-sistema-solo-registro",
     ),
     pytest.param(
-        make_event(EventOrigin.USER, EventType.EXCEPTION, kb_solution_author="author-1"),
-        Decision(2, Destination.SOLUTION_AUTHOR, EventType.INFORMATION),
-        id="rule2-user-with-solution-in-kb-goes-to-its-author",
+        evt(Origin.USER, EventType.EXCEPTION, kb_solution_author="autor_kb"),
+        Decision(2, Destination.SOLUTION_AUTHOR, EventType.INFORMATIVE),
+        id="regla2-usuario-con-solucion-en-kb",
     ),
     pytest.param(
-        make_event(EventOrigin.SYSTEM, EventType.WARNING, similar_event_count=1, threshold=3),
-        Decision(3, Destination.EVENTS, EventType.WARNING),
-        id="rule3-warning-below-threshold",
+        evt(Origin.SYSTEM, EventType.WARNING, repetitions=1, threshold=3),
+        Decision(3, Destination.EVENT, EventType.WARNING),
+        id="regla3-advertencia-bajo-umbral",
     ),
     pytest.param(
-        make_event(EventOrigin.SYSTEM, EventType.EXCEPTION, category=EventCategory.SECURITY),
+        evt(Origin.SYSTEM, EventType.EXCEPTION, category=Category.SECURITY),
         Decision(4, Destination.ACCESS, EventType.WARNING),
-        id="rule4-security-or-credentials",
+        id="regla4-seguridad-o-credenciales",
     ),
     pytest.param(
-        make_event(EventOrigin.USER, EventType.INFORMATION, category=EventCategory.REQUEST),
-        Decision(5, Destination.REQUESTS, EventType.INFORMATION),
-        id="rule5-standard-catalog-request",
+        evt(Origin.USER, EventType.INFORMATIVE, category=Category.CATALOG_REQUEST),
+        Decision(5, Destination.REQUEST, EventType.INFORMATIVE),
+        id="regla5-solicitud-estandar-del-catalogo",
     ),
     pytest.param(
-        make_event(EventOrigin.SYSTEM, EventType.EXCEPTION, category=EventCategory.FAILURE),
-        Decision(6, Destination.INCIDENTS, EventType.EXCEPTION),
-        id="rule6-failure-degradation-or-outage",
+        evt(Origin.SYSTEM, EventType.EXCEPTION, category=Category.FAILURE),
+        Decision(6, Destination.INCIDENT, EventType.EXCEPTION),
+        id="regla6-falla-degradacion-o-interrupcion",
     ),
     pytest.param(
-        make_event(EventOrigin.SYSTEM, EventType.WARNING, similar_event_count=3, threshold=3),
-        Decision(7, Destination.PROBLEMS, EventType.EXCEPTION),
-        id="rule7-pattern-repeated-n-times",
+        evt(Origin.SYSTEM, EventType.WARNING, repetitions=3, threshold=3),
+        Decision(7, Destination.PROBLEM, EventType.EXCEPTION),
+        id="regla7-patron-repetido-n-veces",
     ),
     pytest.param(
-        make_event(EventOrigin.USER, EventType.INFORMATION, category=EventCategory.CHANGE),
-        Decision(8, Destination.REQUESTS, EventType.INFORMATION),
-        id="rule8-requires-configuration-change",
+        evt(Origin.USER, EventType.INFORMATIVE, category=Category.CHANGE),
+        Decision(8, Destination.CHANGE, EventType.INFORMATIVE),
+        id="regla8-requiere-cambio-de-configuracion",
     ),
     pytest.param(
-        make_event(EventOrigin.SYSTEM, EventType.INFORMATION, action_required=True),
-        Decision(9, Destination.INCIDENTS, EventType.EXCEPTION),
-        id="rule9-no-rule-matches",
+        evt(Origin.SYSTEM, EventType.INFORMATIVE, requires_action=True),
+        Decision(9, Destination.MANUAL_TRIAGE, EventType.EXCEPTION),
+        id="regla9-ninguna-coincide",
     ),
 ]
 
-EDGE_CASES = [
+
+CASOS_DE_BORDE = [
     pytest.param(
-        make_event(EventOrigin.SYSTEM, EventType.WARNING, similar_event_count=2, threshold=3),
-        Decision(3, Destination.EVENTS, EventType.WARNING),
-        id="edge-warning-at-threshold-minus-1-stays-in-rule3",
+        evt(Origin.SYSTEM, EventType.WARNING, repetitions=2, threshold=3),
+        Decision(3, Destination.EVENT, EventType.WARNING),
+        id="borde-advertencia-en-umbral-menos-1-sigue-en-regla3",
     ),
     pytest.param(
-        make_event(EventOrigin.SYSTEM, EventType.WARNING, similar_event_count=3, threshold=3),
-        Decision(7, Destination.PROBLEMS, EventType.EXCEPTION),
-        id="edge-warning-exactly-at-threshold-goes-to-rule7-and-is-reclassified",
+        evt(Origin.SYSTEM, EventType.WARNING, repetitions=3, threshold=3),
+        Decision(7, Destination.PROBLEM, EventType.EXCEPTION),
+        id="borde-advertencia-justo-en-umbral-pasa-a-regla7-y-se-reclasifica",
     ),
     pytest.param(
-        make_event(
-            EventOrigin.SYSTEM,
+        evt(
+            Origin.SYSTEM,
             EventType.EXCEPTION,
-            category=EventCategory.FAILURE,
-            similar_event_count=5,
+            category=Category.FAILURE,
+            repetitions=5,
             threshold=3,
         ),
-        Decision(7, Destination.PROBLEMS, EventType.EXCEPTION),
-        id="edge-repeated-failure-goes-to-problems-not-incidents",
+        Decision(7, Destination.PROBLEM, EventType.EXCEPTION),
+        id="borde-falla-repetida-va-a-problemas-no-a-incidencias",
     ),
     pytest.param(
-        make_event(
-            EventOrigin.USER,
+        evt(
+            Origin.USER,
             EventType.EXCEPTION,
-            category=EventCategory.SECURITY,
-            kb_solution_author="author-1",
+            category=Category.SECURITY,
+            kb_solution_author="autor_kb",
         ),
         Decision(4, Destination.ACCESS, EventType.WARNING),
-        id="edge-security-with-kb-rule4-wins",
+        id="borde-seguridad-con-kb-gana-regla4",
     ),
     pytest.param(
-        make_event(
-            EventOrigin.SYSTEM,
-            EventType.EXCEPTION,
-            category=EventCategory.SECURITY,
-            similar_event_count=9,
-        ),
+        evt(Origin.SYSTEM, EventType.EXCEPTION, category=Category.SECURITY, repetitions=9),
         Decision(4, Destination.ACCESS, EventType.WARNING),
-        id="edge-repeated-security-rule4-wins",
+        id="borde-seguridad-repetida-gana-regla4",
     ),
     pytest.param(
-        make_event(
-            EventOrigin.USER,
+        evt(
+            Origin.USER,
             EventType.EXCEPTION,
-            category=EventCategory.FAILURE,
-            kb_solution_author="author-1",
+            category=Category.FAILURE,
+            kb_solution_author="autor_kb",
         ),
-        Decision(2, Destination.SOLUTION_AUTHOR, EventType.INFORMATION),
-        id="edge-user-failure-with-kb-solution-goes-to-author",
+        Decision(2, Destination.SOLUTION_AUTHOR, EventType.INFORMATIVE),
+        id="borde-falla-de-usuario-con-kb-autoservicio-primero",
     ),
     pytest.param(
-        make_event(EventOrigin.USER, EventType.INFORMATION),
-        Decision(9, Destination.INCIDENTS, EventType.EXCEPTION),
-        id="edge-user-informational-without-kb-is-not-rule1",
+        evt(Origin.USER, EventType.INFORMATIVE),
+        Decision(9, Destination.MANUAL_TRIAGE, EventType.EXCEPTION),
+        id="borde-informativo-de-usuario-sin-kb-no-es-regla1",
     ),
     pytest.param(
-        make_event(EventOrigin.SYSTEM, EventType.INFORMATION, action_required=True),
-        Decision(9, Destination.INCIDENTS, EventType.EXCEPTION),
-        id="edge-informational-requiring-action-is-not-rule1",
+        evt(Origin.SYSTEM, EventType.INFORMATIVE, requires_action=True),
+        Decision(9, Destination.MANUAL_TRIAGE, EventType.EXCEPTION),
+        id="borde-informativo-que-requiere-accion-no-es-regla1",
     ),
     pytest.param(
-        make_event(EventOrigin.USER, EventType.EXCEPTION),
-        Decision(9, Destination.INCIDENTS, EventType.EXCEPTION),
-        id="edge-no-match-manual-triage-via-incidents",
+        evt(Origin.USER, EventType.EXCEPTION),
+        Decision(9, Destination.MANUAL_TRIAGE, EventType.EXCEPTION),
+        id="borde-sin-coincidencia-triage-manual",
     ),
 ]
 
 
-@engine_pending
-@pytest.mark.parametrize("event, expected", CASES_BY_RULE)
-def test_destination_rule(event, expected):
+@pytest.mark.parametrize("event, expected", CASOS_POR_REGLA)
+def test_regla_de_destino(event, expected):
     assert evaluate(event) == expected
 
 
-@engine_pending
-@pytest.mark.parametrize("event, expected", EDGE_CASES)
-def test_edge_cases(event, expected):
+@pytest.mark.parametrize("event, expected", CASOS_DE_BORDE)
+def test_casos_de_borde(event, expected):
     assert evaluate(event) == expected
 
 
-def test_there_is_at_least_one_case_per_rule():
-    """Guardia (no xfail): las 9 reglas deben estar cubiertas por CASES_BY_RULE."""
-    covered = {p.values[1].rule for p in CASES_BY_RULE}
-    assert covered == set(range(1, 10))
+def test_hay_al_menos_un_caso_por_cada_regla():
+    """Guardia: las 9 reglas deben estar cubiertas por CASOS_POR_REGLA."""
+    cubiertas = {p.values[1].rule for p in CASOS_POR_REGLA}
+    assert cubiertas == set(range(1, 10))
 
 
-def test_assigned_type_matches_the_rules_table():
-    """Guardia (no xfail): columna Tipo de docs/rules.md, una entrada por regla."""
-    type_by_rule = {p.values[1].rule: p.values[1].event_type for p in CASES_BY_RULE}
-    assert type_by_rule == {
-        1: EventType.INFORMATION,
-        2: EventType.INFORMATION,
+def test_el_tipo_asignado_coincide_con_la_tabla_de_reglas():
+    """Guardia: columna Tipo de docs/reglas.md, una entrada por regla."""
+    tipo_por_regla = {p.values[1].rule: p.values[1].event_type for p in CASOS_POR_REGLA}
+    assert tipo_por_regla == {
+        1: EventType.INFORMATIVE,
+        2: EventType.INFORMATIVE,
         3: EventType.WARNING,
         4: EventType.WARNING,
-        5: EventType.INFORMATION,
+        5: EventType.INFORMATIVE,
         6: EventType.EXCEPTION,
         7: EventType.EXCEPTION,
-        8: EventType.INFORMATION,
+        8: EventType.INFORMATIVE,
         9: EventType.EXCEPTION,
     }
+
+
+def test_cada_destino_tiene_una_regla():
+    """Guardia: los 9 destinos del issue se alcanzan con las 9 reglas, uno por regla."""
+    destinos = {p.values[1].destination for p in CASOS_POR_REGLA}
+    assert destinos == set(Destination)
+    assert len(Destination) == 9

@@ -1,0 +1,483 @@
+openapi: 3.0.3
+info:
+  title: Help Chair - incidents
+  version: 0.1.0
+  description: 'Gestión de Incidencias (ITIL v4 · Incident Management) de Help Chair.
+    **Borrador v0**: puede cambiar durante la Fase 2 y se congela como v1 al cerrarla.
+    Pendiente para la Fase 2: autenticación con JWT de Accesos, cálculo del SLA, historial
+    de cambios y mensajes por el broker.'
+paths:
+  /api/incidents/:
+    get:
+      operationId: incidents_list
+      description: Ordenados por prioridad (P1 primero) y luego del más reciente al
+        más antiguo.
+      summary: Listar incidentes
+      parameters:
+      - in: query
+        name: assigned_to
+        schema:
+          type: string
+        description: Filtra por ID del agente asignado.
+      - name: page
+        required: false
+        in: query
+        description: Un número de página dentro del conjunto de resultados paginado.
+        schema:
+          type: integer
+      - in: query
+        name: priority
+        schema:
+          type: string
+          enum:
+          - P1
+          - P2
+          - P3
+          - P4
+        description: Filtra por prioridad.
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - asignado
+          - cancelado
+          - cerrado
+          - en_espera
+          - en_proceso
+          - nuevo
+          - reabierto
+          - rechazado
+          - resuelto
+        description: Filtra por estado.
+      tags:
+      - incidents
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedIncidentList'
+          description: ''
+    post:
+      operationId: incidents_create
+      description: El incidente nace en estado «nuevo» y su prioridad se calcula con
+        la matriz impacto × urgencia.
+      summary: Registrar un incidente
+      tags:
+      - incidents
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Incident'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Incident'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Incident'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Incident'
+          description: ''
+  /api/incidents/{id}/:
+    get:
+      operationId: incidents_retrieve
+      description: 'Incidentes (ITIL v4 · Incident Management). v0: sin autenticación
+        (llega en la Fase 3).'
+      summary: Ver un incidente
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: Un valor de entero único que identifique este incidente.
+        required: true
+      tags:
+      - incidents
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Incident'
+          description: ''
+    patch:
+      operationId: incidents_partial_update
+      description: Sirve para asignar, cambiar impacto o urgencia (la prioridad se
+        recalcula) o cambiar de estado siguiendo las transiciones permitidas.
+      summary: Actualizar parcialmente un incidente
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: Un valor de entero único que identifique este incidente.
+        required: true
+      tags:
+      - incidents
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedIncident'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedIncident'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedIncident'
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Incident'
+          description: ''
+components:
+  schemas:
+    ImpactEnum:
+      enum:
+      - alto
+      - medio
+      - bajo
+      type: string
+      description: |-
+        * `alto` - Alto
+        * `medio` - Medio
+        * `bajo` - Bajo
+    Incident:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        code:
+          type: string
+          readOnly: true
+          description: Identificador legible del incidente, p. ej. INC-000042.
+        title:
+          type: string
+          title: Título
+          maxLength: 200
+        description:
+          type: string
+          title: Descripción
+        impact:
+          allOf:
+          - $ref: '#/components/schemas/ImpactEnum'
+          title: Impacto
+        urgency:
+          allOf:
+          - $ref: '#/components/schemas/UrgencyEnum'
+          title: Urgencia
+        priority:
+          allOf:
+          - $ref: '#/components/schemas/PriorityEnum'
+          readOnly: true
+          title: Prioridad
+          description: |-
+            Se calcula sola con la matriz impacto × urgencia.
+
+            * `P1` - P1 - Crítica
+            * `P2` - P2 - Alta
+            * `P3` - P3 - Media
+            * `P4` - P4 - Baja
+        status:
+          allOf:
+          - $ref: '#/components/schemas/StatusEnum'
+          title: Estado
+          description: |-
+            Estado ITIL. Al crear siempre es «nuevo»; después solo puede cambiar siguiendo las transiciones permitidas.
+
+            * `nuevo` - Nuevo
+            * `asignado` - Asignado
+            * `en_proceso` - En proceso
+            * `en_espera` - En espera
+            * `resuelto` - Resuelto
+            * `cerrado` - Cerrado
+            * `rechazado` - Rechazado
+            * `cancelado` - Cancelado
+            * `reabierto` - Reabierto
+        affected_service:
+          type: string
+          title: Servicio afectado
+          description: ID del servicio del catálogo (Eventos).
+          maxLength: 100
+        reported_by:
+          type: string
+          title: Reportado por
+          description: ID del usuario que reporta (Accesos).
+          maxLength: 64
+        assigned_to:
+          type: string
+          title: Asignado a
+          description: ID del agente asignado (Accesos). Vacío = sin asignar.
+          maxLength: 64
+        assignment_group:
+          type: string
+          title: Grupo
+          description: Grupo o departamento resolutor (Accesos).
+          maxLength: 100
+        source_event_id:
+          type: string
+          title: Evento de origen
+          description: ID del evento que originó el incidente (Eventos).
+          maxLength: 64
+        problem_id:
+          type: string
+          title: Problema relacionado
+          description: ID del problema asociado (Problemas).
+          maxLength: 64
+        sla_due_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+          title: Vence SLA
+          description: Fecha objetivo de resolución. Se calculará con el SLA de Eventos
+            (Fase 2).
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Creado
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Actualizado
+        resolved_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+          title: Resuelto
+        closed_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+          title: Cerrado
+      required:
+      - closed_at
+      - code
+      - created_at
+      - id
+      - impact
+      - priority
+      - reported_by
+      - resolved_at
+      - sla_due_at
+      - title
+      - updated_at
+      - urgency
+    PaginatedIncidentList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Incident'
+    PatchedIncident:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        code:
+          type: string
+          readOnly: true
+          description: Identificador legible del incidente, p. ej. INC-000042.
+        title:
+          type: string
+          title: Título
+          maxLength: 200
+        description:
+          type: string
+          title: Descripción
+        impact:
+          allOf:
+          - $ref: '#/components/schemas/ImpactEnum'
+          title: Impacto
+        urgency:
+          allOf:
+          - $ref: '#/components/schemas/UrgencyEnum'
+          title: Urgencia
+        priority:
+          allOf:
+          - $ref: '#/components/schemas/PriorityEnum'
+          readOnly: true
+          title: Prioridad
+          description: |-
+            Se calcula sola con la matriz impacto × urgencia.
+
+            * `P1` - P1 - Crítica
+            * `P2` - P2 - Alta
+            * `P3` - P3 - Media
+            * `P4` - P4 - Baja
+        status:
+          allOf:
+          - $ref: '#/components/schemas/StatusEnum'
+          title: Estado
+          description: |-
+            Estado ITIL. Al crear siempre es «nuevo»; después solo puede cambiar siguiendo las transiciones permitidas.
+
+            * `nuevo` - Nuevo
+            * `asignado` - Asignado
+            * `en_proceso` - En proceso
+            * `en_espera` - En espera
+            * `resuelto` - Resuelto
+            * `cerrado` - Cerrado
+            * `rechazado` - Rechazado
+            * `cancelado` - Cancelado
+            * `reabierto` - Reabierto
+        affected_service:
+          type: string
+          title: Servicio afectado
+          description: ID del servicio del catálogo (Eventos).
+          maxLength: 100
+        reported_by:
+          type: string
+          title: Reportado por
+          description: ID del usuario que reporta (Accesos).
+          maxLength: 64
+        assigned_to:
+          type: string
+          title: Asignado a
+          description: ID del agente asignado (Accesos). Vacío = sin asignar.
+          maxLength: 64
+        assignment_group:
+          type: string
+          title: Grupo
+          description: Grupo o departamento resolutor (Accesos).
+          maxLength: 100
+        source_event_id:
+          type: string
+          title: Evento de origen
+          description: ID del evento que originó el incidente (Eventos).
+          maxLength: 64
+        problem_id:
+          type: string
+          title: Problema relacionado
+          description: ID del problema asociado (Problemas).
+          maxLength: 64
+        sla_due_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+          title: Vence SLA
+          description: Fecha objetivo de resolución. Se calculará con el SLA de Eventos
+            (Fase 2).
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Creado
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Actualizado
+        resolved_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+          title: Resuelto
+        closed_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+          title: Cerrado
+    PriorityEnum:
+      enum:
+      - P1
+      - P2
+      - P3
+      - P4
+      type: string
+      description: |-
+        * `P1` - P1 - Crítica
+        * `P2` - P2 - Alta
+        * `P3` - P3 - Media
+        * `P4` - P4 - Baja
+    StatusEnum:
+      enum:
+      - nuevo
+      - asignado
+      - en_proceso
+      - en_espera
+      - resuelto
+      - cerrado
+      - rechazado
+      - cancelado
+      - reabierto
+      type: string
+      description: |-
+        * `nuevo` - Nuevo
+        * `asignado` - Asignado
+        * `en_proceso` - En proceso
+        * `en_espera` - En espera
+        * `resuelto` - Resuelto
+        * `cerrado` - Cerrado
+        * `rechazado` - Rechazado
+        * `cancelado` - Cancelado
+        * `reabierto` - Reabierto
+    UrgencyEnum:
+      enum:
+      - alta
+      - media
+      - baja
+      type: string
+      description: |-
+        * `alta` - Alta
+        * `media` - Media
+        * `baja` - Baja
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: sessionid

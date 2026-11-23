@@ -90,8 +90,9 @@ todavía una máquina de transiciones, revisión, historial editorial o CRUD RES
 Fuentes fijadas: [modelos 4f8573d](https://github.com/help-chair/help-chair/blob/4f8573d442de3c01a4f866d5468f3f4ac6e2d4ec/services/knowledge/articles/models.py),
 [migración 4f8573d](https://github.com/help-chair/help-chair/blob/4f8573d442de3c01a4f866d5468f3f4ac6e2d4ec/services/knowledge/articles/migrations/0001_initial.py)
 y [OpenAPI 8666c03, PR #230](https://github.com/help-chair/help-chair/blob/8666c03416c7862e470efaf5c7a273ec32c30087/contracts/knowledge/openapi.yaml).
-El contrato está en una rama independiente; enlazarlo no lo integra en esta rama
-ni significa que consumidores/CODEOWNERS hayan aprobado sus propuestas.
+El contrato ya está integrado por #230 en develop. Los enlaces fijados
+conservan la fuente del contraste; integración no equivale a implementación
+de su API ni a aceptación de cada decisión por todos los consumidores.
 
 | Modelo o garantía | Correspondencia en OpenAPI v0 | Límite del contraste |
 |---|---|---|
@@ -155,7 +156,7 @@ El readiness actual solo ejecuta SELECT 1: no demuestra migraciones aplicadas.
 ## Dependencias y alcance pendiente
 
 El contrato previsto `contracts/knowledge/openapi.yaml` se entrega en el incremento
-separado #134/#112; este cambio de cimientos no lo incluye. Esta tabla es un mapping
+separado #134/#112 y ya está integrado por #230 en develop. Esta tabla es un mapping
 propuesto, no una correspondencia aprobada: deben confirmarse tipos, nulabilidad,
 rutas, operaciones, errores y permisos con consumidores.
 Los mocks frontend son provisionales: `KB-028`, `publico/agentes`, arrays de
@@ -170,5 +171,6 @@ pero KB todavía no implementa validación JWT/empresa ni permisos editoriales.
 Este incremento del esquema aporta sus propias pruebas y documentación.
 CRUD/publicación/búsqueda corresponden a fase II; uso/feedback a fase III.
 Revisión avanzada, snapshots completos, adjuntos y aprobaciones multinivel no
-pertenecen a esta migración. No cerrar #109 por disponer solo de esta rama:
-faltan revisión del equipo/contrato y el flujo de publicación autorizado.
+pertenecen a esta migración. Los modelos de #228 ya están integrados; esta resolución conserva sus blobs.
+El cierre y los acuerdos de consumidores se comprueban por su flujo propio,
+sin atribuirlos automáticamente a la integración técnica.

@@ -12,13 +12,20 @@ El [esquema y sus límites](docs/article-schema.md) incluyen migración y admin.
 La [matriz de evidencia y conciliación](docs/foundations-evidence.md) distingue
 pruebas locales, cobertura KB de #111/#135/#136 y revisiones pendientes.
 El [contrato v0 propuesto de #230](https://github.com/help-chair/help-chair/blob/8666c03416c7862e470efaf5c7a273ec32c30087/contracts/knowledge/openapi.yaml)
-está en otra rama; sus operaciones de negocio no están implementadas.
+ya está integrado en develop por #230; sus operaciones de negocio siguen sin implementarse.
 Las referencias de Accesos son externas; no se consultan otras bases de datos.
 El CRUD REST, búsqueda y permisos de negocio corresponden a incrementos posteriores.
+Clientes previstos: Eventos, Incidencias, Problemas y Service Desk. KB no
+registra problemas o errores conocidos ni decide la aplicabilidad de una
+solución. Accesos emite identidades; la API futura deberá validar su contexto.
 Contrato: `contracts/knowledge/`; la exportación de las rutas actuales no sustituye
 el diseño v0 revisado en #112/#134. `make openapi` exige OPENAPI_OUTPUT con una ruta
 explícita fuera de `contracts/`; rechaza el destino canónico. El resultado describe
 solo el runtime y se mantiene separado del contrato de negocio previsto.
+
+Rutas actuales: GET `/health/live`, `/health/ready`, `/api/schema/` y
+`/api/docs/`. El esquema generado documenta el runtime, no implementa el
+contrato previsto de artículos/búsqueda.
 
 ### Configuración del proceso
 
@@ -70,7 +77,9 @@ make migrate
 make run
 ```
 
-`setup` usa el lock existente; no configura secretos. La segunda migración no debe
+`setup` usa el lock existente; no configura secretos. Sin uv, puede activarse
+el entorno virtual creado por setup antes de usar las herramientas; esta
+verificación se ejecutó en WSL, no se atribuye una prueba nueva en macOS. La segunda migración no debe
 tener operaciones pendientes. `run` también migra antes de servir en desarrollo.
 Para cambiar su puerto usar la variable Make `PORT`; el archivo `.env` no configura
 Make. El admin requiere un usuario staff de ensayo creado interactivamente; su PK
@@ -155,7 +164,7 @@ DSN completos para diagnosticar errores. SIGTERM permite terminar peticiones;
 reservar al motor un tiempo superior al graceful-timeout. Tras reiniciar API/BD
 conservar el volumen y verificar IDs/recuentos; no usar `down -v` o flush.
 
-La integración del esquema depende del PR #228. Build/ejecución local no acreditan
+El esquema del PR #228 y el contrato del PR #230 ya están integrados en develop. Build/ejecución local no acreditan
 publicación de imagen, despliegue, pipeline o revisión de consumidores.
 Seguir [CONTRIBUTING](../../CONTRIBUTING.md) y CODEOWNERS para la entrega.
 
@@ -169,13 +178,20 @@ The [schema and limitations](docs/article-schema.md) cover migration and admin.
 The [evidence and reconciliation](docs/foundations-evidence.md) separates local
 verification, the Knowledge portion of #111/#135/#136 and pending reviews.
 The [proposed contract in #230](https://github.com/help-chair/help-chair/blob/8666c03416c7862e470efaf5c7a273ec32c30087/contracts/knowledge/openapi.yaml)
-lives on a separate branch; its business operations are not implemented.
+is integrated in develop through #230; its business operations remain unimplemented.
 Access identities remain external references; no other service database is read.
 REST CRUD, search and business authorization belong to subsequent increments.
+Planned clients are Events, Incidents, Problems and Service Desk. KB does not
+record problems/known errors or decide applicability. Access issues identities;
+the future business API must validate their context.
 The reviewed v0 contract belongs in `contracts/knowledge/` through #112/#134;
 exporting the currently implemented routes does not replace it. `make openapi`
 requires an explicit OPENAPI_OUTPUT path outside `contracts/` and rejects contract
 overwrites. Its result describes only the runtime, separately from business design.
+
+Current GET routes: `/health/live`, `/health/ready`, `/api/schema/` and
+`/api/docs/`. The generated schema describes runtime routes, not an
+implementation of the planned article/search contract.
 
 ### Process configuration
 
@@ -224,7 +240,9 @@ make migrate
 make run
 ```
 
-Setup uses the existing lock without configuring secrets. The second migration
+Setup uses the existing lock without configuring secrets. Without uv, activate
+the virtualenv created by setup before invoking its tools if needed. This
+verification was run on WSL, not a new macOS validation. The second migration
 must have no pending operations. Development `run` also migrates before serving;
 change its port with the Make variable PORT, not an `.env` entry. Create any local
 test staff user interactively; its PK is not the external article author identity.
@@ -279,6 +297,6 @@ diagnosis. SIGTERM permits in-flight work to finish; allow more time in the engi
 than graceful-timeout. Verify IDs/counts after restart while retaining the volume;
 do not use `down -v` or flush.
 
-The schema depends on PR #228. Local build/run does not prove image publication,
+The schema from PR #228 and contract from PR #230 are integrated in develop. Local build/run does not prove image publication,
 deployment, pipeline execution or consumer approval. Follow
 [CONTRIBUTING (Spanish, primary)](../../CONTRIBUTING.md) and CODEOWNERS for delivery.

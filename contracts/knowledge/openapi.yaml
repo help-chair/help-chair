@@ -1,0 +1,612 @@
+openapi: 3.0.3
+info:
+  title: Help Chair - Base de Conocimiento
+  version: 0.1.0
+  description: |
+    Borrador único #112/#134. Convenciones propuestas, pendientes de revisión
+    de consumidores y CODEOWNERS; no son acuerdos aprobados ni certificación ITIL.
+    El modelo de referencia está en PR #228, commit 4f8573d, aún sin integrar.
+    Las operaciones de negocio son previstas: no hay CRUD, búsqueda ni JWT de KB
+    implementados por este contrato. Las rutas health existen en el código.
+    El prefijo /api/knowledge/v1 se propone para el proxy de Frontend/Plataforma.
+    La categoría pertenece a KB, no al catálogo/clasificación de Eventos.
+    Referencias externas por ID, sin FK entre servicios. Estado y audiencia son
+    independientes; empresa significa usuarios autenticados del stack, no internet.
+    El autor y las fechas los gestiona el servidor. No se aceptan credenciales,
+    empresa, autor o fechas en los cuerpos de creación/edición.
+servers:
+  - url: http://localhost:8006
+    description: Origen local; paths contiene los prefijos completos.
+security:
+  - bearerAuth: []
+x-contract-status: propuesta-pendiente-revision
+x-model-reference: https://github.com/help-chair/help-chair/pull/228
+x-model-commit: 4f8573d442de3c01a4f866d5468f3f4ac6e2d4ec
+x-open-decisions:
+  - Prefijo, paginación, errores y política editorial pendientes de consumidores.
+  - Permisos de KB e identidad delegada entre servicios pendientes de Accesos.
+  - Aplicabilidad, selección de soluciones y timeout pendientes de Eventos.
+tags:
+  - name: articulos
+    description: Operaciones previstas; búsqueda textual futura sobre título/contenido.
+  - name: soluciones
+    description: Candidatos para Eventos; no demuestra solución aplicable o fácil.
+  - name: salud
+    description: Rutas existentes; no acredita una ejecución ni migraciones aplicadas.
+paths:
+  /api/knowledge/v1/articulos/:
+    get:
+      tags: [articulos]
+      operationId: listarArticulos
+      summary: Listar y buscar artículos accesibles
+      x-implementation-status: prevista
+      description: |
+        q busca en título y contenido; categoría usa código local. Con q omitido
+        lista; con q presente exige al menos un carácter no blanco. No promete
+        ranking, stemming o matching implementados. Orden propuesto sin q:
+        actualizado_en descendente, id ascendente; con q relevancia y desempate
+        por id, algoritmo pendiente. Usuario final solo ve publicados/empresa.
+        Soporte autorizado puede solicitar otros estados y audiencia soporte;
+        ningún filtro amplía permisos. Categoría desconocida produce lista vacía.
+        Sin coincidencias: 200 con results vacío. Página fuera de rango: 404,
+        salvo primera página vacía. Nunca convertir indisponibilidad en vacío.
+      parameters:
+        - $ref: '#/components/parameters/Texto'
+        - $ref: '#/components/parameters/Categoria'
+        - $ref: '#/components/parameters/Estado'
+        - $ref: '#/components/parameters/Pagina'
+        - $ref: '#/components/parameters/TamanoPagina'
+      responses:
+        '200':
+          description: Página filtrada por autorización.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaginaArticulos' }
+              examples:
+                empresa: { $ref: '#/components/examples/ListaEmpresa' }
+                vacia: { $ref: '#/components/examples/ListaVacia' }
+        '400': { $ref: '#/components/responses/Invalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/NoPermitido' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '503': { $ref: '#/components/responses/NoDisponible' }
+    post:
+      tags: [articulos]
+      operationId: crearArticulo
+      summary: Crear un borrador
+      x-implementation-status: prevista
+      description: |
+        Requiere autorización editorial pendiente de acuerdo con Accesos.
+        Un cuerpo vacío crea un borrador incompleto; estado inicial borrador,
+        audiencia inicial soporte. El servidor genera UUID/fechas y toma autor_id
+        del sub validado, nunca del cuerpo. No publica ni verifica autor por BD ajena.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ArticuloCrear' }
+            examples:
+              incompleto: { value: {} }
+              contenido:
+                value:
+                  titulo: Ejemplo de consulta para la empresa
+                  contenido: Datos sintéticos para revisar el contrato.
+                  categoria: red
+                  visibilidad: empresa
+      responses:
+        '201':
+          description: Borrador creado; aún no disponible en consultas de soluciones.
+          headers:
+            Location:
+              description: Ruta relativa del nuevo recurso.
+              schema: { type: string }
+              example: /api/knowledge/v1/articulos/10900000-0000-4000-8000-000000000001/
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ArticuloBorrador' }
+              examples:
+                creado: { $ref: '#/components/examples/Creado' }
+        '400': { $ref: '#/components/responses/Invalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/NoPermitido' }
+        '503': { $ref: '#/components/responses/NoDisponible' }
+  /api/knowledge/v1/articulos/{id}/:
+    parameters:
+      - $ref: '#/components/parameters/ArticuloId'
+    get:
+      tags: [articulos]
+      operationId: consultarArticulo
+      summary: Consultar un artículo por UUID
+      x-implementation-status: prevista
+      description: |
+        UUID canónico, no alias KB-028. Se propone 404 tanto para inexistente como
+        para recurso fuera de la audiencia autorizada, sin revelar su existencia.
+        Borradores/archivados solo para soporte autorizado; las referencias
+        conservan su identidad al archivar. El vínculo de Problemas es externo.
+      responses:
+        '200':
+          description: Artículo autorizado; ejemplos sintéticos de la fixture canónica.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Articulo' }
+              examples:
+                empresa: { $ref: '#/components/examples/PublicadoEmpresa' }
+                soporte: { $ref: '#/components/examples/PublicadoSoporte' }
+                borrador: { $ref: '#/components/examples/Borrador' }
+                archivado: { $ref: '#/components/examples/Archivado' }
+        '400': { $ref: '#/components/responses/Invalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '503': { $ref: '#/components/responses/NoDisponible' }
+    patch:
+      tags: [articulos]
+      operationId: actualizarArticulo
+      summary: Editar campos de un borrador
+      x-implementation-status: prevista
+      description: |
+        Propuesta conservadora: solo borrador y editor autorizado. Un campo
+        omitido se conserva; null solo elimina la categoría. Cuerpo vacío inválido.
+        Autor, identidad, estado y fechas son inmutables por esta operación.
+        Publicar/retirar/archivar y su máquina de estados requieren un acuerdo
+        editorial posterior; no se implementan ni se simulan con PATCH.
+        Editar un publicado/archivado devuelve 409. Sin control de versión
+        implementado, no se promete protección frente a actualizaciones perdidas.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ArticuloActualizar' }
+            examples:
+              titulo: { value: { titulo: Borrador de demostración } }
+              sinCategoria: { value: { categoria: null } }
+      responses:
+        '200':
+          description: Borrador actualizado; el servidor actualiza actualizado_en.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ArticuloBorrador' }
+              examples:
+                editado: { $ref: '#/components/examples/Editado' }
+        '400': { $ref: '#/components/responses/Invalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/NoPermitido' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409': { $ref: '#/components/responses/Conflicto' }
+        '503': { $ref: '#/components/responses/NoDisponible' }
+  /api/knowledge/v1/soluciones/:
+    get:
+      tags: [soluciones]
+      operationId: consultarSoluciones
+      summary: Consultar candidatos para la auto-respuesta de Eventos
+      x-implementation-status: prevista
+      description: |
+        q es obligatorio. Devuelve candidatos publicados que el usuario final
+        está autorizado a consultar. Una llamada de servicio no amplía audiencia.
+        Sin coincidencias: 200 con results vacío; caída de KB: error/timeout,
+        nunca éxito vacío. Se propone que Eventos continúe su flujo si KB falla;
+        timeout y política de reintentos se acuerdan con su equipo.
+        No afirma coincidencia confirmada, dificultad fácil ni aptitud automática.
+        El modelo no contiene servicio, síntomas estructurados, dificultad,
+        versión formal ni departamento. No se aceptan filtros por esos campos.
+        Eventos debe acordar selección/aplicabilidad antes de auto-responder.
+        id/titulo/autor_id se adaptan a article_ref/article_title/author_ref;
+        article_version/department_ref se omiten, no se inventan ni derivan.
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { $ref: '#/components/schemas/TextoConsulta' }
+        - $ref: '#/components/parameters/Categoria'
+        - $ref: '#/components/parameters/Pagina'
+        - $ref: '#/components/parameters/TamanoPagina'
+      responses:
+        '200':
+          description: Candidatos accesibles; no una decisión del motor de Eventos.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaginaSoluciones' }
+              examples:
+                candidatos: { $ref: '#/components/examples/Candidatos' }
+                vacia: { $ref: '#/components/examples/ListaVacia' }
+        '400': { $ref: '#/components/responses/Invalida' }
+        '401': { $ref: '#/components/responses/NoAutenticado' }
+        '403': { $ref: '#/components/responses/NoPermitido' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '503': { $ref: '#/components/responses/NoDisponible' }
+  /health/live:
+    get:
+      tags: [salud]
+      operationId: saludProceso
+      summary: Comprobar respuesta del proceso
+      x-implementation-status: existente-en-codigo
+      security: []
+      responses:
+        '200':
+          description: El proceso responde; no comprueba la BD.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [status]
+                properties:
+                  status: { type: string, enum: [ok] }
+              example: { status: ok }
+  /health/ready:
+    get:
+      tags: [salud]
+      operationId: saludBaseDatos
+      summary: Comprobar conexión a la BD propia
+      x-implementation-status: existente-en-codigo
+      security: []
+      description: SELECT 1; no demuestra migraciones ni API de negocio operativa.
+      responses:
+        '200':
+          description: Conexión a BD disponible.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [status, database]
+                properties:
+                  status: { type: string, enum: [ok] }
+                  database: { type: string, enum: [up] }
+              example: { status: ok, database: up }
+        '503':
+          description: BD no disponible; respuesta real distinta del error de negocio.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [status, database]
+                properties:
+                  status: { type: string, enum: [unavailable] }
+                  database: { type: string, enum: [down] }
+              example: { status: unavailable, database: down }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Token de Accesos, sin valores de ejemplo. Claims documentados por Accesos:
+        sub (UUID), empresa, rol, permisos, iat, exp, iss. Verificar firma,
+        expiración, emisor y empresa del stack; política exacta y principal
+        delegado pendientes. Accesos v0 declara HS256; RS256/JWKS es posterior,
+        no se afirma operativo. KB no emite tokens ni incorpora secretos.
+        Los permisos KB no figuran aún en el enum de Accesos: no inventar scopes.
+  parameters:
+    ArticuloId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    Texto:
+      name: q
+      in: query
+      schema: { $ref: '#/components/schemas/TextoConsulta' }
+    Categoria:
+      name: categoria
+      in: query
+      description: Código local de KB; no un ID de categoría de Eventos.
+      schema: { $ref: '#/components/schemas/CodigoCategoria' }
+    Estado:
+      name: estado
+      in: query
+      description: Otros estados solo para soporte autorizado; sin ampliar audiencia.
+      schema: { type: string, enum: [borrador, publicado, archivado] }
+    Pagina:
+      name: page
+      in: query
+      schema: { type: integer, minimum: 1, default: 1 }
+    TamanoPagina:
+      name: page_size
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+  schemas:
+    TextoConsulta:
+      type: string
+      minLength: 1
+      maxLength: 200
+      pattern: '\S'
+      description: Límite de consulta propuesto, no límite del contenido del artículo.
+    CodigoCategoria:
+      type: string
+      maxLength: 50
+      pattern: '^[a-z][a-z0-9_]{0,49}(?![\s\S])'
+      description: Código dinámico local, no enum. El final absoluto rechaza saltos finales.
+    ArticuloCrear:
+      type: object
+      additionalProperties: false
+      description: Borrador incompleto permitido; no permite autor, estado, empresa o fechas.
+      properties:
+        titulo: { type: string, maxLength: 200, default: '' }
+        contenido: { type: string, default: '', description: Markdown canónico. }
+        categoria:
+          type: string
+          nullable: true
+          maxLength: 50
+          pattern: '^[a-z][a-z0-9_]{0,49}(?![\s\S])'
+          default: null
+        visibilidad: { type: string, enum: [empresa, soporte], default: soporte }
+    ArticuloActualizar:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      description: Edición parcial propuesta; solo categoria admite null.
+      properties:
+        titulo: { type: string, maxLength: 200 }
+        contenido: { type: string, description: Markdown canónico. }
+        categoria:
+          type: string
+          nullable: true
+          maxLength: 50
+          pattern: '^[a-z][a-z0-9_]{0,49}(?![\s\S])'
+        visibilidad: { type: string, enum: [empresa, soporte] }
+    ArticuloBase:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - titulo
+        - contenido
+        - categoria
+        - estado
+        - visibilidad
+        - autor_id
+        - creado_en
+        - actualizado_en
+        - publicado_en
+        - archivado_en
+      description: |
+        Lectura completa. Fechas UTC ISO 8601. El orden entre fechas y categoría
+        activa se verifica en reglas/modelo, no solo con formatos del esquema.
+      properties:
+        id: { type: string, format: uuid, readOnly: true }
+        titulo: { type: string, maxLength: 200 }
+        contenido: { type: string, description: 'Markdown, sin arrays de pasos duplicados.' }
+        categoria:
+          type: string
+          nullable: true
+          maxLength: 50
+          pattern: '^[a-z][a-z0-9_]{0,49}(?![\s\S])'
+        estado: { type: string, enum: [borrador, publicado, archivado], readOnly: true }
+        visibilidad: { type: string, enum: [empresa, soporte] }
+        autor_id: { type: string, format: uuid, nullable: true, readOnly: true }
+        creado_en: { type: string, format: date-time, readOnly: true }
+        actualizado_en: { type: string, format: date-time, readOnly: true }
+        publicado_en: { type: string, format: date-time, nullable: true, readOnly: true }
+        archivado_en: { type: string, format: date-time, nullable: true, readOnly: true }
+    ArticuloBorrador:
+      allOf:
+        - $ref: '#/components/schemas/ArticuloBase'
+        - type: object
+          properties:
+            estado: { type: string, enum: [borrador] }
+            archivado_en: { type: string, nullable: true, enum: [null] }
+    ArticuloPublicado:
+      allOf:
+        - $ref: '#/components/schemas/ArticuloBase'
+        - type: object
+          properties:
+            estado: { type: string, enum: [publicado] }
+            titulo: { type: string, pattern: '\S' }
+            contenido: { type: string, pattern: '\S' }
+            categoria: { $ref: '#/components/schemas/CodigoCategoria' }
+            autor_id: { type: string, format: uuid }
+            publicado_en: { type: string, format: date-time }
+            archivado_en: { type: string, nullable: true, enum: [null] }
+    ArticuloArchivado:
+      allOf:
+        - $ref: '#/components/schemas/ArticuloBase'
+        - type: object
+          properties:
+            estado: { type: string, enum: [archivado] }
+            archivado_en: { type: string, format: date-time }
+    Articulo:
+      oneOf:
+        - $ref: '#/components/schemas/ArticuloBorrador'
+        - $ref: '#/components/schemas/ArticuloPublicado'
+        - $ref: '#/components/schemas/ArticuloArchivado'
+    PaginaArticulos:
+      type: object
+      additionalProperties: false
+      required: [count, next, previous, results]
+      properties:
+        count: { type: integer, minimum: 0 }
+        next: { type: string, format: uri, nullable: true }
+        previous: { type: string, format: uri, nullable: true }
+        results:
+          type: array
+          maxItems: 100
+          items: { $ref: '#/components/schemas/Articulo' }
+    PaginaSoluciones:
+      type: object
+      additionalProperties: false
+      required: [count, next, previous, results]
+      description: Solo candidatos publicados; no contiene un booleano de coincidencia confirmada.
+      properties:
+        count: { type: integer, minimum: 0 }
+        next: { type: string, format: uri, nullable: true }
+        previous: { type: string, format: uri, nullable: true }
+        results:
+          type: array
+          maxItems: 100
+          items: { $ref: '#/components/schemas/ArticuloPublicado' }
+    Error:
+      type: object
+      additionalProperties: false
+      required: [codigo, detalle]
+      properties:
+        codigo: { type: string }
+        detalle: { type: string }
+        campos:
+          type: object
+          additionalProperties: { type: string }
+      description: No incluye DSN, tokens, cabeceras, excepciones internas o secretos.
+  responses:
+    Invalida:
+      description: Formato/campo/filtro inválido; no se ignoran campos desconocidos del cuerpo.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { codigo: datos_invalidos, detalle: Revisa los campos., campos: { titulo: Máximo 200 caracteres. } }
+    NoAutenticado:
+      description: Credencial ausente, inválida o expirada.
+      headers:
+        WWW-Authenticate:
+          schema: { type: string }
+          example: Bearer
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { codigo: no_autenticado, detalle: Se requiere autenticación válida. }
+    NoPermitido:
+      description: Identidad válida sin autorización para esta operación o filtro.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { codigo: no_permitido, detalle: Operación no permitida. }
+    NoEncontrado:
+      description: Recurso/página inexistente o artículo no accesible al principal.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { codigo: no_encontrado, detalle: Recurso no encontrado. }
+    Conflicto:
+      description: El artículo no está en estado borrador editable.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { codigo: estado_no_editable, detalle: El artículo no es un borrador editable. }
+    NoDisponible:
+      description: Negocio temporalmente no disponible; no representar como resultados vacíos.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { codigo: servicio_no_disponible, detalle: Servicio temporalmente no disponible. }
+  examples:
+    Borrador:
+      summary: Fixture sintética canónica del PR #228; borrador incompleto.
+      value:
+        id: 10900000-0000-4000-8000-000000000001
+        titulo: ''
+        contenido: ''
+        categoria: null
+        estado: borrador
+        visibilidad: soporte
+        autor_id: null
+        creado_en: '2026-11-21T12:00:00Z'
+        actualizado_en: '2026-11-21T13:00:00Z'
+        publicado_en: null
+        archivado_en: null
+    PublicadoEmpresa:
+      summary: Fixture sintética; no instrucciones operativas ni identidad real.
+      value:
+        id: 10900000-0000-4000-8000-000000000002
+        titulo: Ejemplo de consulta para la empresa
+        contenido: "# Datos ficticios\n\nEjemplo para verificar el esquema; no son instrucciones operativas."
+        categoria: red
+        estado: publicado
+        visibilidad: empresa
+        autor_id: 00000000-0000-4000-8000-000000000109
+        creado_en: '2026-11-21T12:00:00Z'
+        actualizado_en: '2026-11-21T13:00:00Z'
+        publicado_en: '2026-11-21T12:30:00Z'
+        archivado_en: null
+    PublicadoSoporte:
+      summary: Fixture sintética; requiere contexto de soporte autorizado.
+      value:
+        id: 10900000-0000-4000-8000-000000000003
+        titulo: Ejemplo reservado a soporte
+        contenido: Datos ficticios para demostrar audiencia separada del estado.
+        categoria: software
+        estado: publicado
+        visibilidad: soporte
+        autor_id: 00000000-0000-4000-8000-000000000109
+        creado_en: '2026-11-21T12:00:00Z'
+        actualizado_en: '2026-11-21T13:00:00Z'
+        publicado_en: '2026-11-21T12:30:00Z'
+        archivado_en: null
+    Archivado:
+      summary: Fixture sintética; conserva referencia y última publicación.
+      value:
+        id: 10900000-0000-4000-8000-000000000004
+        titulo: Ejemplo archivado
+        contenido: Contenido ficticio conservado para mantener su referencia.
+        categoria: software
+        estado: archivado
+        visibilidad: soporte
+        autor_id: 00000000-0000-4000-8000-000000000109
+        creado_en: '2026-11-21T12:00:00Z'
+        actualizado_en: '2026-11-21T13:00:00Z'
+        publicado_en: '2026-11-21T12:30:00Z'
+        archivado_en: '2026-11-21T13:00:00Z'
+    Creado:
+      summary: Proyección de alta API; autor sintético representando sub validado.
+      value:
+        id: 10900000-0000-4000-8000-000000000001
+        titulo: ''
+        contenido: ''
+        categoria: null
+        estado: borrador
+        visibilidad: soporte
+        autor_id: 00000000-0000-4000-8000-000000000109
+        creado_en: '2026-11-21T12:00:00Z'
+        actualizado_en: '2026-11-21T12:00:00Z'
+        publicado_en: null
+        archivado_en: null
+    Editado:
+      summary: Proyección de PATCH sobre borrador; datos de dominio sintéticos.
+      value:
+        id: 10900000-0000-4000-8000-000000000001
+        titulo: Borrador de demostración
+        contenido: ''
+        categoria: null
+        estado: borrador
+        visibilidad: soporte
+        autor_id: 00000000-0000-4000-8000-000000000109
+        creado_en: '2026-11-21T12:00:00Z'
+        actualizado_en: '2026-11-21T13:00:00Z'
+        publicado_en: null
+        archivado_en: null
+    ListaEmpresa:
+      value:
+        count: 1
+        next: null
+        previous: null
+        results:
+          - id: 10900000-0000-4000-8000-000000000002
+            titulo: Ejemplo de consulta para la empresa
+            contenido: "# Datos ficticios\n\nEjemplo para verificar el esquema; no son instrucciones operativas."
+            categoria: red
+            estado: publicado
+            visibilidad: empresa
+            autor_id: 00000000-0000-4000-8000-000000000109
+            creado_en: '2026-11-21T12:00:00Z'
+            actualizado_en: '2026-11-21T13:00:00Z'
+            publicado_en: '2026-11-21T12:30:00Z'
+            archivado_en: null
+    ListaVacia:
+      value: { count: 0, next: null, previous: null, results: [] }
+    Candidatos:
+      summary: Candidatos para usuario de empresa; selección/aplicabilidad pendiente.
+      value:
+        count: 1
+        next: null
+        previous: null
+        results:
+          - id: 10900000-0000-4000-8000-000000000002
+            titulo: Ejemplo de consulta para la empresa
+            contenido: "# Datos ficticios\n\nEjemplo para verificar el esquema; no son instrucciones operativas."
+            categoria: red
+            estado: publicado
+            visibilidad: empresa
+            autor_id: 00000000-0000-4000-8000-000000000109
+            creado_en: '2026-11-21T12:00:00Z'
+            actualizado_en: '2026-11-21T13:00:00Z'
+            publicado_en: '2026-11-21T12:30:00Z'
+            archivado_en: null

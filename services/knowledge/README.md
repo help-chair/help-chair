@@ -29,6 +29,10 @@
 - No autentica usuarios: eso es de Accesos.
 - No lee la base de datos de ningún otro servicio ni expone la suya: se consume solo por API (decisión D-05 en [`docs/DECISIONS.md`](../../docs/DECISIONS.md)).
 
+El dominio inicial de artículos y categorías, su admin y migración se documentan en
+[Esquema de artículos (#109 / #132)](docs/article-schema.md).
+La API de negocio y su contrato siguen pendientes; este incremento no implementa CRUD ni búsqueda.
+
 ### Stack tecnológico
 - Lenguaje / framework: Python 3.12 / Django 5 + Django REST Framework
 - OpenAPI: `drf-spectacular`
@@ -120,6 +124,10 @@ Trabaja **solo dentro de esta carpeta**. Si necesitas tocar otra, abre un PR sep
 **What this folder does:** stores the Knowledge Base articles (solutions, guides and steps to fix common failures); lets clients search them by text (PostgreSQL full-text search) and serves them via API; it is queried by Events, Incidents, Problems and the Service Desk frontend.
 
 **What it does NOT do:** it does not record problems or known errors (`services/problems` does; a known error may point to an article, but the error is not stored here); it does not decide when an article is used, it only answers queries; it does not authenticate users (Access does); it never reads another service's database nor exposes its own — it is consumed only via API (decision D-05 in [`docs/DECISIONS.md`](../../docs/DECISIONS.md)).
+
+The initial article/category models, admin and migration are documented in
+[Article schema (#109 / #132)](docs/article-schema.md).
+The business API and contract remain pending; this increment does not implement CRUD or search.
 
 ### Tech stack
 - Language / framework: Python 3.12 / Django 5 + Django REST Framework, OpenAPI via `drf-spectacular`

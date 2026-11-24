@@ -1,0 +1,31 @@
+
+# Valores iniciales para el namespace testing.
+# Ajustar despues de medir el consumo real del proyecto.
+
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: testing-default-limits
+  namespace: testing
+spec:
+  limits:
+    - type: Container
+      defaultRequest:
+        cpu: 100m
+        memory: 128Mi
+      default:
+        cpu: 500m
+        memory: 512Mi
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: testing-resource-quota
+  namespace: testing
+spec:
+  hard:
+    requests.cpu: "4"
+    requests.memory: 8Gi
+    limits.cpu: "8"
+    limits.memory: 12Gi
+    pods: "30"

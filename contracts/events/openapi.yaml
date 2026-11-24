@@ -1,8 +1,12 @@
 openapi: 3.0.3
 info:
-  title: Help Chair - events
-  version: 0.1.0
-  description: API del servicio events (contrato en contracts/events/).
+  title: Help-Chair Events Service API (Contrato v1)
+  version: 1.0.0
+  description: Contrato de Eventos v1 congelado. Cubre el registro, la deduplicación,
+    el listado y el detalle de eventos. JWT Bearer o X-API-Key son validados en el
+    gateway; el servicio permite tráfico interno directo sin credenciales. Las rutas
+    del borrador v0 aún no implementadas (actualización/reclasificación, transiciones,
+    historial, catálogo, SLA, recurrencia y fuentes) quedan fuera del alcance de v1.
 paths:
   /api/v1/events:
     get:
@@ -26,10 +30,12 @@ paths:
         name: created_from
         schema:
           type: string
+          format: date-time
       - in: query
         name: created_to
         schema:
           type: string
+          format: date-time
       - in: query
         name: event_type
         schema:
@@ -42,10 +48,13 @@ paths:
         name: limit
         schema:
           type: integer
+          minimum: 1
+          maximum: 200
       - in: query
         name: offset
         schema:
           type: integer
+          minimum: 0
       - in: query
         name: open
         schema:
@@ -54,6 +63,15 @@ paths:
         name: ordering
         schema:
           type: string
+          enum:
+          - -created_at
+          - -last_seen_at
+          - -priority
+          - -resolution_due_at
+          - created_at
+          - last_seen_at
+          - priority
+          - resolution_due_at
       - in: query
         name: origin
         schema:
@@ -74,6 +92,7 @@ paths:
         name: search
         schema:
           type: string
+          maxLength: 100
       - in: query
         name: service_code
         schema:
@@ -93,11 +112,10 @@ paths:
           - REOPENED
           - RESOLVED
       tags:
-      - v1
+      - events
       security:
-      - cookieAuth: []
-      - basicAuth: []
-      - {}
+      - bearerAuth: []
+      - apiKeyAuth: []
       responses:
         '200':
           content:
@@ -114,23 +132,16 @@ paths:
     post:
       operationId: registerEvent
       tags:
-      - v1
+      - events
       requestBody:
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/EventCreate'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/EventCreate'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/EventCreate'
         required: true
       security:
-      - cookieAuth: []
-      - basicAuth: []
-      - {}
+      - bearerAuth: []
+      - apiKeyAuth: []
       responses:
         '201':
           content:
@@ -150,7 +161,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Datos inválidos
-  /api/v1/events/{id}:
+  /events/{id}:
     get:
       operationId: getEvent
       parameters:
@@ -161,11 +172,10 @@ paths:
           format: uuid
         required: true
       tags:
-      - v1
+      - events
       security:
-      - cookieAuth: []
-      - basicAuth: []
-      - {}
+      - bearerAuth: []
+      - apiKeyAuth: []
       responses:
         '200':
           content:
@@ -179,231 +189,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Evento no encontrado
-    patch:
-      operationId: updateEvent
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-          format: uuid
-        required: true
-      tags:
-      - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/EventUpdate'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/EventUpdate'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/EventUpdate'
-      security:
-      - cookieAuth: []
-      - basicAuth: []
-      - {}
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/EventRead'
-          description: ''
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Evento no encontrado
-        '409':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Conflicto de estado
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Datos inválidos
-  /api/v1/events/{id}/history:
-    get:
-      operationId: listEventHistory
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-          format: uuid
-        required: true
-      - in: query
-        name: limit
-        schema:
-          type: integer
-      - in: query
-        name: offset
-        schema:
-          type: integer
-      tags:
-      - v1
-      security:
-      - cookieAuth: []
-      - basicAuth: []
-      - {}
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/EventHistoryPage'
-          description: ''
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Evento no encontrado
-  /api/v1/events/{id}/transitions:
-    get:
-      operationId: listAllowedTransitions
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-          format: uuid
-        required: true
-      tags:
-      - v1
-      security:
-      - cookieAuth: []
-      - basicAuth: []
-      - {}
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AllowedTransitions'
-          description: ''
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Evento no encontrado
-    post:
-      operationId: transitionEvent
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-          format: uuid
-        required: true
-      tags:
-      - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/EventTransition'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/EventTransition'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/EventTransition'
-        required: true
-      security:
-      - cookieAuth: []
-      - basicAuth: []
-      - {}
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/EventRead'
-          description: ''
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Evento no encontrado
-        '409':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Transición no permitida
-        '422':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Datos inválidos
 components:
   schemas:
-    AllowedTransitions:
-      type: object
-      properties:
-        state:
-          enum:
-          - NEW
-          - ASSIGNED
-          - IN_PROGRESS
-          - ON_HOLD
-          - RESOLVED
-          - CLOSED
-          - REJECTED
-          - CANCELLED
-          - REOPENED
-          type: string
-          description: |-
-            * `NEW` - Nuevo
-            * `ASSIGNED` - Asignado
-            * `IN_PROGRESS` - En proceso
-            * `ON_HOLD` - En espera
-            * `RESOLVED` - Resuelto
-            * `CLOSED` - Cerrado
-            * `REJECTED` - Rechazado
-            * `CANCELLED` - Cancelado
-            * `REOPENED` - Reabierto
-          x-spec-enum-id: 26b55371c2d27c73
-        allowed:
-          type: array
-          items:
-            enum:
-            - NEW
-            - ASSIGNED
-            - IN_PROGRESS
-            - ON_HOLD
-            - RESOLVED
-            - CLOSED
-            - REJECTED
-            - CANCELLED
-            - REOPENED
-            type: string
-            description: |-
-              * `NEW` - Nuevo
-              * `ASSIGNED` - Asignado
-              * `IN_PROGRESS` - En proceso
-              * `ON_HOLD` - En espera
-              * `RESOLVED` - Resuelto
-              * `CLOSED` - Cerrado
-              * `REJECTED` - Rechazado
-              * `CANCELLED` - Cancelado
-              * `REOPENED` - Reabierto
-            x-spec-enum-id: 26b55371c2d27c73
-      required:
-      - state
-      - allowed
     BusinessService:
       type: object
       properties:
@@ -556,6 +343,7 @@ components:
         ingestion_key:
           type: string
           maxLength: 100
+          minLength: 1
       required:
       - origin
       - title
@@ -792,145 +580,6 @@ components:
       - last_seen_at
       - created_at
       - updated_at
-    EventHistoryEntry:
-      type: object
-      properties:
-        id:
-          type: integer
-          readOnly: true
-        changed_at:
-          type: string
-          format: date-time
-        change_type:
-          enum:
-          - STATE_CHANGE
-          - ASSIGNMENT
-          - PRIORITY_CHANGE
-          - CLASSIFICATION
-          - ROUTING
-          - NOTE
-          - SYSTEM
-          type: string
-          description: |-
-            * `STATE_CHANGE` - Cambio de estado
-            * `ASSIGNMENT` - Asignación
-            * `PRIORITY_CHANGE` - Cambio de prioridad
-            * `CLASSIFICATION` - Clasificación
-            * `ROUTING` - Enrutamiento
-            * `NOTE` - Nota
-            * `SYSTEM` - Sistema
-          x-spec-enum-id: 95e53cf35134fdc4
-          readOnly: true
-        actor_type:
-          enum:
-          - USER
-          - SYSTEM
-          - RULE
-          type: string
-          description: |-
-            * `USER` - Usuario
-            * `SYSTEM` - Sistema
-            * `RULE` - Regla
-          x-spec-enum-id: 200c7bfb0eaa7d7f
-          readOnly: true
-        actor_ref:
-          type: string
-          readOnly: true
-          nullable: true
-        from_state:
-          enum:
-          - NEW
-          - ASSIGNED
-          - IN_PROGRESS
-          - ON_HOLD
-          - RESOLVED
-          - CLOSED
-          - REJECTED
-          - CANCELLED
-          - REOPENED
-          - null
-          type: string
-          description: |-
-            * `NEW` - Nuevo
-            * `ASSIGNED` - Asignado
-            * `IN_PROGRESS` - En proceso
-            * `ON_HOLD` - En espera
-            * `RESOLVED` - Resuelto
-            * `CLOSED` - Cerrado
-            * `REJECTED` - Rechazado
-            * `CANCELLED` - Cancelado
-            * `REOPENED` - Reabierto
-          x-spec-enum-id: 26b55371c2d27c73
-          readOnly: true
-          nullable: true
-        to_state:
-          enum:
-          - NEW
-          - ASSIGNED
-          - IN_PROGRESS
-          - ON_HOLD
-          - RESOLVED
-          - CLOSED
-          - REJECTED
-          - CANCELLED
-          - REOPENED
-          - null
-          type: string
-          description: |-
-            * `NEW` - Nuevo
-            * `ASSIGNED` - Asignado
-            * `IN_PROGRESS` - En proceso
-            * `ON_HOLD` - En espera
-            * `RESOLVED` - Resuelto
-            * `CLOSED` - Cerrado
-            * `REJECTED` - Rechazado
-            * `CANCELLED` - Cancelado
-            * `REOPENED` - Reabierto
-          x-spec-enum-id: 26b55371c2d27c73
-          readOnly: true
-          nullable: true
-        field_name:
-          type: string
-          readOnly: true
-          nullable: true
-        old_value:
-          nullable: true
-        new_value:
-          nullable: true
-        description:
-          type: string
-          readOnly: true
-          nullable: true
-        rule_code:
-          type: string
-          readOnly: true
-          nullable: true
-        metadata: {}
-      required:
-      - id
-      - changed_at
-      - change_type
-      - actor_type
-    EventHistoryPage:
-      type: object
-      properties:
-        count:
-          type: integer
-        next:
-          type: string
-          format: uri
-          nullable: true
-        previous:
-          type: string
-          format: uri
-          nullable: true
-        results:
-          type: array
-          items:
-            $ref: '#/components/schemas/EventHistoryEntry'
-      required:
-      - count
-      - results
     EventListItem:
       type: object
       properties:
@@ -1047,8 +696,9 @@ components:
           nullable: true
         occurrence_count:
           type: integer
-          maximum: 2147483647
+          maximum: 9223372036854775807
           minimum: 0
+          format: int64
         last_seen_at:
           type: string
           format: date-time
@@ -1314,106 +964,17 @@ components:
       - last_seen_at
       - created_at
       - updated_at
-    EventTransition:
-      type: object
-      properties:
-        to_state:
-          enum:
-          - NEW
-          - ASSIGNED
-          - IN_PROGRESS
-          - ON_HOLD
-          - RESOLVED
-          - CLOSED
-          - REJECTED
-          - CANCELLED
-          - REOPENED
-          type: string
-          description: |-
-            * `NEW` - Nuevo
-            * `ASSIGNED` - Asignado
-            * `IN_PROGRESS` - En proceso
-            * `ON_HOLD` - En espera
-            * `RESOLVED` - Resuelto
-            * `CLOSED` - Cerrado
-            * `REJECTED` - Rechazado
-            * `CANCELLED` - Cancelado
-            * `REOPENED` - Reabierto
-          x-spec-enum-id: 26b55371c2d27c73
-        reason:
-          type: string
-        closure_code:
-          enum:
-          - AUTO_LOGGED
-          - KB_RESOLVED
-          - SOLVED
-          - NOT_APPLICABLE
-          type: string
-          description: |-
-            * `AUTO_LOGGED` - Registrado automáticamente
-            * `KB_RESOLVED` - Resuelto por la KB
-            * `SOLVED` - Resuelto
-            * `NOT_APPLICABLE` - No aplica
-          x-spec-enum-id: 691f78771f0af0b0
-      required:
-      - to_state
-    EventUpdate:
-      type: object
-      description: 'PATCH /events/{id}: solo campos de gestión. Todos opcionales,
-        pero al menos uno.'
-      properties:
-        assigned_to_ref:
-          type: string
-          nullable: true
-          maxLength: 64
-        assigned_group_ref:
-          type: string
-          nullable: true
-          maxLength: 64
-        impact:
-          enum:
-          - HIGH
-          - MEDIUM
-          - LOW
-          type: string
-          description: |-
-            * `HIGH` - Alto
-            * `MEDIUM` - Medio
-            * `LOW` - Bajo
-          x-spec-enum-id: 78c22d37671e32a7
-        urgency:
-          enum:
-          - HIGH
-          - MEDIUM
-          - LOW
-          type: string
-          description: |-
-            * `HIGH` - Alta
-            * `MEDIUM` - Media
-            * `LOW` - Baja
-          x-spec-enum-id: 576365ee6afc2afc
-        category:
-          enum:
-          - SECURITY
-          - REQUEST
-          - FAILURE
-          - CHANGE
-          - GENERAL
-          type: string
-          description: |-
-            * `SECURITY` - Seguridad
-            * `REQUEST` - Petición
-            * `FAILURE` - Falla
-            * `CHANGE` - Cambio
-            * `GENERAL` - General
-          x-spec-enum-id: ab3cd7d417906b7b
-        note:
-          type: string
   securitySchemes:
-    basicAuth:
-      type: http
-      scheme: basic
-    cookieAuth:
+    apiKeyAuth:
       type: apiKey
-      in: cookie
-      name: sessionid
+      in: header
+      name: X-API-Key
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+servers:
+- url: /api/events/v1
+  description: API Gateway (externo)
+- url: /api/v1
+  description: Servicio directo (interno)

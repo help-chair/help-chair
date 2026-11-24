@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import { cargarDatosDeEjemplo, codigoProblema, requiereCausaRaiz, siguienteEstado } from './data'
+import { cargarProblemasConRespaldo } from './api'
+import { codigoProblema, requiereCausaRaiz, siguienteEstado } from './data'
 import type {
   CambioEstado,
   DatosProblemas,
@@ -25,7 +26,7 @@ const ahora = () => new Date().toISOString()
 
 const siguienteId = (lista: { id: number }[]) => Math.max(0, ...lista.map((item) => item.id)) + 1
 
-export function useProblemas(cargar: () => Promise<DatosProblemas> = cargarDatosDeEjemplo) {
+export function useProblemas(cargar: () => Promise<DatosProblemas> = cargarProblemasConRespaldo) {
   const [carga, setCarga] = useState<EstadoCarga>('cargando')
   const [datos, setDatos] = useState<DatosProblemas>(VACIO)
 

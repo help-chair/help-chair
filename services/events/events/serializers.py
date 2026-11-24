@@ -136,7 +136,7 @@ class EventCreateSerializer(serializers.Serializer):
     action_required = serializers.BooleanField(default=True)
     payload = serializers.DictField(default=dict)
     occurred_at = serializers.DateTimeField(required=False)
-    ingestion_key = serializers.CharField(max_length=100, required=False)
+    ingestion_key = serializers.CharField(max_length=100, min_length=1, required=False)
 
 
 class EventReadSerializer(serializers.ModelSerializer):

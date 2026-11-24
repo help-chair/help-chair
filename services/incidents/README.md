@@ -75,15 +75,16 @@ nuevo ──► asignado ──► en_proceso ⇄ en_espera
 
 | Método | Ruta | Qué hace |
 |---|---|---|
-| `GET` | `/api/incidents/` | Lista paginada (50 por página), P1 primero. Filtros: `?status=`, `?priority=`, `?assigned_to=` |
-| `POST` | `/api/incidents/` | Registra un incidente (`title`, `impact`, `urgency`, `reported_by` obligatorios) |
-| `GET` | `/api/incidents/{id}/` | Detalle |
-| `PATCH` | `/api/incidents/{id}/` | Asignar, cambiar impacto o urgencia, o cambiar de estado |
+| `GET` | `/api/incidents/v1/incidents/` | Lista paginada (50 por página), P1 primero. Filtros: `?status=`, `?priority=`, `?assigned_to=` |
+| `POST` | `/api/incidents/v1/incidents/` | Registra un incidente (`title`, `impact`, `urgency`, `reported_by` obligatorios) |
+| `GET` | `/api/incidents/v1/incidents/{id}/` | Detalle |
+| `PATCH` | `/api/incidents/v1/incidents/{id}/` | Asignar, cambiar impacto o urgencia, o cambiar de estado |
+
 
 No hay `PUT` ni `DELETE`: un incidente no se borra, se cancela. Documentación interactiva en `http://localhost:8004/api/docs/`.
 
 ```bash
-curl -X POST localhost:8004/api/incidents/ -H "Content-Type: application/json" \
+curl -X POST localhost:8004/api/incidents/v1/incidents/ -H "Content-Type: application/json" \
   -d '{"title":"No abre nómina","impact":"medio","urgency":"alta","reported_by":"usr-ana"}'
 ```
 
@@ -169,7 +170,8 @@ docker compose -f platform/deploy/local/compose.yaml up -d --build incidents inc
 curl localhost:8004/health/ready
 ```
 
-API: `GET/POST /api/incidents/`, `GET/PATCH /api/incidents/{id}/`. Contract: [`contracts/incidents/openapi.yaml`](../../contracts/incidents/openapi.yaml). The Spanish section above has the model, priority matrix, states and every way of running the service.
+API: `GET/POST /api/incidents/v1/incidents/`, `GET/PATCH /api/incidents/v1/incidents/{id}/`. Contract: [`contracts/incidents/openapi.yaml`](../../contracts/incidents/openapi.yaml). The Spanish section above has the model, priority matrix, states and every way of running the service.
+
 
 ### Monorepo rules
 

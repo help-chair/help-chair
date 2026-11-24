@@ -1,6 +1,5 @@
-from django.http import Http404
 from rest_framework import status
-from rest_framework.exceptions import APIException, NotFound, ValidationError
+from rest_framework.exceptions import APIException, ValidationError
 from rest_framework.response import Response
 from rest_framework.views import exception_handler
 
@@ -56,14 +55,8 @@ def custom_exception_handler(exc, context):
         }
         return response
 
-    if isinstance(exc, NotFound | Http404):
-        # get_object_or_404 de DRF lanza Http404, no NotFound: se trata igual.
-        response.status_code = status.HTTP_404_NOT_FOUND
-        response.data = {
-            "code": "not_found",
-            "detail": str(response.data.get("detail", "Recurso no encontrado")),
-        }
-        return response
+    if response is not None and response.status_code == status.HTTP_404_NOT_FOUND:
+        return response_from_not_found(response)
 
     if isinstance(exc, APIException) and isinstance(response.data, dict):
         codes = exc.get_codes()
@@ -72,3 +65,13 @@ def custom_exception_handler(exc, context):
             "detail": str(response.data.get("detail", exc.default_detail)),
         }
     return response
+
+
+def response_from_not_found(response):
+    if response is not None:
+        response.status_code = status.HTTP_404_NOT_FOUND
+        response.data = {
+            "code": "not_found",
+            "detail": str(response.data.get("detail", "Recurso no encontrado")),
+        }
+        return response

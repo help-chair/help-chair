@@ -6,7 +6,7 @@ from .models import (
     EventHistory,
     EventSource,
     PriorityMatrix,
-    RecurrencePolicy,
+    PriorityModifier,
     SlaPolicy,
 )
 
@@ -37,30 +37,19 @@ class PriorityMatrixAdmin(admin.ModelAdmin):
     list_filter = ("impact", "urgency", "priority")
 
 
+@admin.register(PriorityModifier)
+class PriorityModifierAdmin(admin.ModelAdmin):
+    list_display = ("code", "condition_field", "condition_value", "levels_delta", "is_active")
+    list_filter = ("condition_field", "is_active")
+    search_fields = ("code",)
+
+
 @admin.register(EventSource)
 class EventSourceAdmin(admin.ModelAdmin):
     list_display = ("name", "kind", "is_active")
     list_filter = ("kind", "is_active")
     search_fields = ("name",)
     exclude = ("api_key_hash",)
-
-
-@admin.register(RecurrencePolicy)
-class RecurrencePolicyAdmin(admin.ModelAdmin):
-    list_display = (
-        "__str__",
-        "event_type",
-        "category",
-        "service",
-        "threshold_count",
-        "window_days",
-        "action",
-        "is_active",
-    )
-    list_filter = ("action", "is_active", "event_type", "category", "service")
-    search_fields = ("service__code", "service__name")
-    list_select_related = ("service",)
-    list_editable = ("is_active", "action")
 
 
 class EventHistoryInline(admin.TabularInline):

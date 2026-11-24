@@ -1,4 +1,4 @@
-"""Valida los contratos de Eventos: el OpenAPI y el sobre común de mensajes (JSON Schema)."""
+"""Valida los contratos v1 de Eventos y el sobre común de mensajes (JSON Schema)."""
 
 import copy
 import json
@@ -62,12 +62,39 @@ def test_operation_ids_are_unique(openapi):
     assert len(ids) == len(set(ids))
 
 
-def test_openapi_covers_the_v0_scope(openapi):
+def test_openapi_declares_events_v1(openapi):
+    assert openapi["info"]["version"] == "1.0.0"
+    assert openapi["info"]["title"] == "Help-Chair Events Service API (Contrato v1)"
+    assert "Contrato de Eventos v1 congelado" in openapi["info"]["description"]
+    assert openapi["servers"] == [
+        {"url": "/api/events/v1", "description": "API Gateway (externo)"},
+        {"url": "/api/v1", "description": "Servicio directo (interno)"},
+    ]
+
     paths = openapi["paths"]
-    assert {"post", "get"} <= set(paths["/events"])  # crear y consultar
-    assert "post" in paths["/events/{id}/transitions"]  # transiciones de estado
-    for config_path in ("/services", "/priority-matrix", "/sla-policies"):
-        assert config_path in paths  # configuración
+    assert set(paths) == {"/events", "/events/{id}"}
+    assert {"get", "post"} <= set(paths["/events"])
+    assert {"get"} == set(paths["/events/{id}"])
+
+
+def test_openapi_declares_gateway_security(openapi):
+    security_schemes = openapi["components"]["securitySchemes"]
+    assert security_schemes["bearerAuth"] == {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+    }
+    assert security_schemes["apiKeyAuth"] == {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+    }
+
+    expected_security = [{"bearerAuth": []}, {"apiKeyAuth": []}]
+    for path in openapi["paths"].values():
+        for operation in path.values():
+            if isinstance(operation, dict) and "operationId" in operation:
+                assert operation["security"] == expected_security
 
 
 def test_openapi_has_no_nullable_combined_with_allof(openapi):

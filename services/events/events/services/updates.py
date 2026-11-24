@@ -3,8 +3,9 @@
 from django.db import transaction
 
 from ..models import TERMINAL_STATES, ActorType, ChangeType
+from ..priority import resolve_priority
 from .lifecycle import EventConflict, assign_event, lock_event, record_history
-from .priority import resolve_priority, resolve_sla
+from .priority import priority_context, resolve_sla
 
 
 @transaction.atomic
@@ -17,7 +18,7 @@ def reclassify_event(
     actor_type=ActorType.USER,
     actor_ref="",
 ):
-    """Cambia categoría, impacto y/o urgencia. Recalcula la prioridad y el SLA con la matriz.
+    """Cambia categoría, impacto y/o urgencia. Recalcula la prioridad y el SLA.
 
     `None` = no cambiar. Cada cambio queda en el historial (CLASSIFICATION, PRIORITY_CHANGE).
     """
@@ -35,17 +36,20 @@ def reclassify_event(
         setattr(event, name, value)
 
     old_priority = event.priority
-    if "impact" in changes or "urgency" in changes:
-        new_priority = resolve_priority(event.impact, event.urgency)
-        if new_priority:  # sin celda en la matriz se conserva la prioridad actual
-            event.priority = new_priority
-            policy, response_due, resolution_due = resolve_sla(
-                event.service, new_priority, event.first_seen_at
-            )
-            if policy:
-                event.sla_policy = policy
-                event.response_due_at = response_due
-                event.resolution_due_at = resolution_due
+    priority_metadata = None
+    # La categoría también forma parte del contexto del motor, no solo impacto y urgencia.
+    result = resolve_priority(event.impact, event.urgency, priority_context(event))
+    new_priority = result.priority.value if result.priority else ""
+    if new_priority:  # sin resultado del motor se conserva la prioridad actual
+        event.priority = new_priority
+        priority_metadata = {"priority": result.as_metadata()}
+        policy, response_due, resolution_due = resolve_sla(
+            event.service, new_priority, event.first_seen_at
+        )
+        if policy:
+            event.sla_policy = policy
+            event.response_due_at = response_due
+            event.resolution_due_at = resolution_due
     event.updated_by_ref = actor_ref
     event.save()
 
@@ -68,7 +72,8 @@ def reclassify_event(
             field_name="priority",
             old_value=old_priority or None,
             new_value=event.priority,
-            description="Prioridad recalculada con la matriz impacto x urgencia",
+            description="Prioridad recalculada",
+            metadata=priority_metadata or {},
         )
     return event
 

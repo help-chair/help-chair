@@ -1,5 +1,12 @@
 from .base import AuditModel
-from .catalog import BusinessService, EventSource, PriorityMatrix, PriorityModifier, SlaPolicy
+from .catalog import (
+    BusinessService,
+    EventSource,
+    PriorityMatrix,
+    PriorityModifier,
+    RecurrencePolicy,
+    SlaPolicy,
+)
 from .choices import (
     ALLOWED_TRANSITIONS,
     TERMINAL_STATES,

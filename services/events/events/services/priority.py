@@ -1,16 +1,23 @@
-"""Prioridad (matriz impacto x urgencia) y SLA de un evento."""
+"""Contexto de prioridad y SLA de un evento.
+
+El cálculo de la prioridad (matriz impacto x urgencia + modificadores) vive en
+`events/priority.py`. Aquí solo se arma el contexto desde un evento y se resuelve el SLA.
+"""
 
 from datetime import timedelta
 
-from ..models import PriorityMatrix, SlaPolicy
+from ..models import SlaPolicy
+from ..priority import PriorityContext
 
 
-def resolve_priority(impact, urgency) -> str:
-    """Prioridad de la matriz para (impacto, urgencia); "" si falta alguno o no hay celda."""
-    if not (impact and urgency):
-        return ""
-    row = PriorityMatrix.objects.filter(impact=impact, urgency=urgency).first()
-    return row.priority if row else ""
+def priority_context(event) -> PriorityContext:
+    """Contexto del motor de prioridad a partir del estado actual del evento."""
+    return PriorityContext(
+        service_importance=event.service.importance if event.service else None,
+        category=event.category,
+        event_type=event.event_type,
+        occurrence_count=event.occurrence_count,
+    )
 
 
 def resolve_sla(service, priority, base_dt):

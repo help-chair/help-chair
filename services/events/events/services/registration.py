@@ -14,9 +14,10 @@ from ..models import (
     EventCategory,
     EventState,
 )
+from ..priority import PriorityContext, resolve_priority
 from .classification import classify_event_type, watch_warning
 from .lifecycle import auto_close_informational, record_history
-from .priority import resolve_priority, resolve_sla
+from .priority import priority_context, resolve_sla
 
 
 def compute_fingerprint(origin, title, message, service_code, source_name, payload) -> str:
@@ -44,8 +45,8 @@ def _find_open_event(fingerprint):
     )
 
 
-def _add_occurrence(open_event, event_dt, ingestion_key):
-    """Suma una ocurrencia al evento abierto y aplica la regla 3 (vigilancia)."""
+def _add_occurrence(open_event, event_dt, ingestion_key, actor_ref=""):
+    """Suma una ocurrencia al evento abierto, recalcula la prioridad y aplica la regla 3."""
     previous_count = open_event.occurrence_count
     open_event.occurrence_count = previous_count + 1
     open_event.last_seen_at = event_dt
@@ -53,7 +54,28 @@ def _add_occurrence(open_event, event_dt, ingestion_key):
         stored_payload = dict(open_event.payload or {})
         stored_payload["_ingestion_key"] = ingestion_key
         open_event.payload = stored_payload
-    open_event.save(update_fields=["occurrence_count", "last_seen_at", "payload", "updated_at"])
+    update_fields = ["occurrence_count", "last_seen_at", "payload", "updated_at"]
+
+    old_priority = open_event.priority
+    result = resolve_priority(open_event.impact, open_event.urgency, priority_context(open_event))
+    new_priority = result.priority.value if result.priority else old_priority
+    if new_priority != old_priority:
+        open_event.priority = new_priority
+        update_fields.append("priority")
+    open_event.save(update_fields=update_fields)
+
+    if new_priority != old_priority:
+        record_history(
+            open_event,
+            change_type=ChangeType.PRIORITY_CHANGE,
+            actor_type=ActorType.SYSTEM,
+            actor_ref=actor_ref,
+            field_name="priority",
+            old_value=old_priority or None,
+            new_value=new_priority,
+            description="Prioridad recalculada por recurrencia",
+            metadata={"priority": result.as_metadata()},
+        )
     watch_warning(open_event, previous_count=previous_count)
     return open_event
 
@@ -86,16 +108,27 @@ def register_event(validated_data: dict, actor_ref: str = "") -> tuple[Event, bo
 
     open_event = _find_open_event(fingerprint)
     if open_event:
-        return _add_occurrence(open_event, event_dt, ingestion_key), False
+        return _add_occurrence(open_event, event_dt, ingestion_key, actor_ref), False
 
     event_type = classify_event_type(
         origin=validated_data["origin"],
         declared=validated_data.get("event_type"),
         payload=clean_payload,
     )
+    category = validated_data.get("category") or EventCategory.GENERAL
     impact = validated_data.get("impact") or ""
     urgency = validated_data.get("urgency") or ""
-    priority = resolve_priority(impact, urgency)
+    priority_result = resolve_priority(
+        impact,
+        urgency,
+        PriorityContext(
+            service_importance=service.importance if service else None,
+            category=category,
+            event_type=event_type,
+            occurrence_count=1,
+        ),
+    )
+    priority = priority_result.priority.value if priority_result.priority else ""
     sla_policy, response_due_at, resolution_due_at = resolve_sla(service, priority, event_dt)
 
     stored_payload = dict(clean_payload)
@@ -107,7 +140,7 @@ def register_event(validated_data: dict, actor_ref: str = "") -> tuple[Event, bo
             event = Event.objects.create(
                 origin=validated_data["origin"],
                 event_type=event_type,
-                category=validated_data.get("category") or EventCategory.GENERAL,
+                category=category,
                 title=validated_data["title"],
                 message=validated_data["message"],
                 payload=stored_payload,
@@ -135,7 +168,7 @@ def register_event(validated_data: dict, actor_ref: str = "") -> tuple[Event, bo
         open_event = _find_open_event(fingerprint)
         if open_event is None:
             raise
-        return _add_occurrence(open_event, event_dt, ingestion_key), False
+        return _add_occurrence(open_event, event_dt, ingestion_key, actor_ref), False
 
     record_history(
         event,
@@ -144,6 +177,7 @@ def register_event(validated_data: dict, actor_ref: str = "") -> tuple[Event, bo
         actor_ref=actor_ref,
         to_state=EventState.NEW,
         description="Evento registrado",
+        metadata={"priority": priority_result.as_metadata()} if priority else {},
     )
     event = auto_close_informational(event)  # regla 1: informativo de sistema sin acción
     watch_warning(event, previous_count=0)  # regla 3: advertencia, vigilancia y alerta

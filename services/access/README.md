@@ -115,6 +115,8 @@ Imprime la llave en una sola línea, con los saltos escapados, lista para pegarl
 
 Cada llave se identifica con un `kid`, que es su huella según el RFC 7638, y los tokens lo llevan en la cabecera para que quien valide sepa cuál aplicar. Al rotar, se publica la llave nueva antes de empezar a firmar con ella.
 
+Si vienes de otro servicio y necesitas validar estos tokens, está todo en [`docs/validar-el-token.md`](docs/validar-el-token.md): la configuración, el fragmento de permisos y cómo comprobarlo.
+
 El contrato de [`contracts/access/openapi.yaml`](../../contracts/access/openapi.yaml) se escribe a mano, porque declara endpoints que este servicio todavía no sirve y que Plataforma y Frontend ya necesitan leer. Para comprobar que el código y el contrato siguen concordando:
 
 ```bash

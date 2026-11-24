@@ -14,9 +14,7 @@ class EventHistory(models.Model):
     actor_type = models.CharField(max_length=10, choices=ActorType.choices)
     actor_ref = models.CharField(max_length=64, blank=True, default="")
     from_state = models.CharField(max_length=12, choices=EventState.choices, blank=True, default="")
-
     to_state = models.CharField(max_length=12, choices=EventState.choices, blank=True, default="")
-
     field_name = models.CharField(max_length=60, blank=True, default="")
     old_value = models.JSONField(null=True, blank=True)
     new_value = models.JSONField(null=True, blank=True)

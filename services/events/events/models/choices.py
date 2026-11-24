@@ -115,3 +115,15 @@ class ActorType(models.TextChoices):
     USER = "USER", "Usuario"
     SYSTEM = "SYSTEM", "Sistema"
     RULE = "RULE", "Regla"
+
+
+class RecurrenceAction(models.TextChoices):
+    WATCH_ALERT = "WATCH_ALERT", "Vigilar y alertar"
+    CREATE_PROBLEM = "CREATE_PROBLEM", "Crear problema"
+
+
+class ModifierField(models.TextChoices):
+    SERVICE_IMPORTANCE = "SERVICE_IMPORTANCE", "Importancia del servicio"
+    EVENT_CATEGORY = "EVENT_CATEGORY", "Categoría del evento"
+    EVENT_TYPE = "EVENT_TYPE", "Tipo de evento"
+    OCCURRENCE_COUNT = "OCCURRENCE_COUNT", "Ocurrencias (mínimo)"

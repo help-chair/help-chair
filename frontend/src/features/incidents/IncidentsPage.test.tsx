@@ -7,10 +7,13 @@ import { IncidentsPage } from './IncidentsPage'
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(new Date(2026, 10, 17, 12, 10))
+  // Sin backend: el módulo cae al respaldo de datos de ejemplo.
+  vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('sin backend'))
 })
 
 afterEach(() => {
   vi.useRealTimers()
+  vi.restoreAllMocks()
 })
 
 function row(ticketId: string) {
@@ -25,16 +28,22 @@ function metric(label: string) {
   return screen.getByText(label).parentElement!
 }
 
+/** Renderiza la página y espera a que la lista cargue (con respaldo a datos de ejemplo). */
+async function renderCargado() {
+  render(<IncidentsPage />)
+  await screen.findByText('TCK-1049')
+}
+
 async function openModal() {
   const user = userEvent.setup()
-  render(<IncidentsPage />)
+  await renderCargado()
   await user.click(screen.getByRole('button', { name: 'Nuevo ticket' }))
   return { user, dialog: screen.getByRole('dialog', { name: 'Abrir ticket' }) }
 }
 
 describe('IncidentsPage', () => {
-  it('muestra los indicadores y los casos del diseño', () => {
-    render(<IncidentsPage />)
+  it('muestra los indicadores y los casos del diseño', async () => {
+    await renderCargado()
 
     expect(within(metric('Tickets abiertos')).getByText('4')).toBeInTheDocument()
     expect(
@@ -51,7 +60,7 @@ describe('IncidentsPage', () => {
 
   it('escala un ticket: sube de nivel y pide llamar a un supervisor', async () => {
     const user = userEvent.setup()
-    render(<IncidentsPage />)
+    await renderCargado()
 
     await user.click(screen.getByRole('button', { name: 'Escalar TCK-1049' }))
 
@@ -62,15 +71,15 @@ describe('IncidentsPage', () => {
     expect(screen.getByRole('status')).toHaveTextContent('TCK-1049 escaló a Nivel 2')
   })
 
-  it('no deja escalar más allá del Nivel 3', () => {
-    render(<IncidentsPage />)
+  it('no deja escalar más allá del Nivel 3', async () => {
+    await renderCargado()
 
     expect(within(row('TCK-1046')).getByRole('button', { name: 'Nivel máx.' })).toBeDisabled()
   })
 
   it('al cerrar un ticket lo marca como resuelto y retira sus avisos pendientes', async () => {
     const user = userEvent.setup()
-    render(<IncidentsPage />)
+    await renderCargado()
 
     await user.click(screen.getByRole('button', { name: 'Cerrar TCK-1046' }))
 
@@ -83,7 +92,7 @@ describe('IncidentsPage', () => {
 
   it('marca una llamada como realizada', async () => {
     const user = userEvent.setup()
-    render(<IncidentsPage />)
+    await renderCargado()
 
     await user.click(screen.getByRole('button', { name: 'Marcar como llamado TCK-1045 (Nivel 2)' }))
 
@@ -94,7 +103,7 @@ describe('IncidentsPage', () => {
 
   it('filtra la tabla por estado y prioridad', async () => {
     const user = userEvent.setup()
-    render(<IncidentsPage />)
+    await renderCargado()
 
     await user.selectOptions(screen.getByLabelText('Filtrar por estado'), 'cerrado')
     expect(screen.getAllByRole('row')).toHaveLength(3) // encabezado + TCK-1047 + TCK-1044

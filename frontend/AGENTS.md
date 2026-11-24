@@ -167,5 +167,25 @@ Para asegurar la coherencia entre el frontend y los backends sin desperdiciar to
    - `contracts/gateway/` ↔ `@DonitaCosmica` / `@decko67` (Equipo 7: Plataforma)
    - `frontend/` ↔ `@ALLexelsus7` / `@DiegoMH890` (Equipo 6: Frontend)
 
+---
+
+## 🗂️ 11. Kanban y cierre de issues
+
+Al terminar un issue del Kanban Frontend o una implementación nueva:
+
+1. Si el issue ya está en el tablero **Kanban - Frontend**, **pregunta al desarrollador** si desea moverlo a `In progress`, `In review` o `Done` según el estado.
+2. Si no está en el tablero, pregunta si desea **agregarlo/crearlo** y con qué etiquetas (`fase N`, área).
+3. **Nunca** muevas ni crees tarjetas sin confirmación.
+4. Regla de estado:
+   - Implementación en curso → `In progress`
+   - PR abierto → `In review`
+   - PR fusionado y validado → `Done`
+5. Al crear o mover un issue, **propón** (y confirma antes de fijarlos):
+   - **Priority** (`Alta` / `Media` / `Baja`), como campo del tablero y como etiqueta `prioridad: alta|media|baja`.
+   - **Size** (`XS`–`XL`) y **Estimate** (puntos).
+   - Criterio orientativo: `bug`/`infra` → Alta, `docs` → Baja, el resto → Media.
+
+Ayuda opcional: `node scripts/kanban.mjs <numero-de-issue>` imprime el estado actual del issue en el tablero y el comando `gh` exacto para moverlo (requiere `gh` autenticado).
+
 
 

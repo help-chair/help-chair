@@ -65,8 +65,8 @@ curl http://localhost:8002/health/ready
 |---|---|---|
 | `GET` | `/health/live` | El proceso responde. |
 | `GET` | `/health/ready` | El proceso responde y la base es alcanzable. |
-| `POST` | `/api/access/v1/login` | Valida credenciales y entrega `access` y `refresh`. |
-| `POST` | `/api/access/v1/refresh` | Entrega un `access` nuevo a partir de un `refresh` válido. |
+| `POST` | `/api/access/v1/login` | Valida credenciales y entrega `acceso` y `refresco`. |
+| `POST` | `/api/access/v1/refresh` | Entrega un `acceso` nuevo a partir de un `refresco` válido, enviado en el cuerpo de la petición. |
 | `GET` | `/api/docs/` | Documentación navegable (Swagger). |
 
 Ejemplo de inicio de sesión:
@@ -101,11 +101,29 @@ Un usuario tiene uno de cuatro estados: `activo`, `invitado` (creado sin contras
 
 Los permisos no se preguntan por rol sino por permiso (`tickets:ver`, `tickets:atender`, `tickets:escalar`, `empresa:configurar`, `usuarios:administrar`), para que un cambio de roles no rompa a los servicios que los consumen.
 
-Para exportar el contrato después de cambiar la API:
+### Firma del token
+
+El token se firma con **RS256**. La llave privada vive solo en este servicio y los demás validan con la pública, que se publica en `GET /api/access/v1/.well-known/jwks.json`. Con HS256 habría que repartirles el `SECRET_KEY`, y quien lo tenga no solo verifica tokens: los fabrica.
+
+La llave se toma de `JWT_PRIVATE_KEY`. Para generar una:
+
+```bash
+make llaves
+```
+
+Imprime la llave en una sola línea, con los saltos escapados, lista para pegarla en el `.env` o en un secreto de Kubernetes. En desarrollo, si la variable está vacía se genera una en `build/jwt-dev.pem`, que no se versiona; se guarda en disco a propósito, porque una llave por proceso daría llaves distintas en cada worker de gunicorn. Fuera de desarrollo, sin esa variable el servicio no arranca.
+
+Cada llave se identifica con un `kid`, que es su huella según el RFC 7638, y los tokens lo llevan en la cabecera para que quien valide sepa cuál aplicar. Al rotar, se publica la llave nueva antes de empezar a firmar con ella.
+
+Si vienes de otro servicio y necesitas validar estos tokens, está todo en [`docs/validar-el-token.md`](docs/validar-el-token.md): la configuración, el fragmento de permisos y cómo comprobarlo.
+
+El contrato de [`contracts/access/openapi.yaml`](../../contracts/access/openapi.yaml) se escribe a mano, porque declara endpoints que este servicio todavía no sirve y que Plataforma y Frontend ya necesitan leer. Para comprobar que el código y el contrato siguen concordando:
 
 ```bash
 make openapi
 ```
+
+Genera el esquema desde el código a `build/openapi.generado.yaml`, que no se versiona, y lo compara con el contrato. Nunca escribe sobre el contrato. Falla si el código sirve una operación que el contrato no declara, o si los campos de una respuesta no concuerdan entre los dos.
 
 ### Variables de entorno
 

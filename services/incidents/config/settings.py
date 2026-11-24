@@ -102,6 +102,8 @@ SPECTACULAR_SETTINGS = {
         "historial de cambios y mensajes por el broker."
     ),
     "VERSION": "0.1.0",
+    "SERVERS": [{"url": "http://localhost:8004", "description": "Local"}],
+    "SCHEMA_PATH_PREFIX": "/api/incidents/v1",
     "SERVE_INCLUDE_SCHEMA": False,
 }
 
@@ -110,5 +112,8 @@ LOGGING = {
     "disable_existing_loggers": False,
     "formatters": {"json": {"()": "config.logging.JsonFormatter"}},
     "handlers": {"console": {"class": "logging.StreamHandler", "formatter": "json"}},
-    "root": {"handlers": ["console"], "level": env("LOG_LEVEL", default="INFO").upper()},
+    "root": {
+        "handlers": ["console"],
+        "level": env("LOG_LEVEL", default="INFO").upper(),
+    },
 }

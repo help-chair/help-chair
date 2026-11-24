@@ -8,6 +8,8 @@ dependencies = [
     "djangorestframework>=3.15",
     "drf-spectacular>=0.27",
     "djangorestframework-simplejwt>=5.3",
+    # El extra `crypto` trae cryptography, que es lo que PyJWT necesita para RS256.
+    "pyjwt[crypto]>=2.9",
     "django-environ>=0.11",
     "gunicorn>=22.0",
     "psycopg[binary]>=3.2",
@@ -38,7 +40,7 @@ addopts = "-q --cov=. --cov-report=term-missing:skip-covered"
 filterwarnings = ["ignore:No directory at:UserWarning"]
 
 [tool.coverage.run]
-omit = ["*/migrations/*", "manage.py", "config/wsgi.py", "tests/*"]
+omit = ["*/migrations/*", "manage.py", "config/wsgi.py", "tests/*", "tools/*"]
 
 [tool.ruff]
 line-length = 100

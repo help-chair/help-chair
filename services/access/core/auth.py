@@ -14,6 +14,9 @@ from django.contrib.auth import get_user_model
 from drf_spectacular.utils import extend_schema
 from rest_framework import serializers, status
 from rest_framework.exceptions import APIException, AuthenticationFailed
+from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
+from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.settings import api_settings as ajustes_jwt
@@ -226,6 +229,7 @@ class RefrescoSerializer(serializers.Serializer):
         400: ErrorSerializer,
         401: ErrorSerializer,
         403: ErrorSerializer,
+        415: ErrorSerializer,
         423: ErrorSerializer,
     },
 )
@@ -242,7 +246,49 @@ class LoginView(TokenObtainPairView):
         200: SesionSerializer,
         400: ErrorSerializer,
         401: ErrorSerializer,
+        415: ErrorSerializer,
     },
 )
 class RefreshView(TokenRefreshView):
     serializer_class = RefrescoSerializer
+
+
+class LlaveJwkSerializer(serializers.Serializer):
+    """Una llave pública en formato JWK, tal como la declara el contrato."""
+
+    kty = serializers.CharField(help_text="Familia de la llave; aquí siempre RSA.")
+    kid = serializers.CharField(help_text="Identificador de la llave.")
+    use = serializers.CharField(help_text="Para qué sirve; aquí siempre sig.")
+    alg = serializers.CharField(help_text="Algoritmo de firma; aquí siempre RS256.")
+    n = serializers.CharField(help_text="Módulo en base64url.")
+    e = serializers.CharField(help_text="Exponente en base64url.")
+
+
+class JwksSerializer(serializers.Serializer):
+    keys = LlaveJwkSerializer(many=True)
+
+
+class JwksView(APIView):
+    """Publica la llave pública de firma. No pide credenciales a propósito.
+
+    Los demás servicios la leen para validar los tokens sin llamarnos en cada
+    petición y sin conocer la llave privada.
+    """
+
+    authentication_classes: list = []
+    permission_classes = [AllowAny]
+
+    # El decorador va en el método y no en la clase: con `operation_id` sobre la
+    # clase, drf-spectacular avisa de que el esquema sale roto.
+    @extend_schema(
+        tags=["autenticacion"],
+        operation_id="getJwks",
+        summary="Clave pública con la que los demás servicios validan el JWT",
+        description=(
+            "Se consulta una vez y se guarda en memoria con el `kid` como llave. "
+            "La rotación de llaves publica la nueva antes de firmar con ella."
+        ),
+        responses={200: JwksSerializer},
+    )
+    def get(self, request):
+        return Response({"keys": [settings.JWT_JWK_PUBLICA]})

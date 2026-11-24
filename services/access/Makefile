@@ -18,7 +18,7 @@ else
 endif
 
 .DEFAULT_GOAL := help
-.PHONY: help setup run migrate makemigrations test lint format build seed openapi lock clean
+.PHONY: help setup run migrate makemigrations test lint format build seed openapi llaves lock clean
 
 help: ## Muestra esta ayuda
 	@echo "Servicio $(SERVICE) · modo: $(MODE)"
@@ -54,6 +54,9 @@ build: ## Construye la imagen OCI (Podman o Docker)
 
 seed: ## Carga el catálogo de roles (idempotente)
 	$(RUN) python manage.py seed
+
+llaves: ## Genera una llave RSA para JWT_PRIVATE_KEY y la imprime en una linea
+	@$(RUN) python -c "from config.llaves import generar_llave_privada as g; print(g().replace(chr(10), chr(92)+'n'))"
 
 openapi: ## Genera el esquema a build/ y lo compara con el contrato (nunca lo sobreescribe)
 	@mkdir -p build

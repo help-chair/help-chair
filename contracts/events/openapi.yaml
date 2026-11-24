@@ -8,7 +8,7 @@ info:
     del borrador v0 aún no implementadas (actualización/reclasificación, transiciones,
     historial, catálogo, SLA, recurrencia y fuentes) quedan fuera del alcance de v1.
 paths:
-  /events:
+  /api/v1/events:
     get:
       operationId: listEvents
       parameters:

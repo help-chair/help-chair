@@ -13,6 +13,7 @@ from .choices import (
     Impact,
     ModifierField,
     Priority,
+    RecurrenceAction,
     ServiceImportance,
     SourceKind,
     Urgency,
@@ -44,4 +45,6 @@ __all__ = [
     "SlaPolicy",
     "SourceKind",
     "Urgency",
+    "RecurrencePolicy",
+    "RecurrenceAction",
 ]

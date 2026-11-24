@@ -88,13 +88,43 @@ STORAGES = {
 
 REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    # La frontera de confianza es el gateway; las llamadas internas llegan ya filtradas.
+    "DEFAULT_AUTHENTICATION_CLASSES": [],
+    "DEFAULT_PERMISSION_CLASSES": [],
     "EXCEPTION_HANDLER": "events.exceptions.custom_exception_handler",
 }
 
 SPECTACULAR_SETTINGS = {
-    "TITLE": "Help Chair - events",
-    "DESCRIPTION": "API del servicio events (contrato en contracts/events/).",
-    "VERSION": "0.1.0",
+    "TITLE": "Help-Chair Events Service API (Contrato v1)",
+    "DESCRIPTION": (
+        "Contrato de Eventos v1 congelado. Cubre el registro, la deduplicación, el listado y el "
+        "detalle de eventos. JWT Bearer o X-API-Key son validados en el gateway; el servicio "
+        "permite tráfico interno directo sin credenciales. Las rutas del borrador v0 aún no "
+        "implementadas (actualización/reclasificación, transiciones, historial, catálogo, SLA, "
+        "recurrencia y fuentes) quedan fuera del alcance de v1."
+    ),
+    "VERSION": "1.0.0",
+    "SERVERS": [
+        {"url": "/api/events/v1", "description": "API Gateway (externo)"},
+        {"url": "/api/v1", "description": "Servicio directo (interno)"},
+    ],
+    "SCHEMA_PATH_PREFIX": r"/api/v1",
+    "SCHEMA_PATH_PREFIX_TRIM": True,
+    "SECURITY": [{"bearerAuth": []}, {"apiKeyAuth": []}],
+    "APPEND_COMPONENTS": {
+        "securitySchemes": {
+            "bearerAuth": {
+                "type": "http",
+                "scheme": "bearer",
+                "bearerFormat": "JWT",
+            },
+            "apiKeyAuth": {
+                "type": "apiKey",
+                "in": "header",
+                "name": "X-API-Key",
+            },
+        }
+    },
     "SERVE_INCLUDE_SCHEMA": False,
     "POSTPROCESSING_HOOKS": ["events.serializers.contract_required_postprocessing"],
 }

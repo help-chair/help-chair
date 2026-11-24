@@ -6,6 +6,7 @@ from .models import (
     EventHistory,
     EventSource,
     PriorityMatrix,
+    PriorityModifier,
     SlaPolicy,
 )
 
@@ -34,6 +35,13 @@ class SlaPolicyAdmin(admin.ModelAdmin):
 class PriorityMatrixAdmin(admin.ModelAdmin):
     list_display = ("impact", "urgency", "priority")
     list_filter = ("impact", "urgency", "priority")
+
+
+@admin.register(PriorityModifier)
+class PriorityModifierAdmin(admin.ModelAdmin):
+    list_display = ("code", "condition_field", "condition_value", "levels_delta", "is_active")
+    list_filter = ("condition_field", "is_active")
+    search_fields = ("code",)
 
 
 @admin.register(EventSource)

@@ -69,7 +69,9 @@ Work **only inside this folder**. If you must change another one, open a separat
 |---|---|---|
 | `GET /health/live` | `core` | Liveness: el proceso responde (`{"status": "ok"}`). |
 | `GET /health/ready` | `core` | Readiness: ejecuta `SELECT 1` en la BD. Devuelve `{"status": "ok", "database": "up"}` o `503` con `"database": "down"`. |
-| `/api/v1/` | `events` | API de eventos. Montada desde `events/urls.py` (aún sin endpoints). |
+| `GET /api/v1/events` | `events` | Lista eventos. |
+| `POST /api/v1/events` | `events` | Registra y deduplica eventos. |
+| `GET /api/v1/events/{id}` | `events` | Devuelve el detalle de un evento. |
 | `/api/schema/`, `/api/docs/` | `config` | Esquema OpenAPI y Swagger UI (drf-spectacular). |
 | `/admin/` | `config` | Admin de Django. |
 

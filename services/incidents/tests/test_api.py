@@ -1,4 +1,4 @@
-"""API v0 /api/incidents/ (issue #122)."""
+"""API v0 /api/incidents/v1/incidents/ (issue #122)."""
 
 import pytest
 from rest_framework.test import APIClient
@@ -6,7 +6,7 @@ from rest_framework.test import APIClient
 from incidents.models import Incident, Status
 
 pytestmark = pytest.mark.django_db
-URL = "/api/incidents/"
+URL = "/api/incidents/v1/incidents/"
 
 
 @pytest.fixture
@@ -15,7 +15,12 @@ def api():
 
 
 def nuevo(api, **extra):
-    data = {"title": "Correo caído", "impact": "alto", "urgency": "alta", "reported_by": "u1"}
+    data = {
+        "title": "Correo caído",
+        "impact": "alto",
+        "urgency": "alta",
+        "reported_by": "u1",
+    }
     return api.post(URL, {**data, **extra}, format="json")
 
 

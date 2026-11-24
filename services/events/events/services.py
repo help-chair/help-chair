@@ -14,9 +14,9 @@ from .models import (
     EventHistory,
     EventState,
     EventType,
-    PriorityMatrix,
     SlaPolicy,
 )
+from .priority import PriorityContext, resolve_priority
 
 
 def compute_fingerprint(origin, title, message, service_code, source_name, payload) -> str:
@@ -33,6 +33,15 @@ def compute_fingerprint(origin, title, message, service_code, source_name, paylo
         ensure_ascii=False,
     )
     return hashlib.sha256(fingerprint_input.encode("utf-8")).hexdigest()
+
+
+def priority_context(event: Event) -> PriorityContext:
+    return PriorityContext(
+        service_importance=event.service.importance if event.service else None,
+        category=event.category,
+        event_type=event.event_type,
+        occurrence_count=event.occurrence_count,
+    )
 
 
 @transaction.atomic
@@ -73,16 +82,45 @@ def register_event(validated_data: dict, actor_ref: str = "") -> tuple[Event, bo
             stored_payload = dict(open_event.payload or {})
             stored_payload["_ingestion_key"] = ingestion_key
             open_event.payload = stored_payload
-        open_event.save(update_fields=["occurrence_count", "last_seen_at", "payload", "updated_at"])
+        update_fields = ["occurrence_count", "last_seen_at", "payload", "updated_at"]
+        old_priority = open_event.priority
+        result = resolve_priority(
+            open_event.impact, open_event.urgency, priority_context(open_event)
+        )
+        new_priority = result.priority.value if result.priority else old_priority
+        if new_priority != old_priority:
+            open_event.priority = new_priority
+            update_fields.append("priority")
+        open_event.save(update_fields=update_fields)
+        if new_priority != old_priority:
+            EventHistory.objects.create(
+                event=open_event,
+                change_type=ChangeType.PRIORITY_CHANGE,
+                actor_type=ActorType.SYSTEM,
+                actor_ref=actor_ref,
+                field_name="priority",
+                old_value=old_priority or None,
+                new_value=new_priority,
+                description="Prioridad recalculada por recurrencia",
+                metadata={"priority": result.as_metadata()},
+            )
         return open_event, False
 
     impact = validated_data.get("impact") or ""
     urgency = validated_data.get("urgency") or ""
-    priority = ""
-    if impact and urgency:
-        priority_row = PriorityMatrix.objects.filter(impact=impact, urgency=urgency).first()
-        if priority_row:
-            priority = priority_row.priority
+    event_type = validated_data.get("event_type") or EventType.INFORMATION
+    category = validated_data.get("category") or EventCategory.GENERAL
+    priority_result = resolve_priority(
+        impact,
+        urgency,
+        PriorityContext(
+            service_importance=service.importance if service else None,
+            category=category,
+            event_type=event_type,
+            occurrence_count=1,
+        ),
+    )
+    priority = priority_result.priority.value if priority_result.priority else ""
 
     sla_policy = None
     response_due_at = None
@@ -105,8 +143,8 @@ def register_event(validated_data: dict, actor_ref: str = "") -> tuple[Event, bo
 
     event = Event.objects.create(
         origin=validated_data["origin"],
-        event_type=validated_data.get("event_type") or EventType.INFORMATION,
-        category=validated_data.get("category") or EventCategory.GENERAL,
+        event_type=event_type,
+        category=category,
         title=validated_data["title"],
         message=validated_data["message"],
         payload=stored_payload,
@@ -135,5 +173,6 @@ def register_event(validated_data: dict, actor_ref: str = "") -> tuple[Event, bo
         actor_ref=actor_ref,
         to_state=EventState.NEW,
         description="Evento registrado",
+        metadata={"priority": priority_result.as_metadata()} if priority else {},
     )
     return event, True

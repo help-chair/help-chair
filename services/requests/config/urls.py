@@ -5,7 +5,11 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 urlpatterns = [
     path("health/", include("core.urls")),
     path("admin/", admin.site.urls),
-    path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
-    path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="docs"),
-    path("api/", include("peticiones.urls")),
+    path("api/requests/v1/schema/", SpectacularAPIView.as_view(), name="schema"),
+    path(
+        "api/requests/v1/docs/",
+        SpectacularSwaggerView.as_view(url_name="schema"),
+        name="docs",
+    ),
+    path("api/requests/v1/", include("peticiones.urls")),
 ]

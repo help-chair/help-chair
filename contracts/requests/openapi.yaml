@@ -4,7 +4,7 @@ info:
   version: 0.1.0
   description: API del servicio requests (contrato en contracts/requests/).
 paths:
-  /api/peticiones/:
+  /api/requests/v1/peticiones/:
     get:
       operationId: peticiones_list
       parameters:
@@ -27,10 +27,28 @@ paths:
           - resuelto
         description: Filtrar peticiones por estado.
       - in: query
+        name: estado_aprobacion
+        schema:
+          type: string
+          enum:
+          - aprobado
+          - no_requerida
+          - pendiente
+          - rechazado
+        description: Filtrar solicitudes de cambio por estado de aprobación.
+      - in: query
         name: solicitante_id
         schema:
           type: integer
         description: Filtrar peticiones por ID del usuario solicitante.
+      - in: query
+        name: tipo
+        schema:
+          type: string
+          enum:
+          - cambio
+          - servicio
+        description: Filtrar peticiones por tipo (servicio o cambio).
       tags:
       - peticiones
       security:
@@ -44,7 +62,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Peticion'
+                  $ref: '#/components/schemas/ServiceRequest'
           description: ''
         '400':
           description: Datos o parámetros de consulta inválidos.
@@ -56,7 +74,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Peticion'
+              $ref: '#/components/schemas/ServiceRequest'
         required: true
       security:
       - cookieAuth: []
@@ -67,11 +85,11 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Peticion'
+                $ref: '#/components/schemas/ServiceRequest'
           description: ''
         '400':
           description: Datos o parámetros de consulta inválidos.
-  /api/peticiones/{id}/:
+  /api/requests/v1/peticiones/{id}/:
     get:
       operationId: peticiones_retrieve
       parameters:
@@ -80,7 +98,7 @@ paths:
         schema:
           type: string
           format: uuid
-        description: Un Cadena UUID que identifique este peticion.
+        description: Un Cadena UUID que identifique este service request.
         required: true
       tags:
       - peticiones
@@ -93,7 +111,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Peticion'
+                $ref: '#/components/schemas/ServiceRequest'
           description: ''
         '404':
           description: Recurso no encontrado.
@@ -105,7 +123,7 @@ paths:
         schema:
           type: string
           format: uuid
-        description: Un Cadena UUID que identifique este peticion.
+        description: Un Cadena UUID que identifique este service request.
         required: true
       tags:
       - peticiones
@@ -113,7 +131,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Peticion'
+              $ref: '#/components/schemas/ServiceRequest'
         required: true
       security:
       - cookieAuth: []
@@ -124,7 +142,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Peticion'
+                $ref: '#/components/schemas/ServiceRequest'
           description: ''
         '400':
           description: Datos o parámetros de consulta inválidos.
@@ -138,7 +156,7 @@ paths:
         schema:
           type: string
           format: uuid
-        description: Un Cadena UUID que identifique este peticion.
+        description: Un Cadena UUID que identifique este service request.
         required: true
       tags:
       - peticiones
@@ -146,7 +164,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PatchedPeticion'
+              $ref: '#/components/schemas/PatchedServiceRequest'
       security:
       - cookieAuth: []
       - basicAuth: []
@@ -156,7 +174,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Peticion'
+                $ref: '#/components/schemas/ServiceRequest'
           description: ''
         '400':
           description: Datos o parámetros de consulta inválidos.
@@ -170,7 +188,7 @@ paths:
         schema:
           type: string
           format: uuid
-        description: Un Cadena UUID que identifique este peticion.
+        description: Un Cadena UUID que identifique este service request.
         required: true
       tags:
       - peticiones
@@ -183,7 +201,41 @@ paths:
           description: No response body
         '404':
           description: Recurso no encontrado.
-  /api/peticiones/{id}/asignar/:
+  /api/requests/v1/peticiones/{id}/aprobar/:
+    post:
+      operationId: peticiones_aprobar_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: Un Cadena UUID que identifique este service request.
+        required: true
+      tags:
+      - peticiones
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApproveChange'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceRequest'
+          description: ''
+        '400':
+          description: Datos o parámetros de consulta inválidos.
+        '404':
+          description: Recurso no encontrado.
+  /api/requests/v1/peticiones/{id}/asignar/:
     post:
       operationId: peticiones_asignar_create
       parameters:
@@ -192,7 +244,7 @@ paths:
         schema:
           type: string
           format: uuid
-        description: Un Cadena UUID que identifique este peticion.
+        description: Un Cadena UUID que identifique este service request.
         required: true
       tags:
       - peticiones
@@ -200,7 +252,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Asignar'
+              $ref: '#/components/schemas/AssignRequest'
         required: true
       security:
       - cookieAuth: []
@@ -211,13 +263,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Peticion'
+                $ref: '#/components/schemas/ServiceRequest'
           description: ''
         '400':
           description: Datos o parámetros de consulta inválidos.
         '404':
           description: Recurso no encontrado.
-  /api/peticiones/{id}/cambiar-estado/:
+  /api/requests/v1/peticiones/{id}/cambiar-estado/:
     post:
       operationId: peticiones_cambiar_estado_create
       parameters:
@@ -226,7 +278,7 @@ paths:
         schema:
           type: string
           format: uuid
-        description: Un Cadena UUID que identifique este peticion.
+        description: Un Cadena UUID que identifique este service request.
         required: true
       tags:
       - peticiones
@@ -234,7 +286,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CambioEstado'
+              $ref: '#/components/schemas/StatusChange'
         required: true
       security:
       - cookieAuth: []
@@ -245,13 +297,47 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Peticion'
+                $ref: '#/components/schemas/ServiceRequest'
           description: ''
         '400':
           description: Datos o parámetros de consulta inválidos.
         '404':
           description: Recurso no encontrado.
-  /api/servicios/:
+  /api/requests/v1/peticiones/{id}/rechazar/:
+    post:
+      operationId: peticiones_rechazar_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: Un Cadena UUID que identifique este service request.
+        required: true
+      tags:
+      - peticiones
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RejectChange'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceRequest'
+          description: ''
+        '400':
+          description: Datos o parámetros de consulta inválidos.
+        '404':
+          description: Recurso no encontrado.
+  /api/requests/v1/servicios/:
     get:
       operationId: servicios_list
       parameters:
@@ -273,7 +359,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/ServicioSolicitable'
+                  $ref: '#/components/schemas/CatalogItem'
           description: ''
         '400':
           description: Datos o parámetros de consulta inválidos.
@@ -285,7 +371,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ServicioSolicitable'
+              $ref: '#/components/schemas/CatalogItem'
         required: true
       security:
       - cookieAuth: []
@@ -296,11 +382,11 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ServicioSolicitable'
+                $ref: '#/components/schemas/CatalogItem'
           description: ''
         '400':
           description: Datos o parámetros de consulta inválidos.
-  /api/servicios/{id}/:
+  /api/requests/v1/servicios/{id}/:
     get:
       operationId: servicios_retrieve
       parameters:
@@ -308,7 +394,7 @@ paths:
         name: id
         schema:
           type: integer
-        description: Un valor de entero único que identifique este servicio solicitable.
+        description: Un valor de entero único que identifique este catalog item.
         required: true
       tags:
       - servicios
@@ -321,7 +407,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ServicioSolicitable'
+                $ref: '#/components/schemas/CatalogItem'
           description: ''
         '404':
           description: Recurso no encontrado.
@@ -332,7 +418,7 @@ paths:
         name: id
         schema:
           type: integer
-        description: Un valor de entero único que identifique este servicio solicitable.
+        description: Un valor de entero único que identifique este catalog item.
         required: true
       tags:
       - servicios
@@ -340,7 +426,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ServicioSolicitable'
+              $ref: '#/components/schemas/CatalogItem'
         required: true
       security:
       - cookieAuth: []
@@ -351,7 +437,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ServicioSolicitable'
+                $ref: '#/components/schemas/CatalogItem'
           description: ''
         '400':
           description: Datos o parámetros de consulta inválidos.
@@ -364,7 +450,7 @@ paths:
         name: id
         schema:
           type: integer
-        description: Un valor de entero único que identifique este servicio solicitable.
+        description: Un valor de entero único que identifique este catalog item.
         required: true
       tags:
       - servicios
@@ -372,7 +458,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PatchedServicioSolicitable'
+              $ref: '#/components/schemas/PatchedCatalogItem'
       security:
       - cookieAuth: []
       - basicAuth: []
@@ -382,7 +468,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ServicioSolicitable'
+                $ref: '#/components/schemas/CatalogItem'
           description: ''
         '400':
           description: Datos o parámetros de consulta inválidos.
@@ -395,7 +481,7 @@ paths:
         name: id
         schema:
           type: integer
-        description: Un valor de entero único que identifique este servicio solicitable.
+        description: Un valor de entero único que identifique este catalog item.
         required: true
       tags:
       - servicios
@@ -410,7 +496,15 @@ paths:
           description: Recurso no encontrado.
 components:
   schemas:
-    Asignar:
+    ApproveChange:
+      type: object
+      properties:
+        aprobador_id:
+          type: integer
+          minimum: 1
+      required:
+      - aprobador_id
+    AssignRequest:
       type: object
       properties:
         asignado_a_id:
@@ -418,16 +512,29 @@ components:
           minimum: 1
       required:
       - asignado_a_id
-    CambioEstado:
+    CatalogItem:
       type: object
       properties:
-        estado:
-          $ref: '#/components/schemas/EstadoEnum'
-        motivo_cancelacion:
+        id:
+          type: integer
+          readOnly: true
+        nombre:
           type: string
-          maxLength: 255
+          maxLength: 120
+        descripcion:
+          type: string
+          default: ''
+        activo:
+          type: boolean
+          default: true
+        creado_en:
+          type: string
+          format: date-time
+          readOnly: true
       required:
-      - estado
+      - creado_en
+      - id
+      - nombre
     EstadoEnum:
       enum:
       - nuevo
@@ -446,58 +553,7 @@ components:
         * `cerrado` - Cerrado
         * `reabierto` - Reabierto
         * `cancelado` - Cancelado
-    PatchedPeticion:
-      type: object
-      properties:
-        id:
-          type: string
-          format: uuid
-          readOnly: true
-        tipo:
-          $ref: '#/components/schemas/TipoEnum'
-        servicio:
-          type: integer
-        titulo:
-          type: string
-          maxLength: 150
-        descripcion:
-          type: string
-        estado:
-          allOf:
-          - $ref: '#/components/schemas/EstadoEnum'
-          readOnly: true
-        solicitante_id:
-          type: integer
-          maximum: 9223372036854775807
-          minimum: -9223372036854775808
-          format: int64
-        asignado_a_id:
-          type: integer
-          readOnly: true
-          nullable: true
-        evento_id:
-          type: integer
-          maximum: 9223372036854775807
-          minimum: -9223372036854775808
-          format: int64
-          nullable: true
-        motivo_cancelacion:
-          type: string
-          readOnly: true
-        creada:
-          type: string
-          format: date-time
-          readOnly: true
-        actualizada:
-          type: string
-          format: date-time
-          readOnly: true
-        cerrada_en:
-          type: string
-          format: date-time
-          readOnly: true
-          nullable: true
-    PatchedServicioSolicitable:
+    PatchedCatalogItem:
       type: object
       properties:
         id:
@@ -508,9 +564,15 @@ components:
           maxLength: 120
         descripcion:
           type: string
+          default: ''
         activo:
           type: boolean
-    Peticion:
+          default: true
+        creado_en:
+          type: string
+          format: date-time
+          readOnly: true
+    PatchedServiceRequest:
       type: object
       properties:
         id:
@@ -518,7 +580,9 @@ components:
           format: uuid
           readOnly: true
         tipo:
-          $ref: '#/components/schemas/TipoEnum'
+          allOf:
+          - $ref: '#/components/schemas/TipoEnum'
+          default: servicio
         servicio:
           type: integer
         titulo:
@@ -527,24 +591,32 @@ components:
         descripcion:
           type: string
         estado:
-          allOf:
-          - $ref: '#/components/schemas/EstadoEnum'
+          type: string
+          readOnly: true
+        estado_aprobacion:
+          type: string
+          readOnly: true
+        aprobador_id:
+          type: integer
+          minimum: 1
+          nullable: true
+        aprobada_en:
+          type: string
+          format: date-time
+          readOnly: true
+        motivo_rechazo:
+          type: string
           readOnly: true
         solicitante_id:
           type: integer
-          maximum: 9223372036854775807
-          minimum: -9223372036854775808
-          format: int64
+          minimum: 0
         asignado_a_id:
           type: integer
           readOnly: true
-          nullable: true
         evento_id:
-          type: integer
-          maximum: 9223372036854775807
-          minimum: -9223372036854775808
-          format: int64
-          nullable: true
+          type: string
+          default: ''
+          maxLength: 64
         motivo_cancelacion:
           type: string
           readOnly: true
@@ -560,34 +632,102 @@ components:
           type: string
           format: date-time
           readOnly: true
+    RejectChange:
+      type: object
+      properties:
+        aprobador_id:
+          type: integer
+          minimum: 1
+        motivo_rechazo:
+          type: string
+          maxLength: 255
+      required:
+      - aprobador_id
+      - motivo_rechazo
+    ServiceRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        tipo:
+          allOf:
+          - $ref: '#/components/schemas/TipoEnum'
+          default: servicio
+        servicio:
+          type: integer
+        titulo:
+          type: string
+          maxLength: 150
+        descripcion:
+          type: string
+        estado:
+          type: string
+          readOnly: true
+        estado_aprobacion:
+          type: string
+          readOnly: true
+        aprobador_id:
+          type: integer
+          minimum: 1
           nullable: true
+        aprobada_en:
+          type: string
+          format: date-time
+          readOnly: true
+        motivo_rechazo:
+          type: string
+          readOnly: true
+        solicitante_id:
+          type: integer
+          minimum: 0
+        asignado_a_id:
+          type: integer
+          readOnly: true
+        evento_id:
+          type: string
+          default: ''
+          maxLength: 64
+        motivo_cancelacion:
+          type: string
+          readOnly: true
+        creada:
+          type: string
+          format: date-time
+          readOnly: true
+        actualizada:
+          type: string
+          format: date-time
+          readOnly: true
+        cerrada_en:
+          type: string
+          format: date-time
+          readOnly: true
       required:
       - actualizada
+      - aprobada_en
       - asignado_a_id
       - cerrada_en
       - creada
       - estado
+      - estado_aprobacion
       - id
       - motivo_cancelacion
+      - motivo_rechazo
       - servicio
       - solicitante_id
       - titulo
-    ServicioSolicitable:
+    StatusChange:
       type: object
       properties:
-        id:
-          type: integer
-          readOnly: true
-        nombre:
+        estado:
+          $ref: '#/components/schemas/EstadoEnum'
+        motivo_cancelacion:
           type: string
-          maxLength: 120
-        descripcion:
-          type: string
-        activo:
-          type: boolean
+          maxLength: 255
       required:
-      - id
-      - nombre
+      - estado
     TipoEnum:
       enum:
       - servicio

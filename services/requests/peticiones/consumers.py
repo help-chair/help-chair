@@ -2,120 +2,154 @@ import json
 import logging
 from typing import Any
 
-from django.db import transaction
+from django.db import IntegrityError, transaction
 
-from .models import Peticion, ServicioSolicitable
+from .models import CatalogItem, ServiceRequest
 
 logger = logging.getLogger(__name__)
 
-SERVICIO_POR_DEFECTO = "Atención automática de eventos"
-SOLICITANTE_SISTEMA_ID = 0
+DEFAULT_SERVICE_NAME = "Atención automática de eventos"
+SYSTEM_REQUESTER_ID = 0
+TARGET_DESTINATION = "REQUESTS"
 
 
-class EventoInvalidoError(ValueError):
-    """El payload recibido desde el broker no cumple con los campos mínimos."""
+class InvalidEventError(ValueError):
+    """El mensaje recibido desde el broker no cumple con el esquema oficial."""
 
 
-def _extraer_entero_positivo(valor: Any, campo: str, *, obligatorio: bool = False) -> int | None:
-    if valor is None or valor == "":
-        if obligatorio:
-            raise EventoInvalidoError(f"Falta el campo obligatorio '{campo}'.")
+def _parse_positive_int(value: Any, field_name: str) -> int | None:
+    if value is None or value == "":
         return None
-    if isinstance(valor, bool):
-        raise EventoInvalidoError(f"El campo '{campo}' debe ser un entero válido.")
+    if isinstance(value, bool):
+        raise InvalidEventError(f"El campo '{field_name}' debe ser un entero válido.")
     try:
-        numero = int(valor)
+        parsed = int(value)
     except (TypeError, ValueError) as exc:
-        raise EventoInvalidoError(f"El campo '{campo}' debe ser un entero válido.") from exc
-    if numero <= 0:
-        raise EventoInvalidoError(f"El campo '{campo}' debe ser mayor a cero.")
-    return numero
+        raise InvalidEventError(
+            f"El campo '{field_name}' debe ser un entero válido."
+        ) from exc
+    if parsed <= 0:
+        raise InvalidEventError(f"El campo '{field_name}' debe ser mayor a cero.")
+    return parsed
 
 
-def _resolver_servicio(nombre_servicio: str | None) -> ServicioSolicitable:
-    if nombre_servicio:
-        existente = ServicioSolicitable.objects.filter(
-            nombre__iexact=nombre_servicio.strip(), activo=True
+def _resolve_catalog_item(service_code: str | None) -> CatalogItem:
+    if service_code:
+        existing = CatalogItem.objects.filter(
+            name__iexact=service_code.strip(), is_active=True
         ).first()
-        if existente is not None:
-            return existente
+        if existing is not None:
+            return existing
 
-    servicio, _ = ServicioSolicitable.objects.get_or_create(
-        nombre=SERVICIO_POR_DEFECTO,
+    service_item, _ = CatalogItem.objects.get_or_create(
+        name=DEFAULT_SERVICE_NAME,
         defaults={
-            "descripcion": "Servicio base para peticiones generadas automáticamente por eventos.",
-            "activo": True,
+            "description": "Servicio base para peticiones generadas automáticamente por eventos.",
+            "is_active": True,
         },
     )
-    return servicio
+    return service_item
 
 
-@transaction.atomic
-def procesar_evento_enrutado(payload: dict[str, Any]) -> tuple[Peticion, bool]:
-    """Crea una Peticion idempotente a partir de un evento enrutado por services/events.
+def process_routed_event(envelope: dict[str, Any]) -> tuple[ServiceRequest | None, bool]:
+    """Crea una ServiceRequest idempotente a partir del sobre oficial event-envelope.json.
 
-    Retorna `(peticion, creada)`, donde `creada` es False si el `evento_id` ya existía.
+    Retorna `(service_request, created)`. Si el evento está dirigido a otro servicio
+    (`destination != "REQUESTS"`), retorna `(None, False)`. Garantiza unicidad ante
+    concurrencia mediante `UniqueConstraint` en `event_id`.
     """
+    if not isinstance(envelope, dict):
+        raise InvalidEventError("El mensaje debe ser un objeto JSON.")
+
+    envelope_type = str(envelope.get("type") or "").strip()
+    if envelope_type != "event.routed":
+        raise InvalidEventError(
+            f"Tipo de sobre no soportado para Peticiones: '{envelope_type}'."
+        )
+
+    payload = envelope.get("payload")
     if not isinstance(payload, dict):
-        raise EventoInvalidoError("El mensaje debe ser un objeto JSON.")
+        raise InvalidEventError("El campo 'payload' es obligatorio y debe ser un objeto.")
 
-    datos = payload.get("datos") if isinstance(payload.get("datos"), dict) else {}
+    destination = str(payload.get("destination") or "").strip().upper()
+    if destination and destination != TARGET_DESTINATION:
+        logger.info(
+            "Evento ignorado por destino distinto",
+            extra={"destination": destination, "envelope_id": envelope.get("id")},
+        )
+        return None, False
 
-    evento_id = _extraer_entero_positivo(
-        payload.get("evento_id") or payload.get("id") or datos.get("evento_id"),
-        "evento_id",
-        obligatorio=True,
-    )
+    raw_event_id = payload.get("event_id") or envelope.get("id")
+    if not raw_event_id or not isinstance(raw_event_id, str):
+        raise InvalidEventError("Falta el identificador obligatorio 'payload.event_id'.")
+    event_id = raw_event_id.strip()
 
-    existente = Peticion.objects.select_for_update().filter(evento_id=evento_id).first()
-    if existente is not None:
+    existing = ServiceRequest.objects.filter(event_id=event_id).first()
+    if existing is not None:
         logger.info(
             "Evento duplicado omitido",
-            extra={"evento_id": evento_id, "peticion_id": str(existente.id)},
+            extra={"event_id": event_id, "request_id": str(existing.id)},
         )
-        return existente, False
+        return existing, False
 
-    tipo_evento = str(payload.get("tipo") or "evento.sistema").strip()
-    titulo_crudo = str(
-        payload.get("titulo")
-        or datos.get("titulo")
-        or payload.get("descripcion")
-        or f"Evento automático: {tipo_evento}"
+    category = str(payload.get("category") or "REQUEST").strip().upper()
+    if category == "CHANGE":
+        request_type = ServiceRequest.RequestType.CHANGE
+        approval_status = ServiceRequest.ApprovalStatus.PENDING
+    else:
+        request_type = ServiceRequest.RequestType.SERVICE
+        approval_status = ServiceRequest.ApprovalStatus.NOT_REQUIRED
+
+    raw_title = str(
+        payload.get("title") or payload.get("message") or f"Evento automático: {event_id}"
     ).strip()
-    titulo = titulo_crudo[:150]
+    title = raw_title[:150]
 
-    descripcion_partes = []
-    if payload.get("descripcion"):
-        descripcion_partes.append(str(payload["descripcion"]).strip())
-    if datos:
-        datos_json = json.dumps(datos, ensure_ascii=False)
-        descripcion_partes.append(f"Datos del evento ({tipo_evento}): {datos_json}")
-    descripcion = "\n".join(descripcion_partes)
+    description_parts = []
+    if payload.get("message"):
+        description_parts.append(str(payload["message"]).strip())
+    raw_event_data = payload.get("payload")
+    if isinstance(raw_event_data, dict) and raw_event_data:
+        description_parts.append(
+            f"Datos del evento ({envelope_type}): {json.dumps(raw_event_data, ensure_ascii=False)}"
+        )
+    description = "\n".join(description_parts)
 
-    solicitante_crudo = (
-        payload.get("solicitante_id")
-        if payload.get("solicitante_id") is not None
-        else datos.get("usuario_id")
-    )
-    solicitante_id = (
-        _extraer_entero_positivo(solicitante_crudo, "solicitante_id")
-        if solicitante_crudo is not None
-        else SOLICITANTE_SISTEMA_ID
+    reporter_ref = payload.get("reporter_ref")
+    requester_id = (
+        _parse_positive_int(reporter_ref, "reporter_ref")
+        if reporter_ref is not None
+        else SYSTEM_REQUESTER_ID
     )
 
-    nombre_servicio = payload.get("servicio") or datos.get("servicio")
-    servicio = _resolver_servicio(str(nombre_servicio) if nombre_servicio else None)
+    service_code = payload.get("service_code")
+    catalog_item = _resolve_catalog_item(str(service_code) if service_code else None)
 
-    peticion = Peticion.objects.create(
-        tipo=Peticion.Tipo.SERVICIO,
-        servicio=servicio,
-        titulo=titulo,
-        descripcion=descripcion,
-        solicitante_id=solicitante_id,
-        evento_id=evento_id,
-    )
+    try:
+        with transaction.atomic():
+            service_request = ServiceRequest.objects.create(
+                request_type=request_type,
+                approval_status=approval_status,
+                service=catalog_item,
+                title=title,
+                description=description,
+                requester_id=requester_id,
+                event_id=event_id,
+            )
+    except IntegrityError:
+        existing = ServiceRequest.objects.get(event_id=event_id)
+        logger.info(
+            "Evento duplicado concurrente resuelto por restricción única",
+            extra={"event_id": event_id, "request_id": str(existing.id)},
+        )
+        return existing, False
+
     logger.info(
         "Petición creada desde evento",
-        extra={"evento_id": evento_id, "peticion_id": str(peticion.id), "tipo_evento": tipo_evento},
+        extra={
+            "event_id": event_id,
+            "request_id": str(service_request.id),
+            "request_type": request_type,
+        },
     )
-    return peticion, True
+    return service_request, True

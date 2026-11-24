@@ -3,68 +3,106 @@ import uuid
 from django.db import models
 
 
-class ServicioSolicitable(models.Model):
-    nombre = models.CharField(max_length=120, unique=True)
-    descripcion = models.TextField(blank=True)
-    activo = models.BooleanField(default=True)
-    creado = models.DateTimeField(auto_now_add=True)
+class CatalogItem(models.Model):
+    name = models.CharField(max_length=120, unique=True)
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ["nombre"]
+        ordering = ["name"]
 
-    def __str__(self):
-        return self.nombre
+    def __str__(self) -> str:
+        return self.name
 
 
-class Peticion(models.Model):
-    class Estado(models.TextChoices):
-        NUEVO = "nuevo", "Nuevo"
-        ASIGNADO = "asignado", "Asignado"
-        EN_PROCESO = "en_proceso", "En proceso"
-        RESUELTO = "resuelto", "Resuelto"
-        CERRADO = "cerrado", "Cerrado"
-        REABIERTO = "reabierto", "Reabierto"
-        CANCELADO = "cancelado", "Cancelado"
+class ServiceRequest(models.Model):
+    class Status(models.TextChoices):
+        NEW = "nuevo", "Nuevo"
+        ASSIGNED = "asignado", "Asignado"
+        IN_PROGRESS = "en_proceso", "En proceso"
+        RESOLVED = "resuelto", "Resuelto"
+        CLOSED = "cerrado", "Cerrado"
+        REOPENED = "reabierto", "Reabierto"
+        CANCELLED = "cancelado", "Cancelado"
 
-    class Tipo(models.TextChoices):
-        SERVICIO = "servicio", "Servicio"
-        CAMBIO = "cambio", "Cambio"
+    class RequestType(models.TextChoices):
+        SERVICE = "servicio", "Servicio"
+        CHANGE = "cambio", "Cambio"
 
-    TRANSICIONES = {
-        Estado.NUEVO: {Estado.ASIGNADO, Estado.CANCELADO},
-        Estado.ASIGNADO: {Estado.EN_PROCESO, Estado.CANCELADO},
-        Estado.EN_PROCESO: {Estado.RESUELTO, Estado.CANCELADO},
-        Estado.RESUELTO: {Estado.CERRADO, Estado.REABIERTO},
-        Estado.REABIERTO: {Estado.ASIGNADO, Estado.EN_PROCESO},
-        Estado.CERRADO: set(),
-        Estado.CANCELADO: set(),
+    class ApprovalStatus(models.TextChoices):
+        NOT_REQUIRED = "no_requerida", "No requerida"
+        PENDING = "pendiente", "Pendiente de aprobación"
+        APPROVED = "aprobado", "Aprobado"
+        REJECTED = "rechazado", "Rechazado"
+
+    TRANSITIONS = {
+        Status.NEW: {Status.ASSIGNED, Status.CANCELLED},
+        Status.ASSIGNED: {Status.IN_PROGRESS, Status.CANCELLED},
+        Status.IN_PROGRESS: {Status.RESOLVED, Status.CANCELLED},
+        Status.RESOLVED: {Status.CLOSED, Status.REOPENED},
+        Status.REOPENED: {Status.ASSIGNED, Status.IN_PROGRESS},
+        Status.CLOSED: set(),
+        Status.CANCELLED: set(),
     }
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    tipo = models.CharField(max_length=20, choices=Tipo.choices, default=Tipo.SERVICIO)
-    servicio = models.ForeignKey(
-        ServicioSolicitable, on_delete=models.PROTECT, related_name="peticiones"
+    request_type = models.CharField(
+        max_length=20, choices=RequestType.choices, default=RequestType.SERVICE
     )
-    titulo = models.CharField(max_length=150)
-    descripcion = models.TextField(blank=True)
-    estado = models.CharField(max_length=20, choices=Estado.choices, default=Estado.NUEVO)
+    service = models.ForeignKey(
+        CatalogItem, on_delete=models.PROTECT, related_name="requests"
+    )
+    title = models.CharField(max_length=150)
+    description = models.TextField(blank=True)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.NEW)
 
-    # Referencias a otros servicios: solo IDs, nunca llaves foráneas entre BD
-    solicitante_id = models.BigIntegerField()
-    asignado_a_id = models.BigIntegerField(null=True, blank=True)
-    evento_id = models.BigIntegerField(null=True, blank=True)
+    approval_status = models.CharField(
+        max_length=20,
+        choices=ApprovalStatus.choices,
+        default=ApprovalStatus.NOT_REQUIRED,
+    )
+    approver_id = models.BigIntegerField(null=True, blank=True)
+    approved_at = models.DateTimeField(null=True, blank=True)
+    rejection_reason = models.CharField(max_length=255, blank=True)
 
-    motivo_cancelacion = models.CharField(max_length=255, blank=True)
-    creada = models.DateTimeField(auto_now_add=True)
-    actualizada = models.DateTimeField(auto_now=True)
-    cerrada_en = models.DateTimeField(null=True, blank=True)
+    requester_id = models.BigIntegerField()
+    assignee_id = models.BigIntegerField(null=True, blank=True)
+    event_id = models.CharField(max_length=64, blank=True, default="", db_index=True)
+
+    cancellation_reason = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    closed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        ordering = ["-creada"]
-        indexes = [models.Index(fields=["estado", "asignado_a_id"])]
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["status", "assignee_id"]),
+            models.Index(fields=["request_type", "approval_status"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["event_id"],
+                condition=~models.Q(event_id=""),
+                name="unique_non_empty_event_id",
+            ),
+        ]
 
-    def __str__(self):
-        return f"{self.titulo} ({self.get_estado_display()})"
+    def __str__(self) -> str:
+        return f"{self.title} ({self.get_status_display()})"
 
-    def puede_pasar_a(self, nuevo_estado):
-        return nuevo_estado in self.TRANSICIONES[self.estado]
+    @property
+    def requires_approval(self) -> bool:
+        return self.request_type == self.RequestType.CHANGE
+
+    def can_transition_to(self, next_status: str) -> bool:
+        if next_status not in self.TRANSITIONS[self.status]:
+            return False
+        if (
+            self.requires_approval
+            and next_status in {self.Status.IN_PROGRESS, self.Status.RESOLVED}
+            and self.approval_status != self.ApprovalStatus.APPROVED
+        ):
+            return False
+        return True

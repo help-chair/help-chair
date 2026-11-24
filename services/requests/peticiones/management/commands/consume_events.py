@@ -7,21 +7,21 @@ from asgiref.sync import sync_to_async
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
-from peticiones.consumers import EventoInvalidoError, procesar_evento_enrutado
+from peticiones.consumers import InvalidEventError, process_routed_event
 
 logger = logging.getLogger(__name__)
 
 
-async def manejar_mensaje_crudo(raw_data: bytes) -> None:
+async def handle_raw_message(raw_data: bytes) -> None:
     try:
-        payload = json.loads(raw_data.decode("utf-8"))
+        envelope = json.loads(raw_data.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         logger.warning("Mensaje descartado por JSON inválido: %s", exc)
         return
 
     try:
-        await sync_to_async(procesar_evento_enrutado, thread_sensitive=True)(payload)
-    except EventoInvalidoError as exc:
+        await sync_to_async(process_routed_event, thread_sensitive=True)(envelope)
+    except InvalidEventError as exc:
         logger.warning("Mensaje descartado por esquema inválido: %s", exc)
     except Exception:
         logger.exception("Error inesperado procesando evento desde el broker")
@@ -59,9 +59,9 @@ class Command(BaseCommand):
                 "Falta la dependencia 'nats-py'. Instálala con `uv add nats-py`."
             ) from exc
 
-        asyncio.run(self._escuchar(nats, broker_url, subject))
+        asyncio.run(self._listen(nats, broker_url, subject))
 
-    async def _escuchar(self, nats_module, broker_url: str, subject: str) -> None:
+    async def _listen(self, nats_module, broker_url: str, subject: str) -> None:
         stop_event = asyncio.Event()
         loop = asyncio.get_running_loop()
 
@@ -71,16 +71,16 @@ class Command(BaseCommand):
             except NotImplementedError:
                 pass
 
-        nc = await nats_module.connect(broker_url)
+        connection = await nats_module.connect(broker_url)
         logger.info("Conectado a NATS en %s escuchando '%s'", broker_url, subject)
 
-        async def _callback(msg):
-            await manejar_mensaje_crudo(msg.data)
+        async def _callback(message):
+            await handle_raw_message(message.data)
 
-        sub = await nc.subscribe(subject, cb=_callback)
+        subscription = await connection.subscribe(subject, cb=_callback)
         try:
             await stop_event.wait()
         finally:
-            await sub.unsubscribe()
-            await nc.drain()
+            await subscription.unsubscribe()
+            await connection.drain()
             logger.info("Consumidor de eventos detenido limpiamente")

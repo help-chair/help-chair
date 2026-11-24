@@ -1,25 +1,26 @@
 from django.contrib import admin
 
-from .models import Peticion, ServicioSolicitable
+from .models import CatalogItem, ServiceRequest
 
 
-@admin.register(ServicioSolicitable)
-class ServicioSolicitableAdmin(admin.ModelAdmin):
-    list_display = ["nombre", "activo"]
-    list_filter = ["activo"]
-    search_fields = ["nombre"]
+@admin.register(CatalogItem)
+class CatalogItemAdmin(admin.ModelAdmin):
+    list_display = ["name", "is_active"]
+    list_filter = ["is_active"]
+    search_fields = ["name"]
 
 
-@admin.register(Peticion)
-class PeticionAdmin(admin.ModelAdmin):
+@admin.register(ServiceRequest)
+class ServiceRequestAdmin(admin.ModelAdmin):
     list_display = [
-        "titulo",
-        "tipo",
-        "servicio",
-        "estado",
-        "solicitante_id",
-        "asignado_a_id",
-        "creada",
+        "title",
+        "request_type",
+        "service",
+        "status",
+        "approval_status",
+        "requester_id",
+        "assignee_id",
+        "created_at",
     ]
-    list_filter = ["estado", "tipo", "servicio"]
-    search_fields = ["titulo", "descripcion"]
+    list_filter = ["status", "request_type", "approval_status", "service"]
+    search_fields = ["title", "description", "event_id"]

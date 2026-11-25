@@ -1,0 +1,28 @@
+# GENERADO por generate.py (plan B: podman kube play). No lo edites a mano.
+# Cada pod trae la app y su base de datos; dentro del pod se ven por 127.0.0.1.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: frontend
+  labels:
+    app: frontend
+spec:
+  restartPolicy: Always
+  containers:
+    - name: frontend
+      image: ghcr.io/help-chair/hc-frontend:dev
+      imagePullPolicy: Never
+      env:
+        - {name: BASE_DOMAIN, value: "localhost"}
+      ports:
+        - containerPort: 8080
+          hostPort: 8080
+          hostIP: 127.0.0.1
+      resources:
+        limits:
+          cpu: 250m
+          memory: 64Mi
+      readinessProbe:
+        exec:
+          command: ["wget", "--spider", "-q", "http://127.0.0.1:8080/health/live"]
+        periodSeconds: 10

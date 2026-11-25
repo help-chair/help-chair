@@ -23,3 +23,5 @@ obj/
 __pycache__/
 *.pyc
 target/
+
+kubeconfig-*.yaml

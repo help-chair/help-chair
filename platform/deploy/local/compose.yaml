@@ -1,236 +1,269 @@
-# Entorno local de Help Chair (un solo stack de ejemplo).
-# Uso desde la raíz del repo:  podman compose -f platform/deploy/local/compose.yaml up --build
-# Formato Compose Spec (compatible con podman compose / docker compose).
-# Una BD PostgreSQL por servicio (database per service). Credenciales SOLO para desarrollo local.
+# Entorno local de Help Chair: UN stack de ejemplo en tu máquina (Podman rootless en Fedora).
+#
+#   make up        levanta todo (construye las imágenes)      make down    lo detiene (conserva los datos)
+#   make logs      sigue los logs (make logs S=events)         make reset   borra contenedores Y datos
+#
+# Detalles, límites de recursos y solución de problemas: platform/deploy/local/README.md
+# Credenciales SOLO para desarrollo local: nunca se reutilizan fuera de este archivo.
+#
+# Notas del formato (probado con podman-compose 1.6.0):
+#  - `name` fija el proyecto. Sin él se llamaría "local" (por la carpeta) y los volúmenes "local_*".
+#  - Los límites usan deploy.resources.limits (cpus y memory).
+#  - Los puertos se publican solo en 127.0.0.1: las BD con claves de desarrollo no deben verse desde la red.
+#  - Las imágenes llevan el registro completo (docker.io/...) para que Podman no pregunte de dónde descargarlas.
 
-x-service: &service
+name: help-chair
+
+x-django: &django
   restart: unless-stopped
-  environment: &service-env
+  environment: &django-env
     DEBUG: "true"
     SECRET_KEY: "solo-desarrollo-local"
     ALLOWED_HOSTS: "*"
     LOG_LEVEL: "INFO"
+    WEB_CONCURRENCY: "2"
+    BROKER_URL: "nats://broker:4222"
+    EMAIL_HOST: "mailpit"
+    EMAIL_PORT: "1025"
+  # En local se migra al arrancar. En testing y producción las migraciones las hace el chart (initContainer).
+  command: ["sh", "-c", "python manage.py migrate --noinput && exec gunicorn config.wsgi:application --bind 0.0.0.0:$${PORT} --workers $${WEB_CONCURRENCY:-2} --graceful-timeout 30"]
+  healthcheck:
+    test: ["CMD", "python", "-c", "import os,urllib.request; urllib.request.urlopen('http://127.0.0.1:%s/health/ready' % os.environ['PORT'], timeout=3)"]
+    interval: 10s
+    timeout: 5s
+    retries: 6
+    start_period: 40s
+  deploy:
+    resources:
+      limits:
+        cpus: "0.50"
+        memory: 256M
+
+x-postgres: &postgres
+  restart: unless-stopped
+  # shared_buffers bajo para que PostgreSQL quepa en el límite de memoria del contenedor
+  command: ["postgres", "-c", "shared_buffers=64MB", "-c", "max_connections=50"]
+  healthcheck:
+    test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+    interval: 5s
+    timeout: 3s
+    retries: 10
+  deploy:
+    resources:
+      limits:
+        cpus: "0.50"
+        memory: 256M
 
 services:
-
   events:
-    <<: *service
+    <<: *django
     build: ../../../services/events
     image: ghcr.io/help-chair/hc-events:dev
     environment:
-      <<: *service-env
+      <<: *django-env
       SERVICE_NAME: events
       PORT: "8001"
-      DATABASE_URL: postgres://events:events@events-db:5432/events
-    # En local se migra al arrancar. En producción las migraciones son un paso aparte (Job de Helm).
-    command: ["sh", "-c", "python manage.py migrate --noinput && exec gunicorn config.wsgi:application --bind 0.0.0.0:8001 --workers 2 --graceful-timeout 30"]
-    ports: ["8001:8001"]
+      DATABASE_URL: postgresql://events:events@events-db:5432/events
+    ports: ["127.0.0.1:8001:8001"]
     depends_on:
       events-db:
         condition: service_healthy
 
   events-db:
-    image: timescale/timescaledb:latest-pg16
-    restart: unless-stopped
+    <<: *postgres
+    image: docker.io/timescale/timescaledb:latest-pg16
     environment:
       POSTGRES_USER: events
       POSTGRES_PASSWORD: events
       POSTGRES_DB: events
-    ports: ["5441:5432"]
+    ports: ["127.0.0.1:5441:5432"]
     volumes: ["events-data:/var/lib/postgresql/data"]
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U events -d events"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512M   # TimescaleDB necesita más que PostgreSQL a secas
 
   access:
-    <<: *service
+    <<: *django
     build: ../../../services/access
     image: ghcr.io/help-chair/hc-access:dev
     environment:
-      <<: *service-env
+      <<: *django-env
       SERVICE_NAME: access
       PORT: "8002"
-      DATABASE_URL: postgres://access:access@access-db:5432/access
-    # En local se migra al arrancar. En producción las migraciones son un paso aparte (Job de Helm).
-    command: ["sh", "-c", "python manage.py migrate --noinput && exec gunicorn config.wsgi:application --bind 0.0.0.0:8002 --workers 2 --graceful-timeout 30"]
-    ports: ["8002:8002"]
+      DATABASE_URL: postgresql://access:access@access-db:5432/access
+      EMPRESA_ID: "empresa-demo"   # claim "empresa" del token (un stack = una empresa)
+    ports: ["127.0.0.1:8002:8002"]
     depends_on:
       access-db:
         condition: service_healthy
 
   access-db:
-    image: postgres:16-alpine
-    restart: unless-stopped
+    <<: *postgres
+    image: docker.io/library/postgres:16-alpine
     environment:
       POSTGRES_USER: access
       POSTGRES_PASSWORD: access
       POSTGRES_DB: access
-    ports: ["5442:5432"]
+    ports: ["127.0.0.1:5442:5432"]
     volumes: ["access-data:/var/lib/postgresql/data"]
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U access -d access"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-
   requests:
-    <<: *service
+    <<: *django
     build: ../../../services/requests
     image: ghcr.io/help-chair/hc-requests:dev
     environment:
-      <<: *service-env
+      <<: *django-env
       SERVICE_NAME: requests
       PORT: "8003"
-      DATABASE_URL: postgres://requests:requests@requests-db:5432/requests
-    # En local se migra al arrancar. En producción las migraciones son un paso aparte (Job de Helm).
-    command: ["sh", "-c", "python manage.py migrate --noinput && exec gunicorn config.wsgi:application --bind 0.0.0.0:8003 --workers 2 --graceful-timeout 30"]
-    ports: ["8003:8003"]
+      DATABASE_URL: postgresql://requests:requests@requests-db:5432/requests
+    ports: ["127.0.0.1:8003:8003"]
     depends_on:
       requests-db:
         condition: service_healthy
 
   requests-db:
-    image: postgres:16-alpine
-    restart: unless-stopped
+    <<: *postgres
+    image: docker.io/library/postgres:16-alpine
     environment:
       POSTGRES_USER: requests
       POSTGRES_PASSWORD: requests
       POSTGRES_DB: requests
-    ports: ["5443:5432"]
+    ports: ["127.0.0.1:5443:5432"]
     volumes: ["requests-data:/var/lib/postgresql/data"]
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U requests -d requests"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-
   incidents:
-    <<: *service
+    <<: *django
     build: ../../../services/incidents
     image: ghcr.io/help-chair/hc-incidents:dev
     environment:
-      <<: *service-env
+      <<: *django-env
       SERVICE_NAME: incidents
       PORT: "8004"
-      DATABASE_URL: postgres://incidents:incidents@incidents-db:5432/incidents
-    # En local se migra al arrancar. En producción las migraciones son un paso aparte (Job de Helm).
-    command: ["sh", "-c", "python manage.py migrate --noinput && exec gunicorn config.wsgi:application --bind 0.0.0.0:8004 --workers 2 --graceful-timeout 30"]
-    ports: ["8004:8004"]
+      DATABASE_URL: postgresql://incidents:incidents@incidents-db:5432/incidents
+    ports: ["127.0.0.1:8004:8004"]
     depends_on:
       incidents-db:
         condition: service_healthy
 
   incidents-db:
-    image: postgres:16-alpine
-    restart: unless-stopped
+    <<: *postgres
+    image: docker.io/library/postgres:16-alpine
     environment:
       POSTGRES_USER: incidents
       POSTGRES_PASSWORD: incidents
       POSTGRES_DB: incidents
-    ports: ["5444:5432"]
+    ports: ["127.0.0.1:5444:5432"]
     volumes: ["incidents-data:/var/lib/postgresql/data"]
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U incidents -d incidents"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-
   problems:
-    <<: *service
+    <<: *django
     build: ../../../services/problems
     image: ghcr.io/help-chair/hc-problems:dev
     environment:
-      <<: *service-env
+      <<: *django-env
       SERVICE_NAME: problems
       PORT: "8005"
-      DATABASE_URL: postgres://problems:problems@problems-db:5432/problems
-    # En local se migra al arrancar. En producción las migraciones son un paso aparte (Job de Helm).
-    command: ["sh", "-c", "python manage.py migrate --noinput && exec gunicorn config.wsgi:application --bind 0.0.0.0:8005 --workers 2 --graceful-timeout 30"]
-    ports: ["8005:8005"]
+      DATABASE_URL: postgresql://problems:problems@problems-db:5432/problems
+    ports: ["127.0.0.1:8005:8005"]
     depends_on:
       problems-db:
         condition: service_healthy
 
   problems-db:
-    image: postgres:16-alpine
-    restart: unless-stopped
+    <<: *postgres
+    image: docker.io/library/postgres:16-alpine
     environment:
       POSTGRES_USER: problems
       POSTGRES_PASSWORD: problems
       POSTGRES_DB: problems
-    ports: ["5445:5432"]
+    ports: ["127.0.0.1:5445:5432"]
     volumes: ["problems-data:/var/lib/postgresql/data"]
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U problems -d problems"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-
   knowledge:
-    <<: *service
+    <<: *django
     build: ../../../services/knowledge
     image: ghcr.io/help-chair/hc-knowledge:dev
     environment:
-      <<: *service-env
+      <<: *django-env
       SERVICE_NAME: knowledge
       PORT: "8006"
-      DATABASE_URL: postgres://knowledge:knowledge@knowledge-db:5432/knowledge
-    # En local se migra al arrancar. En producción las migraciones son un paso aparte (Job de Helm).
-    command: ["sh", "-c", "python manage.py migrate --noinput && exec gunicorn config.wsgi:application --bind 0.0.0.0:8006 --workers 2 --graceful-timeout 30"]
-    ports: ["8006:8006"]
+      DATABASE_URL: postgresql://knowledge:knowledge@knowledge-db:5432/knowledge
+    ports: ["127.0.0.1:8006:8006"]
     depends_on:
       knowledge-db:
         condition: service_healthy
 
   knowledge-db:
-    image: postgres:16-alpine
-    restart: unless-stopped
+    <<: *postgres
+    image: docker.io/library/postgres:16-alpine
     environment:
       POSTGRES_USER: knowledge
       POSTGRES_PASSWORD: knowledge
       POSTGRES_DB: knowledge
-    ports: ["5446:5432"]
+    ports: ["127.0.0.1:5446:5432"]
     volumes: ["knowledge-data:/var/lib/postgresql/data"]
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U knowledge -d knowledge"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
+  # BD de Plataforma (directorio de empresas del gateway). El contenedor del gateway se agrega
+  # cuando exista su código; la BD ya queda lista para que desarrollen contra ella.
+  gateway-db:
+    <<: *postgres
+    image: docker.io/library/postgres:16-alpine
+    environment:
+      POSTGRES_USER: gateway
+      POSTGRES_PASSWORD: gateway
+      POSTGRES_DB: gateway
+    ports: ["127.0.0.1:5447:5432"]
+    volumes: ["gateway-data:/var/lib/postgresql/data"]
 
-  # Broker provisional: el motor (NATS o RabbitMQ) se decide en la fase 1 (D-07 / D-19).
+  # Broker de mensajes (ADR-87: NATS). JetStream activo para consumidores duraderos; sin volumen:
+  # los mensajes viven mientras viva el contenedor (make reset los borra).
   broker:
-    image: nats:2-alpine
+    image: docker.io/library/nats:2-alpine
     restart: unless-stopped
-    ports: ["4222:4222"]
+    command: ["-js", "-m", "8222"]
+    ports: ["127.0.0.1:4222:4222", "127.0.0.1:8222:8222"]
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8222/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
 
-  # Buzón de correo de pruebas (notificaciones). UI en http://localhost:8025
+  # Buzón de correo de pruebas. Interfaz web: http://127.0.0.1:8025  ·  SMTP: mailpit:1025
   mailpit:
-    image: axllent/mailpit:latest
+    image: docker.io/axllent/mailpit:latest
     restart: unless-stopped
-    ports: ["8025:8025", "1025:1025"]
+    ports: ["127.0.0.1:8025:8025", "127.0.0.1:1025:1025"]
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 64M
 
+  # Frontend global (sitio público + Service Desk). No se duplica por empresa.
   frontend:
     build: ../../../frontend
     image: ghcr.io/help-chair/hc-frontend:dev
     restart: unless-stopped
-    ports: ["8080:8080"]
-
-  
-  # CI/CD (issue #85). Opcional: solo arranca con --profile ci.
-  # Requiere platform/deploy/jenkins/.env (copia de .env.example). Ver docs/runbooks/jenkins.md
-  jenkins:
-    profiles: ["ci"]
-    build: ../jenkins
-    image: ghcr.io/help-chair/hc-jenkins:dev
-    restart: unless-stopped
-    env_file: ../jenkins/.env
-    # 8090 en el host porque el 8080 ya lo usa el frontend
-    ports: ["8090:8080"]
-    volumes:
-      - jenkins-home:/var/jenkins_home
-
+    environment:
+      BASE_DOMAIN: localhost
+    ports: ["127.0.0.1:8080:8080"]
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8080/health/live"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 64M
 
 volumes:
   events-data:
@@ -239,4 +272,4 @@ volumes:
   incidents-data:
   problems-data:
   knowledge-data:
-  jenkins-home:
+  gateway-data:

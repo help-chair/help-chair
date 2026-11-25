@@ -1,0 +1,81 @@
+# GENERADO por generate.py (plan B: podman kube play). No lo edites a mano.
+# Cada pod trae la app y su base de datos; dentro del pod se ven por 127.0.0.1.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: problems-data
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: problems
+  labels:
+    app: problems
+spec:
+  restartPolicy: Always
+  containers:
+    - name: app
+      image: ghcr.io/help-chair/hc-problems:dev
+      imagePullPolicy: Never   # se construye con make kube-build
+      command: ["sh", "-c", "until python -c \"import socket; socket.create_connection(('127.0.0.1', 5432), 2)\"; do echo 'esperando a la base de datos...'; sleep 2; done; python manage.py migrate --noinput && exec gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers $WEB_CONCURRENCY --graceful-timeout 30"]
+      env:
+        - {name: SERVICE_NAME, value: "problems"}
+        - {name: PORT, value: "8005"}
+        - {name: DEBUG, value: "true"}
+        - {name: SECRET_KEY, value: "solo-desarrollo-local"}
+        - {name: ALLOWED_HOSTS, value: "*"}
+        - {name: LOG_LEVEL, value: "INFO"}
+        - {name: WEB_CONCURRENCY, value: "2"}
+        - {name: DATABASE_URL, value: "postgresql://problems:problems@127.0.0.1:5432/problems"}
+      ports:
+        - containerPort: 8005
+          hostPort: 8005
+          hostIP: 127.0.0.1
+      resources:
+        limits:
+          cpu: 500m
+          memory: 256Mi
+      livenessProbe:
+        exec:
+          command: ["python", "-c", "import os,urllib.request; urllib.request.urlopen('http://127.0.0.1:%s/health/live' % os.environ['PORT'], timeout=3)"]
+        initialDelaySeconds: 30
+        periodSeconds: 15
+        timeoutSeconds: 5
+      readinessProbe:
+        exec:
+          command: ["python", "-c", "import os,urllib.request; urllib.request.urlopen('http://127.0.0.1:%s/health/ready' % os.environ['PORT'], timeout=3)"]
+        initialDelaySeconds: 20
+        periodSeconds: 10
+        timeoutSeconds: 5
+    - name: db
+      image: docker.io/library/postgres:16-alpine
+      args: ["postgres", "-c", "shared_buffers=64MB", "-c", "max_connections=50"]
+      env:
+        - {name: POSTGRES_USER, value: "problems"}
+        - {name: POSTGRES_PASSWORD, value: "problems"}
+        - {name: POSTGRES_DB, value: "problems"}
+      ports:
+        - containerPort: 5432
+          hostPort: 5445
+          hostIP: 127.0.0.1
+      volumeMounts:
+        - name: data
+          mountPath: /var/lib/postgresql/data
+      resources:
+        limits:
+          cpu: 500m
+          memory: 256Mi
+      readinessProbe:
+        exec:
+          command: ["pg_isready", "-U", "problems", "-d", "problems"]
+        periodSeconds: 5
+        timeoutSeconds: 3
+  volumes:
+    - name: data
+      persistentVolumeClaim:
+        claimName: problems-data

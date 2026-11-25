@@ -3,7 +3,9 @@ import {
   cambiarEstadoProblema,
   crearErrorConocido,
   crearProblema,
+  desvincularIncidenteProblema,
   listarErroresConocidos,
+  listarIncidentesDeProblema,
   listarProblemas,
   vincularIncidenteProblema,
 } from './problems'
@@ -61,5 +63,19 @@ describe('api problems', () => {
       workaround: 'Renovar manualmente',
     })
     expect(spy.mock.calls[3][0]).toBe('/api/problems/v1/errores-conocidos/')
+  })
+
+  it('lista y desvincula los incidentes de un problema', async () => {
+    const spy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(json([]))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+
+    await listarIncidentesDeProblema(42)
+    expect(spy.mock.calls[0][0]).toBe('/api/problems/v1/problemas/42/incidentes/')
+
+    await desvincularIncidenteProblema(42, 'INC-000001')
+    expect(spy.mock.calls[1][0]).toBe('/api/problems/v1/problemas/42/incidentes/INC-000001/')
+    expect(spy.mock.calls[1][1]?.method).toBe('DELETE')
   })
 })

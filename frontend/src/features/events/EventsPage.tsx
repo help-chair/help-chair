@@ -9,55 +9,37 @@ import {
   ShieldAlert,
   X,
 } from 'lucide-react'
-import type { EventListItem, EventType } from '@/api/events'
+import { mensajeDeError } from '@/api/client'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { cargarEventosConRespaldo } from './api'
+import { cargarEventos } from './api'
+import { DESTINO_LABEL, ESTADO_LABEL, TIPO_BADGE, TIPO_LABEL, hora } from './data'
+import type { EventListItem, EventType } from './types'
 
 type Filtro = EventType | 'all'
 type EstadoCarga = 'cargando' | 'lista' | 'error'
 
-const TIPO_BADGE: Record<EventType, 'info' | 'warning' | 'exception'> = {
-  INFORMATION: 'info',
-  WARNING: 'warning',
-  EXCEPTION: 'exception',
-}
-
-const TIPO_LABEL: Record<EventType, string> = {
-  INFORMATION: 'Informativo',
-  WARNING: 'Advertencia',
-  EXCEPTION: 'Excepción',
-}
-
-const DESTINO_LABEL: Record<string, string> = {
-  LOG_ONLY: 'Solo registro',
-  SOLUTION_AUTHOR: 'Autor de la solución (KB)',
-  EVENTS: 'Registro y vigilancia',
-  ACCESS: 'Accesos / Seguridad',
-  REQUESTS: 'Peticiones',
-  INCIDENTS: 'Incidencias',
-  PROBLEMS: 'Problemas',
-}
-
-function hora(iso: string) {
-  return new Date(iso).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
-}
-
 export function EventsPage() {
   const [eventos, setEventos] = useState<EventListItem[]>([])
   const [carga, setCarga] = useState<EstadoCarga>('cargando')
+  const [errorCarga, setErrorCarga] = useState('')
   const [filtro, setFiltro] = useState<Filtro>('all')
   const [busqueda, setBusqueda] = useState('')
 
   const cargar = useCallback(() => {
     setCarga('cargando')
-    cargarEventosConRespaldo().then(
+    cargarEventos({ ordering: '-last_seen_at' }).then(
       (nuevos) => {
         setEventos(nuevos)
         setCarga('lista')
       },
-      () => setCarga('error'),
+      (error: unknown) => {
+        setErrorCarga(
+          mensajeDeError(error, 'Verifica tu conexión con el servicio de Eventos.'),
+        )
+        setCarga('error')
+      },
     )
   }, [])
 
@@ -115,10 +97,7 @@ export function EventsPage() {
           className="rounded-xl border border-red-200 bg-red-50 p-6 text-sm text-red-700"
         >
           <p className="font-semibold">No se pudieron cargar los eventos.</p>
-          <p className="mt-1 text-xs text-red-700">
-            Verifica que el servicio de Eventos esté disponible o levanta el mock con{' '}
-            <code className="font-mono">npm run mock:events</code>.
-          </p>
+          <p className="mt-1 text-xs text-red-700">{errorCarga}</p>
           <Button size="sm" variant="outline" className="mt-3" onClick={cargar}>
             Reintentar
           </Button>
@@ -251,13 +230,13 @@ export function EventsPage() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         {evt.destination ? (
-                          <Badge variant="request">{DESTINO_LABEL[evt.destination] ?? evt.destination}</Badge>
+                          <Badge variant="request">{DESTINO_LABEL[evt.destination]}</Badge>
                         ) : (
                           <span className="text-xs text-slate-400">—</span>
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <Badge variant="outline">{evt.state}</Badge>
+                        <Badge variant="outline">{ESTADO_LABEL[evt.state]}</Badge>
                       </td>
                     </tr>
                   ))}

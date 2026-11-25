@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
+import { mensajeDeError } from '@/api/client'
 import {
   cambiarEstadoProblema,
   crearErrorConocido as crearErrorConocidoApi,
   crearProblema,
+  desvincularIncidenteProblema,
   vincularIncidenteProblema,
 } from '@/api/problems'
-import { cargarProblemasConRespaldo } from './api'
+import { cargarProblemas } from './api'
 import { codigoProblema, requiereCausaRaiz, siguienteEstado } from './data'
 import type {
   CambioEstado,
@@ -17,9 +19,8 @@ import type {
   ProblemaIncidente,
 } from './types'
 
-// Estado del módulo en memoria (se pierde al recargar). Cada acción sigue las reglas del contrato
-// (contracts/problems/openapi.yaml); para conectarlo a services/problems, cambia el cuerpo de
-// estas funciones por llamadas a la API en src/api/ y los componentes no cambian.
+// Estado del módulo: todo sale de services/problems (contracts/problems/openapi.yaml). Cada acción
+// valida lo básico en la pantalla, espera la respuesta del servicio y guarda lo que este devuelve.
 
 export type EstadoCarga = 'cargando' | 'lista' | 'error'
 
@@ -28,12 +29,13 @@ export type Resultado<T> = { ok: true; valor: T } | { ok: false; detalle: string
 
 const VACIO: DatosProblemas = { problemas: [], incidentes: [], errores: [], analisis: {} }
 
-const ahora = () => new Date().toISOString()
+function fallo(error: unknown, respaldo: string): { ok: false; detalle: string } {
+  return { ok: false, detalle: mensajeDeError(error, respaldo) }
+}
 
-const siguienteId = (lista: { id: number }[]) => Math.max(0, ...lista.map((item) => item.id)) + 1
-
-export function useProblemas(cargar: () => Promise<DatosProblemas> = cargarProblemasConRespaldo) {
+export function useProblemas(cargar: () => Promise<DatosProblemas> = cargarProblemas) {
   const [carga, setCarga] = useState<EstadoCarga>('cargando')
+  const [errorCarga, setErrorCarga] = useState('')
   const [datos, setDatos] = useState<DatosProblemas>(VACIO)
 
   const recargar = useCallback(() => {
@@ -45,8 +47,10 @@ export function useProblemas(cargar: () => Promise<DatosProblemas> = cargarProbl
         setDatos(nuevos)
         setCarga('lista')
       },
-      () => {
-        if (vigente) setCarga('error')
+      (error: unknown) => {
+        if (!vigente) return
+        setErrorCarga(mensajeDeError(error, 'Verifica tu conexión con el servicio de Problemas.'))
+        setCarga('error')
       },
     )
     return () => {
@@ -56,29 +60,22 @@ export function useProblemas(cargar: () => Promise<DatosProblemas> = cargarProbl
 
   useEffect(() => recargar(), [recargar])
 
-  /** POST /problemas/: se crea en estado `registrado`. */
-  function registrar(entrada: ProblemaCrear): Problema {
-    const fecha = ahora()
-    const nuevo: Problema = {
-      id: siguienteId(datos.problemas),
-      titulo: entrada.titulo,
-      descripcion: entrada.descripcion,
-      estado: 'registrado',
-      prioridad: entrada.prioridad ?? 'media',
-      origen: entrada.origen ?? 'manual',
-      causa_raiz: entrada.causa_raiz ?? '',
-      asignado_a_id: entrada.asignado_a_id ?? '',
-      creado_en: fecha,
-      actualizado_en: fecha,
-      resuelto_en: null,
+  /** POST /problemas/: el servicio lo crea en estado `registrado`. */
+  async function registrar(entrada: ProblemaCrear): Promise<Resultado<Problema>> {
+    try {
+      const nuevo = await crearProblema(entrada)
+      setDatos((actual) => ({ ...actual, problemas: [nuevo, ...actual.problemas] }))
+      return { ok: true, valor: nuevo }
+    } catch (error) {
+      return fallo(error, 'No se pudo registrar el problema.')
     }
-    setDatos((actual) => ({ ...actual, problemas: [nuevo, ...actual.problemas] }))
-    void crearProblema(entrada).catch(() => {})
-    return nuevo
   }
 
   /** POST /problemas/{id}/estado/: solo avanza al siguiente estado del ciclo de vida. */
-  function cambiarEstado(problemaId: number, cambio: CambioEstado): Resultado<Problema> {
+  async function cambiarEstado(
+    problemaId: number,
+    cambio: CambioEstado,
+  ): Promise<Resultado<Problema>> {
     const problema = datos.problemas.find((item) => item.id === problemaId)
     if (!problema) return { ok: false, detalle: 'No existe el problema solicitado.' }
     if (siguienteEstado(problema.estado) !== cambio.estado) {
@@ -91,24 +88,23 @@ export function useProblemas(cargar: () => Promise<DatosProblemas> = cargarProbl
     if (requiereCausaRaiz(cambio.estado) && !causaRaiz) {
       return { ok: false, detalle: 'Escribe la causa raíz para continuar.' }
     }
-    const fecha = ahora()
-    const actualizado: Problema = {
-      ...problema,
-      estado: cambio.estado,
-      causa_raiz: causaRaiz,
-      actualizado_en: fecha,
-      resuelto_en: cambio.estado === 'resuelto' ? fecha : problema.resuelto_en,
+    try {
+      const actualizado = await cambiarEstadoProblema(problemaId, cambio)
+      setDatos((actual) => ({
+        ...actual,
+        problemas: actual.problemas.map((item) => (item.id === problemaId ? actualizado : item)),
+      }))
+      return { ok: true, valor: actualizado }
+    } catch (error) {
+      return fallo(error, `No se pudo actualizar ${codigoProblema(problemaId)}.`)
     }
-    setDatos((actual) => ({
-      ...actual,
-      problemas: actual.problemas.map((item) => (item.id === problemaId ? actualizado : item)),
-    }))
-    void cambiarEstadoProblema(problemaId, cambio).catch(() => {})
-    return { ok: true, valor: actualizado }
   }
 
-  /** POST /problemas/{id}/incidentes/: responde con error si ya estaba vinculada (409). */
-  function vincular(problemaId: number, incidenteId: string): Resultado<ProblemaIncidente> {
+  /** POST /problemas/{id}/incidentes/: el servicio responde 409 si ya estaba vinculada. */
+  async function vincular(
+    problemaId: number,
+    incidenteId: string,
+  ): Promise<Resultado<ProblemaIncidente>> {
     const id = incidenteId.trim().toUpperCase()
     if (!id) return { ok: false, detalle: 'Escribe el ID de la incidencia.' }
     const repetido = datos.incidentes.some(
@@ -117,45 +113,48 @@ export function useProblemas(cargar: () => Promise<DatosProblemas> = cargarProbl
     if (repetido) {
       return { ok: false, detalle: `${id} ya está vinculada a ${codigoProblema(problemaId)}.` }
     }
-    const vinculo: ProblemaIncidente = {
-      id: siguienteId(datos.incidentes),
-      problema_id: problemaId,
-      incidente_id: id,
-      vinculado_en: ahora(),
+    try {
+      const vinculo = await vincularIncidenteProblema(problemaId, id)
+      setDatos((actual) => ({ ...actual, incidentes: [vinculo, ...actual.incidentes] }))
+      return { ok: true, valor: vinculo }
+    } catch (error) {
+      return fallo(error, `No se pudo vincular ${id}.`)
     }
-    setDatos((actual) => ({ ...actual, incidentes: [vinculo, ...actual.incidentes] }))
-    void vincularIncidenteProblema(problemaId, id).catch(() => {})
-    return { ok: true, valor: vinculo }
   }
 
   /** DELETE /problemas/{id}/incidentes/{incidente_id}/ */
-  function desvincular(problemaId: number, incidenteId: string) {
-    setDatos((actual) => ({
-      ...actual,
-      incidentes: actual.incidentes.filter(
-        (vinculo) => !(vinculo.problema_id === problemaId && vinculo.incidente_id === incidenteId),
-      ),
-    }))
+  async function desvincular(problemaId: number, incidenteId: string): Promise<Resultado<null>> {
+    try {
+      await desvincularIncidenteProblema(problemaId, incidenteId)
+      setDatos((actual) => ({
+        ...actual,
+        incidentes: actual.incidentes.filter(
+          (vinculo) =>
+            !(vinculo.problema_id === problemaId && vinculo.incidente_id === incidenteId),
+        ),
+      }))
+      return { ok: true, valor: null }
+    } catch (error) {
+      return fallo(error, `No se pudo desvincular ${incidenteId}.`)
+    }
   }
 
   /** POST /errores-conocidos/ */
-  function crearErrorConocido(entrada: ErrorConocidoCrear): ErrorConocido {
-    const fecha = ahora()
-    const nuevo: ErrorConocido = {
-      ...entrada,
-      id: siguienteId(datos.errores),
-      articulo_kb_id: entrada.articulo_kb_id ?? '',
-      activo: entrada.activo ?? true,
-      creado_en: fecha,
-      actualizado_en: fecha,
+  async function crearErrorConocido(
+    entrada: ErrorConocidoCrear,
+  ): Promise<Resultado<ErrorConocido>> {
+    try {
+      const nuevo = await crearErrorConocidoApi(entrada)
+      setDatos((actual) => ({ ...actual, errores: [nuevo, ...actual.errores] }))
+      return { ok: true, valor: nuevo }
+    } catch (error) {
+      return fallo(error, 'No se pudo publicar el error conocido.')
     }
-    setDatos((actual) => ({ ...actual, errores: [nuevo, ...actual.errores] }))
-    void crearErrorConocidoApi(entrada).catch(() => {})
-    return nuevo
   }
 
   return {
     carga,
+    errorCarga,
     recargar,
     ...datos,
     registrar,

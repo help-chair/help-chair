@@ -10,8 +10,8 @@ import type {
   Urgency,
 } from './types'
 
-// Catálogos, datos de ejemplo (mocks) y cálculos del módulo mientras services/incidents
-// publica su API. Los casos son los del diseño en Figma (frontend/docs/incidents/).
+// Catálogos y cálculos del módulo. Los incidentes vienen siempre de services/incidents
+// (contracts/incidents/openapi.yaml): aquí no hay datos de ejemplo.
 
 export type BadgeVariant = NonNullable<BadgeProps['variant']>
 
@@ -93,121 +93,6 @@ export function evidenceError(file: File): string | null {
 
 const MINUTE = 60_000
 const HOUR = 60 * MINUTE
-
-function minutesAgo(now: number, minutes: number) {
-  return new Date(now - minutes * MINUTE).toISOString()
-}
-
-/**
- * Casos del diseño en Figma. Las horas son relativas al momento de carga para que
- * los indicadores («nuevo en la última hora», «hace 12 min») tengan sentido.
- */
-export function createSampleData(now = Date.now()): {
-  tickets: Ticket[]
-  escalations: Escalation[]
-} {
-  const tickets: Ticket[] = [
-    {
-      id: 'TCK-1049',
-      createdAt: minutesAgo(now, 55),
-      requesterId: 'A-1021',
-      requesterName: 'Ana Ruiz',
-      channel: 'email',
-      description: 'Sin acceso al sistema escolar',
-      urgency: 'alta',
-      priority: 'urgente',
-      impact: 'alto',
-      status: 'abierto',
-      level: 1,
-      evidenceName: 'captura-error-acceso.png',
-    },
-    {
-      id: 'TCK-1048',
-      createdAt: minutesAgo(now, 60),
-      requesterId: 'A-1034',
-      requesterName: 'Luis Mora',
-      channel: 'telefono',
-      description: 'Impresora del laboratorio no responde',
-      urgency: 'media',
-      priority: 'media',
-      impact: 'medio',
-      status: 'abierto',
-      level: 2,
-    },
-    {
-      id: 'TCK-1047',
-      createdAt: minutesAgo(now, 68),
-      requesterId: 'A-1040',
-      requesterName: 'Sofía Vega',
-      channel: 'email',
-      description: 'Solicitud de licencia de software',
-      urgency: 'baja',
-      priority: 'baja',
-      impact: 'bajo',
-      status: 'cerrado',
-      level: 1,
-      closedAt: minutesAgo(now, 30),
-    },
-    {
-      id: 'TCK-1046',
-      createdAt: minutesAgo(now, 75),
-      requesterId: 'A-1007',
-      requesterName: 'Jorge Páez',
-      channel: 'telefono',
-      description: 'Servidor de base de datos caído',
-      urgency: 'alta',
-      priority: 'urgente',
-      impact: 'alto',
-      status: 'abierto',
-      level: 3,
-      evidenceName: 'log-servidor-bd.txt',
-    },
-    {
-      id: 'TCK-1045',
-      createdAt: minutesAgo(now, 82),
-      requesterId: 'A-1052',
-      requesterName: 'María Cruz',
-      channel: 'email',
-      description: 'Wi-Fi caído en el edificio B',
-      urgency: 'alta',
-      priority: 'alta',
-      impact: 'medio',
-      status: 'abierto',
-      level: 2,
-      evidenceName: 'reporte-wifi-edificio-b.pdf',
-    },
-    {
-      id: 'TCK-1044',
-      createdAt: minutesAgo(now, 100),
-      requesterId: 'A-1013',
-      requesterName: 'Carlos Ibarra',
-      channel: 'telefono',
-      description: 'Correo institucional no envía mensajes',
-      urgency: 'media',
-      priority: 'media',
-      impact: 'medio',
-      status: 'cerrado',
-      level: 1,
-      closedAt: minutesAgo(now, 50),
-    },
-  ]
-
-  const escalations: Escalation[] = [
-    { id: 'ESC-TCK-1046-3', ticketId: 'TCK-1046', level: 3, escalatedAt: minutesAgo(now, 12) },
-    { id: 'ESC-TCK-1045-2', ticketId: 'TCK-1045', level: 2, escalatedAt: minutesAgo(now, 25) },
-    { id: 'ESC-TCK-1048-2', ticketId: 'TCK-1048', level: 2, escalatedAt: minutesAgo(now, 40) },
-  ]
-
-  return { tickets, escalations }
-}
-
-export function nextTicketId(tickets: Ticket[]) {
-  const highest = tickets.reduce((max, ticket) => {
-    const number = Number(ticket.id.replace('TCK-', ''))
-    return Number.isNaN(number) ? max : Math.max(max, number)
-  }, 1000)
-  return `TCK-${highest + 1}`
-}
 
 /** Indicadores de la fila superior; se calculan solos a partir de los tickets. */
 export function computeMetrics(tickets: Ticket[], now: number) {

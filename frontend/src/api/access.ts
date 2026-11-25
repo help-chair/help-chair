@@ -34,8 +34,9 @@ export function getRefreshToken(): string | null {
   return refreshToken
 }
 
-function authHeader(): Record<string, string> {
-  return accessToken ? { Authorization: `Bearer ${accessToken}` } : {}
+/** Token de acceso vigente; `src/api/client.ts` lo agrega como `Authorization: Bearer`. */
+export function getAccessToken(): string | null {
+  return accessToken
 }
 
 // --- Autenticación ---
@@ -49,7 +50,7 @@ export function refreshSession(refresco: string) {
 }
 
 export function logout(refresco: string) {
-  return apiPost<void>(`${BASE}/logout`, { refresco }, { headers: authHeader() })
+  return apiPost<void>(`${BASE}/logout`, { refresco })
 }
 
 // --- Cuenta ---
@@ -60,16 +61,12 @@ export function activateAccount(token: string, password: string) {
 }
 
 export function getCurrentUser() {
-  return apiGet<UsuarioActual>(`${BASE}/me`, { headers: authHeader() })
+  return apiGet<UsuarioActual>(`${BASE}/me`)
 }
 
 /** Marca el onboarding como terminado al guardar el último paso del asistente. */
 export function completeOnboarding() {
-  return apiPatch<UsuarioActual>(
-    `${BASE}/me/onboarding`,
-    { completed: true },
-    { headers: authHeader() },
-  )
+  return apiPatch<UsuarioActual>(`${BASE}/me/onboarding`, { completed: true })
 }
 
 // --- Usuarios, roles y departamentos ---
@@ -80,34 +77,26 @@ export function listUsers(filtros: { rol?: string; estado?: string; buscar?: str
   if (filtros.estado) query.set('estado', filtros.estado)
   if (filtros.buscar) query.set('buscar', filtros.buscar)
   const sufijo = query.toString()
-  return apiGet<{ resultados: Usuario[] }>(`${BASE}/usuarios${sufijo ? `?${sufijo}` : ''}`, {
-    headers: authHeader(),
-  })
+  return apiGet<{ resultados: Usuario[] }>(`${BASE}/usuarios${sufijo ? `?${sufijo}` : ''}`)
 }
 
 export function inviteUser(invitacion: InvitacionUsuario) {
-  return apiPost<Usuario>(`${BASE}/usuarios`, invitacion, { headers: authHeader() })
+  return apiPost<Usuario>(`${BASE}/usuarios`, invitacion)
 }
 
 export function updateUser(id: string, cambios: ActualizacionUsuario) {
-  return apiPatch<Usuario>(`${BASE}/usuarios/${encodeURIComponent(id)}`, cambios, {
-    headers: authHeader(),
-  })
+  return apiPatch<Usuario>(`${BASE}/usuarios/${encodeURIComponent(id)}`, cambios)
 }
 
 /** Levanta el bloqueo por intentos fallidos y reinicia el contador. */
 export function unlockUser(id: string) {
-  return apiPost<Usuario>(
-    `${BASE}/usuarios/${encodeURIComponent(id)}/desbloquear`,
-    {},
-    { headers: authHeader() },
-  )
+  return apiPost<Usuario>(`${BASE}/usuarios/${encodeURIComponent(id)}/desbloquear`, {})
 }
 
 export function listRoles() {
-  return apiGet<{ resultados: Rol[] }>(`${BASE}/roles`, { headers: authHeader() })
+  return apiGet<{ resultados: Rol[] }>(`${BASE}/roles`)
 }
 
 export function listDepartments() {
-  return apiGet<{ resultados: Departamento[] }>(`${BASE}/departamentos`, { headers: authHeader() })
+  return apiGet<{ resultados: Departamento[] }>(`${BASE}/departamentos`)
 }

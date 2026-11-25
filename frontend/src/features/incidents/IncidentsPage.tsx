@@ -10,32 +10,46 @@ import { TicketTable } from './TicketTable'
 import type { Escalation, NewTicketInput } from './types'
 import { useNow, useTickets } from './useTickets'
 
+interface IncidentsPageProps {
+  /** ID del agente de la sesión: se asigna como responsable al cerrar un incidente sin agente. */
+  agenteId?: string
+}
+
 /**
  * Módulo de Incidencias (Equipo 4 · Incident Management), según el diseño en Figma
- * (frontend/docs/incidents/). Trabaja con datos de ejemplo en memoria hasta que
- * services/incidents publique su API (contracts/incidents/openapi.yaml).
+ * (frontend/docs/incidents/). Lee y modifica los incidentes en services/incidents
+ * (contracts/incidents/openapi.yaml).
  */
-export function IncidentsPage() {
-  const { tickets, escalations, carga, recargar, escalate, close, create, markCalled } =
+export function IncidentsPage({ agenteId }: IncidentsPageProps) {
+  const { tickets, escalations, carga, errorCarga, recargar, escalate, close, create, markCalled } =
     useTickets()
   const now = useNow()
   const [modalOpen, setModalOpen] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [highlightId, setHighlightId] = useState<string | null>(null)
+  const [busyId, setBusyId] = useState<string | null>(null)
 
-  function handleEscalate(ticketId: string) {
-    const level = escalate(ticketId)
-    if (level) {
-      setNotice(
-        `${ticketId} escaló a Nivel ${level}: Incidentes debe llamar ${CALL_TARGET[level]}.`,
-      )
-    }
+  async function handleEscalate(ticketId: string) {
+    setBusyId(ticketId)
+    const resultado = await escalate(ticketId)
+    setBusyId(null)
+    setNotice(
+      resultado.ok
+        ? `${ticketId} escaló a Nivel ${resultado.valor}: Incidentes debe llamar ${CALL_TARGET[resultado.valor as Escalation['level']]}.`
+        : `No se pudo escalar ${ticketId}: ${resultado.detalle}`,
+    )
   }
 
-  function handleClose(ticketId: string) {
-    const removed = close(ticketId)
+  async function handleClose(ticketId: string) {
+    setBusyId(ticketId)
+    const resultado = await close(ticketId, agenteId)
+    setBusyId(null)
+    if (!resultado.ok) {
+      setNotice(`No se pudo cerrar ${ticketId}: ${resultado.detalle}`)
+      return
+    }
     setNotice(
-      removed > 0
+      resultado.valor > 0
         ? `${ticketId} quedó cerrado y se retiraron sus avisos de llamada pendientes.`
         : `${ticketId} quedó cerrado.`,
     )
@@ -46,11 +60,13 @@ export function IncidentsPage() {
     setNotice(`Se registró la llamada por ${escalation.ticketId} (Nivel ${escalation.level}).`)
   }
 
-  function handleCreate(input: NewTicketInput) {
-    const id = create(input)
+  async function handleCreate(input: NewTicketInput): Promise<string | null> {
+    const resultado = await create(input)
+    if (!resultado.ok) return resultado.detalle
     setModalOpen(false)
-    setHighlightId(id)
-    setNotice(`Ticket ${id} creado. Aparece al inicio de la tabla.`)
+    setHighlightId(resultado.valor)
+    setNotice(`Ticket ${resultado.valor} creado. Aparece al inicio de la tabla.`)
+    return null
   }
 
   return (
@@ -110,10 +126,7 @@ export function IncidentsPage() {
           className="rounded-xl border border-red-200 bg-red-50 p-6 text-sm text-red-700"
         >
           <p className="font-semibold">No se pudieron cargar los incidentes.</p>
-          <p className="mt-1 text-xs text-red-700">
-            Verifica que el servicio de Incidencias esté disponible o levanta el mock con{' '}
-            <code className="font-mono">npm run mock:incidents</code>.
-          </p>
+          <p className="mt-1 text-xs text-red-700">{errorCarga}</p>
           <Button size="sm" variant="outline" className="mt-3" onClick={recargar}>
             Reintentar
           </Button>
@@ -126,8 +139,9 @@ export function IncidentsPage() {
           <TicketTable
             tickets={tickets}
             highlightId={highlightId}
-            onEscalate={handleEscalate}
-            onClose={handleClose}
+            busyId={busyId}
+            onEscalate={(ticketId) => void handleEscalate(ticketId)}
+            onClose={(ticketId) => void handleClose(ticketId)}
           />
           <EscalationPanel escalations={escalations} now={now} onMarkCalled={handleMarkCalled} />
         </>

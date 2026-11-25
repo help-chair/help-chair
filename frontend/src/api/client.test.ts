@@ -1,5 +1,12 @@
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { ApiError, apiGet } from '@/api/client'
+import {
+  ApiError,
+  TIEMPO_LIMITE_MS,
+  apiDelete,
+  apiGet,
+  apiPatch,
+  esErrorDeConexion,
+} from '@/api/client'
 
 // Mock the access module used by the client
 vi.mock('@/api/access', () => ({
@@ -7,6 +14,7 @@ vi.mock('@/api/access', () => ({
   setAccessToken: vi.fn(),
   setRefreshToken: vi.fn(),
   getRefreshToken: vi.fn(() => 'stored-refresh'),
+  getAccessToken: vi.fn(() => 'token-vigente'),
 }))
 
 describe('api client', () => {
@@ -98,5 +106,104 @@ describe('api client JWT refresh', () => {
 
     await expect(apiGet('/api/access/v1/login')).rejects.toThrow()
     expect(access.refreshSession).not.toHaveBeenCalled()
+  })
+})
+
+describe('api client: red, tiempos y formatos de error', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  it('agrega el JWT en las llamadas del Service Desk', async () => {
+    const spy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }))
+    await apiGet('/api/incidents/v1/incidents/')
+    const headers = spy.mock.calls[0][1]?.headers as Record<string, string>
+    expect(headers.Authorization).toBe('Bearer token-vigente')
+  })
+
+  it('no envía el JWT a la API pública', async () => {
+    const spy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }))
+    await apiGet('/api/public/v1/subdomains/acme/availability')
+    const headers = spy.mock.calls[0][1]?.headers as Record<string, string>
+    expect(headers.Authorization).toBeUndefined()
+  })
+
+  it('convierte un fallo de red en ApiError con status 0', async () => {
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'))
+    const error = await apiGet('/api/events/v1/events').catch((e: unknown) => e)
+    expect(error).toBeInstanceOf(ApiError)
+    expect((error as ApiError).code).toBe('sin_conexion')
+    expect(esErrorDeConexion(error)).toBe(true)
+  })
+
+  it('corta la petición al agotarse el tiempo de espera', async () => {
+    vi.useFakeTimers()
+    vi.spyOn(globalThis, 'fetch').mockImplementation(
+      (_input, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () =>
+            reject(new DOMException('Aborted', 'AbortError')),
+          )
+        }),
+    )
+    const promesa = apiGet('/api/problems/v1/problemas/').catch((e: unknown) => e)
+    await vi.advanceTimersByTimeAsync(TIEMPO_LIMITE_MS)
+    const error = await promesa
+    expect((error as ApiError).status).toBe(0)
+    expect((error as ApiError).code).toBe('tiempo_agotado')
+  })
+
+  it('respeta la cancelación de quien llama (AbortError)', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(
+      (_input, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () =>
+            reject(new DOMException('Aborted', 'AbortError')),
+          )
+        }),
+    )
+    const controlador = new AbortController()
+    const promesa = apiGet('/api/public/v1/lookup', { signal: controlador.signal }).catch(
+      (e: unknown) => e,
+    )
+    controlador.abort()
+    const error = await promesa
+    expect(error).not.toBeInstanceOf(ApiError)
+    expect((error as DOMException).name).toBe('AbortError')
+  })
+
+  it('toma el mensaje de los errores de campo de Django REST Framework', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ status: ['No se puede pasar de «nuevo» a «cerrado».'] }), {
+        status: 400,
+      }),
+    )
+    const error = (await apiPatch('/api/incidents/v1/incidents/1/', { status: 'cerrado' }).catch(
+      (e: unknown) => e,
+    )) as ApiError
+    expect(error.status).toBe(400)
+    expect(error.message).toBe('No se puede pasar de «nuevo» a «cerrado».')
+    expect(error.fields).toEqual({ status: 'No se puede pasar de «nuevo» a «cerrado».' })
+  })
+
+  it('reporta una respuesta que no es JSON (p. ej. el index.html del SPA)', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response('<!doctype html><html></html>', { status: 200 }),
+    )
+    const error = (await apiGet('/api/requests/v1/peticiones/').catch(
+      (e: unknown) => e,
+    )) as ApiError
+    expect(error.code).toBe('respuesta_invalida')
+  })
+
+  it('DELETE acepta 204 sin cuerpo', async () => {
+    const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 204 }))
+    await expect(apiDelete('/api/problems/v1/problemas/1/incidentes/INC-1/')).resolves.toBeUndefined()
+    expect(spy.mock.calls[0][1]?.method).toBe('DELETE')
   })
 })

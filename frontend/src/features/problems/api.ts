@@ -1,26 +1,21 @@
-// Integración del módulo de Problemas con services/problems.
-// Llama a la API real y, si el servicio no responde, usa los datos de ejemplo.
-import { ApiError } from '@/api/client'
-import { listarErroresConocidos, listarProblemas } from '@/api/problems'
-import { cargarDatosDeEjemplo } from './data'
+// Integración del módulo de Problemas con services/problems (contracts/problems/openapi.yaml).
+// Sin datos de ejemplo: si el servicio no responde, la pantalla muestra el error y permite reintentar.
+import { listarErroresConocidos, listarIncidentesDeProblema, listarProblemas } from '@/api/problems'
 import type { DatosProblemas } from './types'
 
-function servicioInalcanzable(error: unknown): boolean {
-  if (error instanceof ApiError) return error.status === 404 || error.status >= 500
-  return true
-}
-
 /**
- * Carga los datos desde la API. El contrato v0 no expone los vínculos de incidentes ni el
- * análisis de 5 porqués, así que esos quedan vacíos cuando la API responde; con el servicio
- * caído se devuelven los datos de ejemplo completos.
+ * Lee problemas, errores conocidos y los incidentes vinculados a cada problema. El contrato v1
+ * no expone el análisis de 5 porqués, así que queda vacío.
  */
-export async function cargarProblemasConRespaldo(): Promise<DatosProblemas> {
-  try {
-    const [problemas, errores] = await Promise.all([listarProblemas(), listarErroresConocidos()])
-    return { problemas: problemas.results, incidentes: [], errores: errores.results, analisis: {} }
-  } catch (error) {
-    if (!servicioInalcanzable(error)) throw error
-    return cargarDatosDeEjemplo()
+export async function cargarProblemas(): Promise<DatosProblemas> {
+  const [problemas, errores] = await Promise.all([listarProblemas(), listarErroresConocidos()])
+  const vinculos = await Promise.all(
+    problemas.results.map((problema) => listarIncidentesDeProblema(problema.id)),
+  )
+  return {
+    problemas: problemas.results,
+    incidentes: vinculos.flat(),
+    errores: errores.results,
+    analisis: {},
   }
 }

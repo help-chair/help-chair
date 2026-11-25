@@ -23,14 +23,14 @@ type Dialogo =
   { tipo: 'nuevo' } | { tipo: 'vincular' | 'causa' | 'error'; problema: Problema } | null
 
 interface ProblemsPageProps {
-  /** Para pruebas: reemplaza la carga de datos de ejemplo. */
+  /** Para pruebas: reemplaza la carga desde services/problems. */
   cargarDatos?: () => Promise<DatosProblemas>
 }
 
 /**
  * Módulo de Problemas (Equipo 5 · Problem Management), según el diseño de
- * frontend/docs/problems/. Trabaja con datos de ejemplo en memoria hasta que services/problems
- * publique su API; los tipos y las reglas son los de contracts/problems/openapi.yaml.
+ * frontend/docs/problems/. Lee y modifica los datos en services/problems
+ * (contracts/problems/openapi.yaml).
  */
 export function ProblemsPage({ cargarDatos }: ProblemsPageProps) {
   const modulo = useProblemas(cargarDatos)
@@ -55,21 +55,26 @@ export function ProblemsPage({ cargarDatos }: ProblemsPageProps) {
     setAviso(null)
   }
 
-  function registrar(entrada: ProblemaCrear) {
-    const nuevo = modulo.registrar(entrada)
+  /** Registra el problema; devuelve el error para el modal o `null` si salió bien. */
+  async function registrar(entrada: ProblemaCrear): Promise<string | null> {
+    const resultado = await modulo.registrar(entrada)
+    if (!resultado.ok) return resultado.detalle
     setDialogo(null)
-    setResaltadoId(nuevo.id)
+    setResaltadoId(resultado.valor.id)
     setVista({ nombre: 'lista' })
-    setAviso(`Problema ${codigoProblema(nuevo.id)} registrado. Aparece al inicio de la tabla.`)
+    setAviso(
+      `Problema ${codigoProblema(resultado.valor.id)} registrado. Aparece al inicio de la tabla.`,
+    )
+    return null
   }
 
   /** Avanza al siguiente estado; los que piden datos abren su formulario primero. */
-  function avanzar(problema: Problema) {
+  async function avanzar(problema: Problema) {
     const destino = siguienteEstado(problema.estado)
     if (!destino) return
     if (destino === 'causa_identificada') return setDialogo({ tipo: 'causa', problema })
     if (destino === 'error_conocido') return setDialogo({ tipo: 'error', problema })
-    const resultado = modulo.cambiarEstado(problema.id, { estado: destino })
+    const resultado = await modulo.cambiarEstado(problema.id, { estado: destino })
     setAviso(
       resultado.ok
         ? AVANCES[destino as keyof typeof AVANCES].aviso(codigoProblema(problema.id))
@@ -77,31 +82,36 @@ export function ProblemsPage({ cargarDatos }: ProblemsPageProps) {
     )
   }
 
-  function registrarCausa(problema: Problema, causaRaiz: string) {
-    const resultado = modulo.cambiarEstado(problema.id, {
+  async function registrarCausa(problema: Problema, causaRaiz: string): Promise<string | null> {
+    const resultado = await modulo.cambiarEstado(problema.id, {
       estado: 'causa_identificada',
       causa_raiz: causaRaiz,
     })
+    if (!resultado.ok) return resultado.detalle
+    setDialogo(null)
+    setAviso(AVANCES.causa_identificada.aviso(codigoProblema(problema.id)))
+    return null
+  }
+
+  /** Publica el error conocido y luego pasa el problema a `error_conocido`. */
+  async function publicarError(
+    problema: Problema,
+    entrada: ErrorConocidoCrear,
+  ): Promise<string | null> {
+    const error = await modulo.crearErrorConocido(entrada)
+    if (!error.ok) return error.detalle
+    const resultado = await modulo.cambiarEstado(problema.id, { estado: 'error_conocido' })
     setDialogo(null)
     setAviso(
       resultado.ok
-        ? AVANCES.causa_identificada.aviso(codigoProblema(problema.id))
-        : resultado.detalle,
+        ? `Error conocido ${codigoError(error.valor.id)} publicado para ${codigoProblema(problema.id)}.`
+        : `Error conocido ${codigoError(error.valor.id)} publicado, pero ${codigoProblema(problema.id)} no cambió de estado: ${resultado.detalle}`,
     )
+    return null
   }
 
-  function publicarError(problema: Problema, entrada: ErrorConocidoCrear) {
-    const resultado = modulo.cambiarEstado(problema.id, { estado: 'error_conocido' })
-    setDialogo(null)
-    if (!resultado.ok) return setAviso(resultado.detalle)
-    const error = modulo.crearErrorConocido(entrada)
-    setAviso(
-      `Error conocido ${codigoError(error.id)} publicado para ${codigoProblema(problema.id)}.`,
-    )
-  }
-
-  function vincular(problema: Problema, incidenteId: string) {
-    const resultado = modulo.vincular(problema.id, incidenteId)
+  async function vincular(problema: Problema, incidenteId: string): Promise<string | null> {
+    const resultado = await modulo.vincular(problema.id, incidenteId)
     if (!resultado.ok) return resultado.detalle
     setDialogo(null)
     setAviso(
@@ -110,9 +120,13 @@ export function ProblemsPage({ cargarDatos }: ProblemsPageProps) {
     return null
   }
 
-  function desvincular(problema: Problema, incidenteId: string) {
-    modulo.desvincular(problema.id, incidenteId)
-    setAviso(`Incidencia ${incidenteId} desvinculada de ${codigoProblema(problema.id)}.`)
+  async function desvincular(problema: Problema, incidenteId: string) {
+    const resultado = await modulo.desvincular(problema.id, incidenteId)
+    setAviso(
+      resultado.ok
+        ? `Incidencia ${incidenteId} desvinculada de ${codigoProblema(problema.id)}.`
+        : resultado.detalle,
+    )
   }
 
   const problemaDialogo = (tipo: 'vincular' | 'causa' | 'error') =>
@@ -171,9 +185,7 @@ export function ProblemsPage({ cargarDatos }: ProblemsPageProps) {
       {modulo.carga === 'error' && (
         <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-800">
           <p className="font-medium">No se pudieron cargar los problemas.</p>
-          <p className="mt-1 text-xs text-red-700">
-            Verifica tu conexión con el servicio de Problemas e inténtalo de nuevo.
-          </p>
+          <p className="mt-1 text-xs text-red-700">{modulo.errorCarga}</p>
           <Button variant="outline" size="sm" className="mt-3" onClick={() => modulo.recargar()}>
             Reintentar
           </Button>
@@ -194,9 +206,9 @@ export function ProblemsPage({ cargarDatos }: ProblemsPageProps) {
             }
             analisis={modulo.analisis[seleccionado.id]}
             onVolver={() => setVista({ nombre: 'lista' })}
-            onAvanzar={() => avanzar(seleccionado)}
+            onAvanzar={() => void avanzar(seleccionado)}
             onVincular={() => setDialogo({ tipo: 'vincular', problema: seleccionado })}
-            onDesvincular={(incidenteId) => desvincular(seleccionado, incidenteId)}
+            onDesvincular={(incidenteId) => void desvincular(seleccionado, incidenteId)}
           />
         ) : modulo.problemas.length === 0 ? (
           <Card className="flex flex-col items-center justify-center p-8 text-center">
@@ -234,7 +246,7 @@ export function ProblemsPage({ cargarDatos }: ProblemsPageProps) {
       <VincularIncidenciaModal
         problema={problemaDialogo('vincular')}
         onClose={() => setDialogo(null)}
-        onVincular={(incidenteId) => {
+        onVincular={async (incidenteId) => {
           const problema = problemaDialogo('vincular')
           return problema ? vincular(problema, incidenteId) : null
         }}
@@ -242,17 +254,17 @@ export function ProblemsPage({ cargarDatos }: ProblemsPageProps) {
       <CausaRaizModal
         problema={problemaDialogo('causa')}
         onClose={() => setDialogo(null)}
-        onRegistrar={(causaRaiz) => {
+        onRegistrar={async (causaRaiz) => {
           const problema = problemaDialogo('causa')
-          if (problema) registrarCausa(problema, causaRaiz)
+          return problema ? registrarCausa(problema, causaRaiz) : null
         }}
       />
       <ErrorConocidoModal
         problema={problemaDialogo('error')}
         onClose={() => setDialogo(null)}
-        onPublicar={(entrada) => {
+        onPublicar={async (entrada) => {
           const problema = problemaDialogo('error')
-          if (problema) publicarError(problema, entrada)
+          return problema ? publicarError(problema, entrada) : null
         }}
       />
     </div>

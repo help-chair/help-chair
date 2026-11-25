@@ -23,6 +23,8 @@ interface TicketTableProps {
   tickets: Ticket[]
   /** Ticket recién creado, para resaltarlo. */
   highlightId: string | null
+  /** Ticket con una acción en curso: sus botones se desactivan hasta que responda el servicio. */
+  busyId?: string | null
   onEscalate: (ticketId: string) => void
   onClose: (ticketId: string) => void
 }
@@ -69,7 +71,13 @@ function LevelIndicator({ level }: { level: EscalationLevel }) {
 }
 
 /** Tabla «Tickets de incidentes recientes» con filtros por estado y prioridad. */
-export function TicketTable({ tickets, highlightId, onEscalate, onClose }: TicketTableProps) {
+export function TicketTable({
+  tickets,
+  highlightId,
+  busyId = null,
+  onEscalate,
+  onClose,
+}: TicketTableProps) {
   const [status, setStatus] = useState<TicketStatus | 'todos'>('todos')
   const [priority, setPriority] = useState<Priority | 'todas'>('todas')
 
@@ -202,6 +210,7 @@ export function TicketTable({ tickets, highlightId, onEscalate, onClose }: Ticke
                             variant="outline"
                             className="border-red-200 text-red-700 hover:bg-red-50"
                             aria-label={`Escalar ${ticket.id}`}
+                            disabled={busyId === ticket.id}
                             onClick={() => onEscalate(ticket.id)}
                           >
                             <ChevronsUp size={16} aria-hidden="true" />
@@ -221,6 +230,7 @@ export function TicketTable({ tickets, highlightId, onEscalate, onClose }: Ticke
                           size="sm"
                           variant="outline"
                           aria-label={`Cerrar ${ticket.id}`}
+                          disabled={busyId === ticket.id}
                           onClick={() => onClose(ticket.id)}
                         >
                           Cerrar

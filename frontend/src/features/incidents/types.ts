@@ -1,5 +1,7 @@
 // Tipos del módulo de Incidencias (ITIL v4 · Incident Management).
-// Cuando exista contracts/incidents/openapi.yaml, estos tipos deben generarse desde ahí.
+// Los del contrato (contracts/incidents/openapi.yaml) viven en src/api/incidents.ts; estos son
+// los de la vista, que se arman a partir de un `Incident` en features/incidents/api.ts.
+import type { IncidentStatus } from '@/api/incidents'
 
 export type Channel = 'email' | 'telefono'
 export type Urgency = 'alta' | 'media' | 'baja'
@@ -11,7 +13,14 @@ export type TicketStatus = 'abierto' | 'cerrado'
 export type EscalationLevel = 1 | 2 | 3
 
 export interface Ticket {
+  /** Código legible del contrato (`code`, p. ej. INC-000042). */
   id: string
+  /** `id` numérico del contrato: es el que usan las rutas `/incidents/{id}/`. */
+  apiId: number
+  /** Estado ITIL real del servicio; `status` es su versión simplificada para la tabla. */
+  estadoItil: IncidentStatus
+  /** Agente asignado (`assigned_to`), si lo hay. */
+  assignedTo?: string
   /** Fecha de registro en formato ISO 8601. */
   createdAt: string
   requesterId: string

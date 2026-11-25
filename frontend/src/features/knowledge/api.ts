@@ -1,14 +1,8 @@
-// Integración del módulo de Base de Conocimiento con services/knowledge.
-// Llama a la API real y, si el servicio no responde, usa los artículos de ejemplo.
-import { ApiError } from '@/api/client'
+// Integración del módulo de Base de Conocimiento con services/knowledge
+// (contracts/knowledge/openapi.yaml). Sin datos de ejemplo: si el servicio no responde,
+// la pantalla muestra el error y permite reintentar.
 import { listarArticulos, type ArticuloContrato } from '@/api/knowledge'
-import { crearArticulosDeEjemplo } from './data'
 import type { Articulo, Categoria } from './types'
-
-function servicioInalcanzable(error: unknown): boolean {
-  if (error instanceof ApiError) return error.status === 404 || error.status >= 500
-  return true
-}
 
 const CATEGORIAS_VALIDAS = new Set<Categoria>([
   'red',
@@ -50,12 +44,7 @@ function articuloContratoAUI(item: ArticuloContrato): Articulo {
   }
 }
 
-export async function cargarArticulosConRespaldo(): Promise<Articulo[]> {
-  try {
-    const pagina = await listarArticulos()
-    return pagina.results.map(articuloContratoAUI)
-  } catch (error) {
-    if (!servicioInalcanzable(error)) throw error
-    return crearArticulosDeEjemplo()
-  }
+export async function cargarArticulos(): Promise<Articulo[]> {
+  const pagina = await listarArticulos()
+  return pagina.results.map(articuloContratoAUI)
 }

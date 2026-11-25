@@ -162,17 +162,15 @@ describe('UsersPage', () => {
     expect(within(fila).getByText('Activa')).toBeInTheDocument()
   })
 
-  it('usa los datos simulados y lo avisa cuando el microservicio no responde', async () => {
+  it('sin conexión con Accesos muestra el error, sin datos simulados', async () => {
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'))
     render(<UsersPage usuario={admin} />)
 
-    // El respaldo deja la pantalla usable en vez de dejarla vacía (entregable de la fase 2).
-    expect(await screen.findByText('Admin Help Desk')).toBeInTheDocument()
-    expect(screen.getByText(/datos simulados/i)).toBeInTheDocument()
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(await screen.findByRole('alert')).toHaveTextContent(/no hay conexión con el servicio/i)
+    expect(screen.queryByText('Admin Help Desk')).not.toBeInTheDocument()
   })
 
-  it('propaga un 403 del microservicio en vez de disfrazarlo con datos simulados', async () => {
+  it('propaga un 403 del microservicio', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       json({ codigo: 'permiso_denegado', detalle: 'Sin permiso' }, 403),
     )

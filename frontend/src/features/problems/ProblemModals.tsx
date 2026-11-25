@@ -8,20 +8,65 @@ import type { ErrorConocidoCrear, Prioridad, Problema, ProblemaCrear } from './t
 
 // Los cuatro formularios del módulo. Cada uno vive dentro de <Modal>, así que se reinicia
 // solo cada vez que se abre (al cerrarse, el Modal desmonta su contenido).
+// Cada acción devuelve una promesa con el mensaje de error del servicio o `null` si salió bien:
+// si falla, el modal sigue abierto con lo capturado y explica el motivo.
 
 type Errores = Record<string, string | undefined>
+
+/** Respuesta de la acción: el mensaje de error o `null` si salió bien. */
+type Envio = Promise<string | null>
+
+/** Estado del envío al servicio: desactiva el botón y guarda el error que devolvió. */
+function useEnvio() {
+  const [enviando, setEnviando] = useState(false)
+  const [errorEnvio, setErrorEnvio] = useState<string | null>(null)
+  async function enviarAlServicio(accion: () => Envio) {
+    if (enviando) return
+    setEnviando(true)
+    setErrorEnvio(null)
+    const error = await accion()
+    // Si salió bien, el modal se cierra y este formulario se desmonta.
+    if (error) {
+      setErrorEnvio(error)
+      setEnviando(false)
+    }
+  }
+  return { enviando, errorEnvio, enviarAlServicio }
+}
 
 const descrito = (id: string, mensaje?: string) => (mensaje ? `${id}-description` : undefined)
 
 /** Pie común: «Cancelar» y el botón con la acción exacta. */
-function Acciones({ onCancelar, accion }: { onCancelar: () => void; accion: string }) {
+function Acciones({
+  onCancelar,
+  accion,
+  enviando = false,
+  errorEnvio = null,
+}: {
+  onCancelar: () => void
+  accion: string
+  enviando?: boolean
+  errorEnvio?: string | null
+}) {
   return (
-    <div className="flex justify-end gap-2 border-t border-border/50 p-5">
-      <Button type="button" variant="outline" onClick={onCancelar}>
-        Cancelar
-      </Button>
-      <Button type="submit">{accion}</Button>
-    </div>
+    <>
+      {errorEnvio && (
+        <p
+          role="alert"
+          className="mx-5 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700"
+        >
+          {errorEnvio}
+        </p>
+      )}
+      <div className="flex justify-end gap-2 border-t border-border/50 p-5">
+        <Button type="button" variant="outline" onClick={onCancelar}>
+          Cancelar
+        </Button>
+        <Button type="submit" disabled={enviando}>
+          {enviando ? 'Guardando…' : accion}
+        </Button>
+      </div>
+    </>
   )
 }
 
@@ -53,7 +98,7 @@ function Formulario({
 interface NuevoProblemaModalProps {
   open: boolean
   onClose: () => void
-  onRegistrar: (entrada: ProblemaCrear) => void
+  onRegistrar: (entrada: ProblemaCrear) => Envio
 }
 
 export function NuevoProblemaModal({ open, onClose, onRegistrar }: NuevoProblemaModalProps) {
@@ -75,7 +120,7 @@ function NuevoProblemaForm({
   onRegistrar,
 }: {
   onCancelar: () => void
-  onRegistrar: (entrada: ProblemaCrear) => void
+  onRegistrar: (entrada: ProblemaCrear) => Envio
 }) {
   const tituloId = useId()
   const descripcionId = useId()
@@ -87,6 +132,7 @@ function NuevoProblemaForm({
   const [analista, setAnalista] = useState('')
   const [errores, setErrores] = useState<Errores>({})
   const [intentos, setIntentos] = useState(0)
+  const { enviando, errorEnvio, enviarAlServicio } = useEnvio()
 
   function enviar(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -98,13 +144,15 @@ function NuevoProblemaForm({
       setIntentos((n) => n + 1)
       return
     }
-    onRegistrar({
-      titulo: titulo.trim(),
-      descripcion: descripcion.trim(),
-      prioridad,
-      origen: 'manual',
-      asignado_a_id: analista,
-    })
+    void enviarAlServicio(() =>
+      onRegistrar({
+        titulo: titulo.trim(),
+        descripcion: descripcion.trim(),
+        prioridad,
+        origen: 'manual',
+        asignado_a_id: analista,
+      }),
+    )
   }
 
   return (
@@ -162,7 +210,12 @@ function NuevoProblemaForm({
           </Field>
         </div>
       </div>
-      <Acciones onCancelar={onCancelar} accion="Registrar problema" />
+      <Acciones
+        onCancelar={onCancelar}
+        accion="Registrar problema"
+        enviando={enviando}
+        errorEnvio={errorEnvio}
+      />
     </Formulario>
   )
 }
@@ -173,7 +226,7 @@ interface VincularIncidenciaModalProps {
   problema: Problema | null
   onClose: () => void
   /** Devuelve el mensaje de error si no se pudo (p. ej. ya estaba vinculada). */
-  onVincular: (incidenteId: string) => string | null
+  onVincular: (incidenteId: string) => Envio
 }
 
 export function VincularIncidenciaModal({
@@ -199,18 +252,28 @@ function VincularForm({
   onVincular,
 }: {
   onCancelar: () => void
-  onVincular: (incidenteId: string) => string | null
+  onVincular: (incidenteId: string) => Envio
 }) {
   const incidenteId = useId()
   const [valor, setValor] = useState('')
   const [errores, setErrores] = useState<Errores>({})
   const [intentos, setIntentos] = useState(0)
+  const [enviando, setEnviando] = useState(false)
 
-  function enviar(event: FormEvent<HTMLFormElement>) {
+  async function enviar(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const error = valor.trim() ? onVincular(valor) : 'Escribe el ID de la incidencia.'
-    setErrores({ incidente: error ?? undefined })
-    if (error) setIntentos((n) => n + 1)
+    if (enviando) return
+    let error: string | null = 'Escribe el ID de la incidencia.'
+    if (valor.trim()) {
+      setEnviando(true)
+      error = await onVincular(valor)
+    }
+    // Si salió bien, el modal se cierra y este formulario se desmonta.
+    if (error) {
+      setErrores({ incidente: error })
+      setIntentos((n) => n + 1)
+      setEnviando(false)
+    }
   }
 
   return (
@@ -230,12 +293,12 @@ function VincularForm({
             data-autofocus
             invalid={Boolean(errores.incidente)}
             aria-describedby={`${incidenteId}-description`}
-            placeholder="Ej. TCK-1050"
+            placeholder="Ej. INC-000042"
             onChange={(event) => setValor(event.target.value)}
           />
         </Field>
       </div>
-      <Acciones onCancelar={onCancelar} accion="Vincular incidencia" />
+      <Acciones onCancelar={onCancelar} accion="Vincular incidencia" enviando={enviando} />
     </Formulario>
   )
 }
@@ -245,7 +308,7 @@ function VincularForm({
 interface CausaRaizModalProps {
   problema: Problema | null
   onClose: () => void
-  onRegistrar: (causaRaiz: string) => void
+  onRegistrar: (causaRaiz: string) => Envio
 }
 
 export function CausaRaizModal({ problema, onClose, onRegistrar }: CausaRaizModalProps) {
@@ -275,12 +338,13 @@ function CausaRaizForm({
 }: {
   inicial: string
   onCancelar: () => void
-  onRegistrar: (causaRaiz: string) => void
+  onRegistrar: (causaRaiz: string) => Envio
 }) {
   const causaId = useId()
   const [causa, setCausa] = useState(inicial)
   const [errores, setErrores] = useState<Errores>({})
   const [intentos, setIntentos] = useState(0)
+  const { enviando, errorEnvio, enviarAlServicio } = useEnvio()
 
   function enviar(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -289,7 +353,7 @@ function CausaRaizForm({
       setIntentos((n) => n + 1)
       return
     }
-    onRegistrar(causa.trim())
+    void enviarAlServicio(() => onRegistrar(causa.trim()))
   }
 
   return (
@@ -312,7 +376,12 @@ function CausaRaizForm({
           />
         </Field>
       </div>
-      <Acciones onCancelar={onCancelar} accion="Registrar causa raíz" />
+      <Acciones
+        onCancelar={onCancelar}
+        accion="Registrar causa raíz"
+        enviando={enviando}
+        errorEnvio={errorEnvio}
+      />
     </Formulario>
   )
 }
@@ -322,7 +391,7 @@ function CausaRaizForm({
 interface ErrorConocidoModalProps {
   problema: Problema | null
   onClose: () => void
-  onPublicar: (entrada: ErrorConocidoCrear) => void
+  onPublicar: (entrada: ErrorConocidoCrear) => Envio
 }
 
 export function ErrorConocidoModal({ problema, onClose, onPublicar }: ErrorConocidoModalProps) {
@@ -348,7 +417,7 @@ function ErrorConocidoForm({
 }: {
   problema: Problema
   onCancelar: () => void
-  onPublicar: (entrada: ErrorConocidoCrear) => void
+  onPublicar: (entrada: ErrorConocidoCrear) => Envio
 }) {
   const tituloId = useId()
   const workaroundId = useId()
@@ -358,6 +427,7 @@ function ErrorConocidoForm({
   const [articulo, setArticulo] = useState('')
   const [errores, setErrores] = useState<Errores>({})
   const [intentos, setIntentos] = useState(0)
+  const { enviando, errorEnvio, enviarAlServicio } = useEnvio()
 
   function enviar(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -369,14 +439,16 @@ function ErrorConocidoForm({
       setIntentos((n) => n + 1)
       return
     }
-    onPublicar({
-      problema_id: problema.id,
-      titulo: titulo.trim(),
-      descripcion: problema.descripcion,
-      causa_raiz: problema.causa_raiz,
-      workaround: workaround.trim(),
-      articulo_kb_id: articulo.trim().toUpperCase(),
-    })
+    void enviarAlServicio(() =>
+      onPublicar({
+        problema_id: problema.id,
+        titulo: titulo.trim(),
+        descripcion: problema.descripcion,
+        causa_raiz: problema.causa_raiz,
+        workaround: workaround.trim(),
+        articulo_kb_id: articulo.trim().toUpperCase(),
+      }),
+    )
   }
 
   return (
@@ -426,7 +498,12 @@ function ErrorConocidoForm({
           />
         </Field>
       </div>
-      <Acciones onCancelar={onCancelar} accion="Publicar error conocido" />
+      <Acciones
+        onCancelar={onCancelar}
+        accion="Publicar error conocido"
+        enviando={enviando}
+        errorEnvio={errorEnvio}
+      />
     </Formulario>
   )
 }

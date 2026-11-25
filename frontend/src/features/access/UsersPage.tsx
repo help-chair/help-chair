@@ -10,17 +10,11 @@ import {
   UserX,
 } from 'lucide-react'
 import { inviteUser, listRoles, listUsers, unlockUser, updateUser } from '@/api/access'
-import { ApiError } from '@/api/client'
+import { ApiError, mensajeDeError } from '@/api/client'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Field, Input, Select } from '@/components/ui/form'
-import {
-  ROLES_SIMULADOS,
-  conRespaldo,
-  filtrarSimulados,
-  invitacionSimulada,
-} from './data'
 import { NOMBRE_ROL } from './roles'
 import type { EstadoUsuario, Rol, RolId, Usuario, UsuarioActual } from './types'
 
@@ -60,8 +54,6 @@ export function UsersPage({ usuario }: UsersPageProps) {
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
-  /** true cuando lo que se ve viene del respaldo simulado y no del microservicio. */
-  const [simulado, setSimulado] = useState(false)
 
   const [buscar, setBuscar] = useState('')
   const [filtroRol, setFiltroRol] = useState<RolId | ''>('')
@@ -79,23 +71,16 @@ export function UsersPage({ usuario }: UsersPageProps) {
     const filtros = { buscar: buscar.trim() || undefined, rol: filtroRol || undefined }
     try {
       const [respuestaUsuarios, respuestaRoles] = await Promise.all([
-        conRespaldo(
-          () => listUsers(filtros),
-          () => ({ resultados: filtrarSimulados(filtros) }),
-        ),
-        conRespaldo(
-          () => listRoles(),
-          () => ({ resultados: ROLES_SIMULADOS }),
-        ),
+        listUsers(filtros),
+        listRoles(),
       ])
-      setUsuarios(respuestaUsuarios.datos.resultados)
-      setRoles(respuestaRoles.datos.resultados)
-      setSimulado(respuestaUsuarios.simulado)
+      setUsuarios(respuestaUsuarios.resultados)
+      setRoles(respuestaRoles.resultados)
     } catch (e) {
       setError(
         e instanceof ApiError && e.status === 403
           ? 'Tu rol no puede consultar el directorio de usuarios.'
-          : 'No se pudo cargar el directorio. Revisa que el microservicio de Accesos esté arriba.',
+          : `No se pudo cargar el directorio. ${mensajeDeError(e, 'Inténtalo de nuevo en un momento.')}`,
       )
     } finally {
       setCargando(false)
@@ -111,14 +96,10 @@ export function UsersPage({ usuario }: UsersPageProps) {
     return roles.find((rol) => rol.id === id)?.nombre ?? NOMBRE_ROL[id]
   }
 
-  async function accion(
-    trabajo: () => Promise<Usuario>,
-    respaldo: () => Usuario,
-    mensaje: (u: Usuario) => string,
-  ) {
+  async function accion(trabajo: () => Promise<Usuario>, mensaje: (u: Usuario) => string) {
     setAviso(null)
     try {
-      const { datos: actualizado } = await conRespaldo(trabajo, respaldo)
+      const actualizado = await trabajo()
       setUsuarios((actuales) =>
         actuales.map((u) => (u.id === actualizado.id ? actualizado : u)),
       )
@@ -145,10 +126,7 @@ export function UsersPage({ usuario }: UsersPageProps) {
     setErrorInvitacion('')
     const datosInvitacion = { ...invitacion, correo, nombre: invitacion.nombre.trim() }
     try {
-      const { datos: nuevo } = await conRespaldo(
-        () => inviteUser(datosInvitacion),
-        () => invitacionSimulada(datosInvitacion),
-      )
+      const nuevo = await inviteUser(datosInvitacion)
       setUsuarios((actuales) => [...actuales, nuevo])
       setInvitacion({ nombre: '', correo: '', rol: 'usuario_final' })
       setAviso(`Invitación enviada a ${correo}.`)
@@ -156,7 +134,7 @@ export function UsersPage({ usuario }: UsersPageProps) {
       setErrorInvitacion(
         e instanceof ApiError && e.status === 409
           ? 'Ese correo ya tiene cuenta en la empresa.'
-          : 'No se pudo enviar la invitación.',
+          : mensajeDeError(e, 'No se pudo enviar la invitación.'),
       )
     }
   }
@@ -181,14 +159,6 @@ export function UsersPage({ usuario }: UsersPageProps) {
         </div>
         <Badge variant="info">Equipo 2</Badge>
       </div>
-
-      {simulado && (
-        <p className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-          <strong>Datos simulados.</strong> El microservicio de Accesos todavía no responde, así
-          que la vista usa el respaldo local. Para probar contra el contrato real:{' '}
-          <code className="font-mono">npm run mock:access</code>.
-        </p>
-      )}
 
       {error && (
         <p
@@ -380,7 +350,6 @@ export function UsersPage({ usuario }: UsersPageProps) {
                               const rol = event.target.value as RolId
                               void accion(
                                 () => updateUser(fila.id, { rol }),
-                                () => ({ ...fila, rol }),
                                 (u) => `${u.nombre} ahora es ${nombreRol(u.rol)}.`,
                               )
                             }}
@@ -412,7 +381,6 @@ export function UsersPage({ usuario }: UsersPageProps) {
                               onClick={() =>
                                 void accion(
                                   () => unlockUser(fila.id),
-                                  () => ({ ...fila, estado: 'activo' }),
                                   (u) => `Cuenta de ${u.nombre} reactivada.`,
                                 )
                               }
@@ -427,7 +395,6 @@ export function UsersPage({ usuario }: UsersPageProps) {
                               onClick={() =>
                                 void accion(
                                   () => updateUser(fila.id, { estado: 'activo' }),
-                                  () => ({ ...fila, estado: 'activo' }),
                                   (u) => `Cuenta de ${u.nombre} reactivada.`,
                                 )
                               }
@@ -442,7 +409,6 @@ export function UsersPage({ usuario }: UsersPageProps) {
                               onClick={() =>
                                 void accion(
                                   () => updateUser(fila.id, { estado: 'suspendido' }),
-                                  () => ({ ...fila, estado: 'suspendido' }),
                                   (u) => `Cuenta de ${u.nombre} suspendida.`,
                                 )
                               }

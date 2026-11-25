@@ -1,4 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
+import {
+  cambiarEstadoProblema,
+  crearErrorConocido as crearErrorConocidoApi,
+  crearProblema,
+  vincularIncidenteProblema,
+} from '@/api/problems'
 import { cargarProblemasConRespaldo } from './api'
 import { codigoProblema, requiereCausaRaiz, siguienteEstado } from './data'
 import type {
@@ -67,6 +73,7 @@ export function useProblemas(cargar: () => Promise<DatosProblemas> = cargarProbl
       resuelto_en: null,
     }
     setDatos((actual) => ({ ...actual, problemas: [nuevo, ...actual.problemas] }))
+    void crearProblema(entrada).catch(() => {})
     return nuevo
   }
 
@@ -96,6 +103,7 @@ export function useProblemas(cargar: () => Promise<DatosProblemas> = cargarProbl
       ...actual,
       problemas: actual.problemas.map((item) => (item.id === problemaId ? actualizado : item)),
     }))
+    void cambiarEstadoProblema(problemaId, cambio).catch(() => {})
     return { ok: true, valor: actualizado }
   }
 
@@ -116,6 +124,7 @@ export function useProblemas(cargar: () => Promise<DatosProblemas> = cargarProbl
       vinculado_en: ahora(),
     }
     setDatos((actual) => ({ ...actual, incidentes: [vinculo, ...actual.incidentes] }))
+    void vincularIncidenteProblema(problemaId, id).catch(() => {})
     return { ok: true, valor: vinculo }
   }
 
@@ -141,6 +150,7 @@ export function useProblemas(cargar: () => Promise<DatosProblemas> = cargarProbl
       actualizado_en: fecha,
     }
     setDatos((actual) => ({ ...actual, errores: [nuevo, ...actual.errores] }))
+    void crearErrorConocidoApi(entrada).catch(() => {})
     return nuevo
   }
 

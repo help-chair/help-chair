@@ -1,7 +1,14 @@
 // API de Problemas. Contrato: contracts/problems/openapi.yaml (Equipo 5).
 // Las rutas completas son `/api/problems/v1/problemas/` y `/api/problems/v1/errores-conocidos/`.
-import { apiGet } from './client'
-import type { ErrorConocido, Problema } from '@/features/problems/types'
+import { apiGet, apiPost } from './client'
+import type {
+  CambioEstado,
+  ErrorConocido,
+  ErrorConocidoCrear,
+  Problema,
+  ProblemaCrear,
+  ProblemaIncidente,
+} from '@/features/problems/types'
 
 const BASE = '/api/problems/v1'
 
@@ -30,4 +37,22 @@ export function listarErroresConocidos(filtros: { activo?: boolean; q?: string }
   if (filtros.q) query.set('q', filtros.q)
   const sufijo = query.toString()
   return apiGet<Paginado<ErrorConocido>>(`${BASE}/errores-conocidos/${sufijo ? `?${sufijo}` : ''}`)
+}
+
+export function crearProblema(entrada: ProblemaCrear) {
+  return apiPost<Problema>(`${BASE}/problemas/`, entrada)
+}
+
+export function cambiarEstadoProblema(id: number, cambio: CambioEstado) {
+  return apiPost<Problema>(`${BASE}/problemas/${id}/estado/`, cambio)
+}
+
+export function vincularIncidenteProblema(id: number, incidenteId: string) {
+  return apiPost<ProblemaIncidente>(`${BASE}/problemas/${id}/incidentes/`, {
+    incidente_id: incidenteId,
+  })
+}
+
+export function crearErrorConocido(entrada: ErrorConocidoCrear) {
+  return apiPost<ErrorConocido>(`${BASE}/errores-conocidos/`, entrada)
 }

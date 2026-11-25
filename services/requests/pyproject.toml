@@ -49,6 +49,15 @@ extend-exclude = ["migrations", ".venv", "staticfiles"]
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "DJ"]
 
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.6",
+    "pytest>=8.0",
+    "pytest-django>=4.8",
+    "pytest-cov>=5.0",
+    "schemathesis>=3.30",
+]
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["config*", "core*", "peticiones*"]

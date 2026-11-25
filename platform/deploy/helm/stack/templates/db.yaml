@@ -1,0 +1,102 @@
+{{- $services := include "stack.services" . | fromYaml }}
+{{- range $name := keys $services | sortAlpha }}
+{{- $svc := get $services $name }}
+{{- if and $svc.enabled $svc.db.enabled }}
+{{- $ctx := dict "root" $ "name" $name "svc" $svc }}
+{{- $db := $svc.db }}
+{{- $dbname := printf "%s-db" $name }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $dbname }}
+  labels:
+    {{- include "stack.labels" (dict "root" $ "name" $dbname "component" "database") | nindent 4 }}
+spec:
+  clusterIP: None   # headless: la StatefulSet tiene un solo pod
+  selector:
+    {{- include "stack.selector" (dict "root" $ "name" $dbname) | nindent 4 }}
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $dbname }}
+  labels:
+    {{- include "stack.labels" (dict "root" $ "name" $dbname "component" "database") | nindent 4 }}
+spec:
+  serviceName: {{ $dbname }}
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "stack.selector" (dict "root" $ "name" $dbname) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "stack.labels" (dict "root" $ "name" $dbname "component" "database") | nindent 8 }}
+    spec:
+      {{- with $.Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml $db.securityContext | nindent 8 }}
+      containers:
+        - name: postgres
+          image: {{ $db.image }}
+          imagePullPolicy: {{ $.Values.global.imagePullPolicy }}
+          args:
+            {{- toYaml $db.args | nindent 12 }}
+          env:
+            - name: POSTGRES_USER
+              value: {{ include "stack.dbUser" $ctx | quote }}
+            - name: POSTGRES_DB
+              value: {{ include "stack.dbName" $ctx | quote }}
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata   # subcarpeta: evita el lost+found del volumen
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "stack.secretName" $ctx }}
+                  key: POSTGRES_PASSWORD
+          ports:
+            - name: postgres
+              containerPort: 5432
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\""]
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 10
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\""]
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            {{- toYaml $db.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        {{- with $db.storageClass }}
+        storageClassName: {{ . | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ $db.storage }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,11 @@
+# Clúster local de desarrollo (k3d, kind o minikube). Para el día a día usa el compose (make up).
+global:
+  imageTag: dev
+  imagePullPolicy: IfNotPresent
+secrets:
+  create: true
+mailpit:
+  enabled: true
+defaults:
+  db:
+    storage: 512Mi

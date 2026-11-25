@@ -1,0 +1,15 @@
+{{- $services := include "stack.services" . | fromYaml }}
+{{- range $name := keys $services | sortAlpha }}
+{{- $svc := get $services $name }}
+{{- if $svc.enabled }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}-config
+  labels:
+    {{- include "stack.labels" (dict "root" $ "name" $name "component" "app") | nindent 4 }}
+data:
+  {{- include "stack.appConfig" (dict "root" $ "name" $name "svc" $svc) | nindent 2 }}
+{{- end }}
+{{- end }}

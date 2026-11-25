@@ -1,0 +1,12 @@
+# Servicio access - Equipo 2 (Accesos). Lo edita SOLO su equipo (CODEOWNERS). Guía: ../README.md
+# El nombre del archivo debe coincidir con 'name'.
+name: access
+port: 8002                       # el mismo PORT del servicio (Makefile y .env.example)
+image:
+  repository: hc-access              # ghcr.io/help-chair/hc-access:<global.imageTag>
+ingress:
+  path: /api/access                  # prefijo público del ingress (el servicio debe responder bajo /api/access/v1)
+env:                             # EMPRESA_ID y TENANT_ID los pone el chart con global.tenantId
+  ACCESS_TOKEN_MINUTOS: 15
+  REFRESH_TOKEN_DIAS: 1
+  INTENTOS_ANTES_DE_BLOQUEAR: 3

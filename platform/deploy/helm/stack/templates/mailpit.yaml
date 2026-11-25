@@ -1,0 +1,49 @@
+{{- if .Values.mailpit.enabled }}
+{{- $m := .Values.mailpit }}
+{{- $ctx := dict "root" $ "name" "mailpit" "component" "mail" }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mailpit
+  labels:
+    {{- include "stack.labels" $ctx | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "stack.selector" (dict "root" $ "name" "mailpit") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "stack.labels" $ctx | nindent 8 }}
+    spec:
+      containers:
+        - name: mailpit
+          image: {{ $m.image }}
+          imagePullPolicy: {{ $.Values.global.imagePullPolicy }}
+          ports:
+            - {name: smtp, containerPort: 1025}
+            - {name: http, containerPort: 8025}
+          readinessProbe:
+            tcpSocket: {port: http}
+            periodSeconds: 10
+          resources:
+            {{- toYaml $m.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mailpit
+  labels:
+    {{- include "stack.labels" $ctx | nindent 4 }}
+spec:
+  selector:
+    {{- include "stack.selector" (dict "root" $ "name" "mailpit") | nindent 4 }}
+  ports:
+    - {name: smtp, port: 1025, targetPort: smtp}
+    - {name: http, port: 8025, targetPort: http}
+{{- end }}

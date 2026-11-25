@@ -12,5 +12,6 @@ repos:
       - id: trailing-whitespace
       - id: check-yaml
         args: ["--multi"]
+        exclude: ^platform/deploy/helm/.*/templates/.*\.yaml$
       - id: check-added-large-files
       - id: detect-private-key

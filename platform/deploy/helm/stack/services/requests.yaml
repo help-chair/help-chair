@@ -1,0 +1,8 @@
+# Servicio requests - Equipo 3 (Peticiones). Lo edita SOLO su equipo (CODEOWNERS). Guía: ../README.md
+# El nombre del archivo debe coincidir con 'name'.
+name: requests
+port: 8003                       # el mismo PORT del servicio (Makefile y .env.example)
+image:
+  repository: hc-requests              # ghcr.io/help-chair/hc-requests:<global.imageTag>
+ingress:
+  path: /api/requests                  # prefijo público del ingress (el servicio debe responder bajo /api/requests/v1)

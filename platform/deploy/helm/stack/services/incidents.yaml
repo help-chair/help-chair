@@ -1,0 +1,8 @@
+# Servicio incidents - Equipo 4 (Incidencias). Lo edita SOLO su equipo (CODEOWNERS). Guía: ../README.md
+# El nombre del archivo debe coincidir con 'name'.
+name: incidents
+port: 8004                       # el mismo PORT del servicio (Makefile y .env.example)
+image:
+  repository: hc-incidents              # ghcr.io/help-chair/hc-incidents:<global.imageTag>
+ingress:
+  path: /api/incidents                  # prefijo público del ingress (el servicio debe responder bajo /api/incidents/v1)

@@ -1,29 +1,22 @@
 """Ajustes del servicio problems. Todo se configura por variables de entorno."""
 
-import sys
 from pathlib import Path
 
 import environ
-from django.core.exceptions import ImproperlyConfigured
+
+from config.environment import database_config, read_value, required
+from config.logging import logging_config
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 env = environ.Env()
-# Lee .env si existe (solo desarrollo local). En contenedores se usan variables reales.
-environ.Env.read_env(BASE_DIR / ".env")
-
 SERVICE_NAME = env("SERVICE_NAME", default="problems")
-DEBUG = env.bool("DEBUG", default=False)
-
-SECRET_KEY = env("SECRET_KEY", default="")
-if not SECRET_KEY:
-    if DEBUG or "pytest" in sys.modules:
-        SECRET_KEY = "insecure-dev-key-solo-para-desarrollo"
-    else:
-        raise ImproperlyConfigured("Define SECRET_KEY (ver .env.example).")
+DEBUG = read_value("DEBUG", lambda: env.bool("DEBUG", default=False))
+SECRET_KEY = required("SECRET_KEY")
 
 # El gateway de Plataforma es quien filtra el dominio; en K8s las sondas usan la IP del pod.
-ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["*"])
+required("ALLOWED_HOSTS")
+ALLOWED_HOSTS = read_value("ALLOWED_HOSTS", lambda: env.list("ALLOWED_HOSTS"))
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -67,11 +60,8 @@ TEMPLATES = [
     }
 ]
 
-# Base de datos propia del servicio (database per service).
-# Sin DATABASE_URL se usa SQLite: permite `make test` sin levantar PostgreSQL.
-# Un DATABASE_URL vacío (p. ej. copiado de .env.example) cuenta como "no definido".
-DATABASE_URL = env("DATABASE_URL", default="") or f"sqlite:///{BASE_DIR / 'db.sqlite3'}"
-DATABASES = {"default": env.db_url_config(DATABASE_URL)}
+# PostgreSQL explícito; ni archivos .env ni un motor alternativo implícito.
+DATABASES = {"default": database_config()}
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 LANGUAGE_CODE = "es-mx"
@@ -97,10 +87,4 @@ SPECTACULAR_SETTINGS = {
     "SERVE_INCLUDE_SCHEMA": False,
 }
 
-LOGGING = {
-    "version": 1,
-    "disable_existing_loggers": False,
-    "formatters": {"json": {"()": "config.logging.JsonFormatter"}},
-    "handlers": {"console": {"class": "logging.StreamHandler", "formatter": "json"}},
-    "root": {"handlers": ["console"], "level": env("LOG_LEVEL", default="INFO").upper()},
-}
+LOGGING = logging_config()

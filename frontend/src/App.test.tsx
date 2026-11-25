@@ -176,6 +176,37 @@ describe('App', () => {
     expect(menu.queryByRole('button', { name: 'Accesos' })).not.toBeInTheDocument()
   })
 
+  it('lleva al asistente de configuración cuando el administrador tiene el onboarding pendiente', async () => {
+    const usuario = { ...sesion.usuario, onboarding_completed: false }
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input)
+      if (url.startsWith('/api/access/v1/login')) return json({ ...sesion, usuario })
+      return json({ resultados: [] })
+    })
+    render(<App />)
+    await entrar()
+
+    expect(
+      await screen.findByRole('heading', { name: /deja lista tu empresa en el service desk/i }),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('navigation', { name: /secciones/i })).not.toBeInTheDocument()
+  })
+
+  it('deja entrar al Service Desk si el administrador pospone la configuración', async () => {
+    const usuario = { ...sesion.usuario, onboarding_completed: false }
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input)
+      if (url.startsWith('/api/access/v1/login')) return json({ ...sesion, usuario })
+      return json({ resultados: [] })
+    })
+    render(<App />)
+    const user = await entrar()
+
+    await user.click(await screen.findByRole('button', { name: /configurar después/i }))
+
+    expect(await screen.findByRole('navigation', { name: /secciones/i })).toBeInTheDocument()
+  })
+
   it('agente N2 abre Incidencias y ve la gestión, no el panel estático', async () => {
     const user = await entrarComo('agente_n2')
     const menu = within(await screen.findByRole('navigation', { name: /secciones/i }))

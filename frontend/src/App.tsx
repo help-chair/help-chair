@@ -4,6 +4,7 @@ import { ServiceDeskLayout, type TabKey } from '@/components/layout/ServiceDeskL
 import { useHasRole } from '@/auth/roleGuard'
 
 import LoginPage from '@/features/access/LoginPage'
+import { OnboardingWizard } from '@/features/access/OnboardingWizard'
 import { UsersPage } from '@/features/access/UsersPage'
 import { seccionInicial, seccionesVisibles } from '@/features/access/navegacion'
 import { NOMBRE_ROL } from '@/features/access/roles'
@@ -18,6 +19,8 @@ import { KnowledgePage } from '@/features/knowledge/KnowledgePage'
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabKey>('dashboard')
   const [sesion, setSesion] = useState<Sesion | null>(null)
+  /** Permite seguir al Service Desk sin terminar el asistente; vuelve a salir al siguiente ingreso. */
+  const [onboardingOmitido, setOnboardingOmitido] = useState(false)
 
   // Hooks MUST be called unconditionally (before any early return).
   const userRole = sesion?.usuario?.rol
@@ -30,6 +33,22 @@ export default function App() {
           setSesion(nueva)
           setActiveTab(seccionInicial(nueva.usuario.permisos))
         }}
+      />
+    )
+  }
+
+  // Configuración inicial de la empresa: solo al administrador y solo mientras esté pendiente.
+  const debeConfigurar =
+    !sesion.usuario.onboarding_completed &&
+    sesion.usuario.permisos.includes('empresa:configurar') &&
+    !onboardingOmitido
+
+  if (debeConfigurar) {
+    return (
+      <OnboardingWizard
+        usuario={sesion.usuario}
+        onCompletado={(usuario) => setSesion({ ...sesion, usuario })}
+        onOmitir={() => setOnboardingOmitido(true)}
       />
     )
   }

@@ -1,9 +1,9 @@
 openapi: 3.0.3
 info:
   title: Help Chair - Accesos (autenticación, usuarios y roles)
-  version: 0.1.0
+  version: 1.0.0
   description: |
-    Contrato v0 (borrador, Fase 1-2). Dueño: Equipo 2 (Accesos).
+    Contrato v1 (congelado al cierre de la Fase 2, 22-nov-2026). Dueño: Equipo 2 (Accesos).
     Consumidores: Equipo 6 (Frontend, Service Desk), Equipo 7 (Plataforma, aprovisionador)
     y el resto de servicios del stack, que validan el JWT con la clave pública.
 
@@ -24,9 +24,15 @@ info:
     broker (`login_exitoso`, `login_fallido`, `cuenta_bloqueada`, `usuario_invitado`, `rol_cambiado`),
     con el sobre común de `contracts/messages/`. No forman parte de esta API REST.
 
-    **Estado de implementación (v0, cierre de la Fase 1).** Hoy solo responden las dos primeras rutas.
-    Las demás están descritas para que Frontend y Plataforma programen contra ellas, y se implementan
-    en la fase que indica `docs/ROADMAP.md`. Pedir una ruta pendiente devuelve 404.
+    **Estado de implementación (v1, cierre de la Fase 2).** Responden todas las rutas salvo
+    `/.well-known/jwks.json`, que depende del cambio de HS256 a RS256 previsto para la Fase 3
+    (ver D-29 en `docs/DECISIONS.md`). Pedir esa ruta devuelve 404.
+
+    De los eventos de seguridad están emitiéndose `access.login.exitoso`, `access.login.fallido` y
+    `access.cuenta.bloqueada`, por el patrón *outbox*: se escriben en la base junto con el cambio que
+    los provoca y un publicador posterior los manda al broker. `usuario_invitado` y `rol_cambiado`
+    siguen pendientes. La invitación crea la cuenta en estado `invitado` pero todavía **no envía el
+    correo**; el enlace de activación se entrega por `/internal/v1/bootstrap-admin` o a mano.
 
     | Ruta | Estado |
     |---|---|

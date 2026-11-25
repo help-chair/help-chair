@@ -14,7 +14,7 @@ from django.contrib.auth import get_user_model
 from drf_spectacular.utils import extend_schema
 from rest_framework import serializers, status
 from rest_framework.exceptions import APIException, AuthenticationFailed
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
@@ -23,6 +23,7 @@ from rest_framework_simplejwt.settings import api_settings as ajustes_jwt
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
+from . import events
 from .errors import ErrorSerializer
 from .models import EstadoUsuario, Rol
 
@@ -71,8 +72,8 @@ def onboarding_de(usuario) -> bool:
     return bool(getattr(perfil, "onboarding_completado", False))
 
 
-def usuario_actual(usuario) -> dict:
-    """Esquema ``UsuarioActual`` del contrato."""
+def usuario_a_dict(usuario) -> dict:
+    """Esquema ``Usuario`` del contrato: lo que ven las listas de administración."""
     return {
         "id": str(usuario.id),
         "nombre": usuario.nombre,
@@ -82,6 +83,16 @@ def usuario_actual(usuario) -> dict:
         "estado": usuario.estado,
         "ultimo_acceso": usuario.last_login.isoformat() if usuario.last_login else None,
         "creado_en": usuario.date_joined.isoformat(),
+    }
+
+
+def usuario_actual(usuario) -> dict:
+    """Esquema ``UsuarioActual``: el ``Usuario`` del contrato más permisos y onboarding.
+
+    Lo devuelven el login, el refresco y ``/me``; ``/usuarios`` devuelve solo la
+    parte de ``Usuario``, por eso las dos formas salen de la misma función.
+    """
+    return usuario_a_dict(usuario) | {
         "permisos": permisos_de(usuario),
         "onboarding_completed": onboarding_de(usuario),
     }
@@ -145,23 +156,31 @@ class LoginSerializer(TokenObtainPairSerializer):
             self._contar_intento_fallido(correo)
             raise
         self.user.registrar_acceso()
+        events.login_exitoso(self.user, rol_de(self.user), self.context.get("request"))
         return construir_sesion(self.user, datos["access"], datos["refresh"])
 
-    @staticmethod
-    def _contar_intento_fallido(correo: str) -> None:
-        """Suma el intento fallido y bloquea la cuenta al llegar al límite.
+    def _contar_intento_fallido(self, correo: str) -> None:
+        """Suma el intento fallido, lo reporta a Eventos y bloquea al llegar al límite.
 
         Si el bloqueo ocurre justo en este intento, la respuesta cambia de 401 a
         423, para que el frontend pueda decir por qué dejó de servir la contraseña
         en lugar de repetir «credenciales incorrectas».
 
         Solo se cuentan los intentos contra una cuenta activa: un correo que no
-        existe no deja rastro, y uno invitado o suspendido ya se rechazó antes.
+        existe no incrementa ningún contador, y uno invitado o suspendido ya se
+        rechazó antes. El **evento** sí se emite en los dos casos: una ráfaga
+        contra correos inventados es justo lo que Eventos necesita ver.
         """
+        peticion = self.context.get("request")
         usuario = get_user_model().objects.filter(correo__iexact=correo).first()
         if usuario is None or usuario.estado != EstadoUsuario.ACTIVO:
+            events.login_fallido(correo, 1, peticion)
             return
-        if usuario.registrar_intento_fallido(settings.INTENTOS_ANTES_DE_BLOQUEAR):
+
+        bloqueada = usuario.registrar_intento_fallido(settings.INTENTOS_ANTES_DE_BLOQUEAR)
+        events.login_fallido(correo, usuario.intentos_fallidos, peticion)
+        if bloqueada:
+            events.cuenta_bloqueada(usuario, usuario.intentos_fallidos)
             raise CuentaBloqueada()
 
     @staticmethod
@@ -251,6 +270,44 @@ class LoginView(TokenObtainPairView):
 )
 class RefreshView(TokenRefreshView):
     serializer_class = RefrescoSerializer
+
+
+class CierreDeSesionSerializer(serializers.Serializer):
+    """Cuerpo de `POST /logout`: el refresco que se quiere revocar."""
+
+    refresco = serializers.CharField(write_only=True)
+
+
+@extend_schema(
+    tags=["autenticacion"],
+    operation_id="logout",
+    summary="Cierra la sesión y revoca el token de refresco",
+    description=(
+        "Manda a la lista negra el token de refresco. Responde 204 aunque el token "
+        "ya no sirviera: si respondiera distinto, serviría para averiguar qué "
+        "refrescos siguen vivos."
+    ),
+    request=CierreDeSesionSerializer,
+    responses={204: None},
+)
+class LogoutView(APIView):
+    """`POST /logout`.
+
+    El token de **acceso** no se revoca: vive 15 minutos y es de firma, no de
+    estado. Lo que se corta es la capacidad de pedir uno nuevo.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        cuerpo = CierreDeSesionSerializer(data=request.data)
+        cuerpo.is_valid(raise_exception=True)
+        try:
+            RefreshToken(cuerpo.validated_data["refresco"]).blacklist()
+        except TokenError:
+            # Token inválido, expirado o ya revocado: la sesión igual queda cerrada.
+            pass
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class LlaveJwkSerializer(serializers.Serializer):

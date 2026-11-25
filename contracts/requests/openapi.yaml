@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Help Chair - requests
-  version: 0.1.0
+  version: 1.0.0
   description: API del servicio requests (contrato en contracts/requests/).
 paths:
   /api/requests/v1/peticiones/:
@@ -52,9 +52,7 @@ paths:
       tags:
       - peticiones
       security:
-      - cookieAuth: []
-      - basicAuth: []
-      - {}
+      - jwtAuth: []
       responses:
         '200':
           content:
@@ -77,9 +75,7 @@ paths:
               $ref: '#/components/schemas/ServiceRequest'
         required: true
       security:
-      - cookieAuth: []
-      - basicAuth: []
-      - {}
+      - jwtAuth: []
       responses:
         '201':
           content:
@@ -103,9 +99,7 @@ paths:
       tags:
       - peticiones
       security:
-      - cookieAuth: []
-      - basicAuth: []
-      - {}
+      - jwtAuth: []
       responses:
         '200':
           content:
@@ -134,9 +128,7 @@ paths:
               $ref: '#/components/schemas/ServiceRequest'
         required: true
       security:
-      - cookieAuth: []
-      - basicAuth: []
-      - {}
+      - jwtAuth: []
       responses:
         '200':
           content:
@@ -166,9 +158,7 @@ paths:
             schema:
               $ref: '#/components/schemas/PatchedServiceRequest'
       security:
-      - cookieAuth: []
-      - basicAuth: []
-      - {}
+      - jwtAuth: []
       responses:
         '200':
           content:
@@ -193,9 +183,7 @@ paths:
       tags:
       - peticiones
       security:
-      - cookieAuth: []
-      - basicAuth: []
-      - {}
+      - jwtAuth: []
       responses:
         '204':
           description: No response body
@@ -221,9 +209,7 @@ paths:
               $ref: '#/components/schemas/ApproveChange'
         required: true
       security:
-      - cookieAuth: []
-      - basicAuth: []
-      - {}
+      - jwtAuth: []
       responses:
         '200':
           content:
@@ -255,9 +241,7 @@ paths:
               $ref: '#/components/schemas/AssignRequest'
         required: true
       security:
-      - cookieAuth: []
-      - basicAuth: []
-      - {}
+      - jwtAuth: []
       responses:
         '200':
           content:
@@ -289,9 +273,7 @@ paths:
               $ref: '#/components/schemas/StatusChange'
         required: true
       security:
-      - cookieAuth: []
-      - basicAuth: []
-      - {}
+      - jwtAuth: []
       responses:
         '200':
           content:
@@ -323,9 +305,7 @@ paths:
               $ref: '#/components/schemas/RejectChange'
         required: true
       security:
-      - cookieAuth: []
-      - basicAuth: []
-      - {}
+      - jwtAuth: []
       responses:
         '200':
           content:
@@ -349,9 +329,7 @@ paths:
       tags:
       - servicios
       security:
-      - cookieAuth: []
-      - basicAuth: []
-      - {}
+      - jwtAuth: []
       responses:
         '200':
           content:
@@ -374,9 +352,7 @@ paths:
               $ref: '#/components/schemas/CatalogItem'
         required: true
       security:
-      - cookieAuth: []
-      - basicAuth: []
-      - {}
+      - jwtAuth: []
       responses:
         '201':
           content:
@@ -399,9 +375,7 @@ paths:
       tags:
       - servicios
       security:
-      - cookieAuth: []
-      - basicAuth: []
-      - {}
+      - jwtAuth: []
       responses:
         '200':
           content:
@@ -429,9 +403,7 @@ paths:
               $ref: '#/components/schemas/CatalogItem'
         required: true
       security:
-      - cookieAuth: []
-      - basicAuth: []
-      - {}
+      - jwtAuth: []
       responses:
         '200':
           content:
@@ -460,9 +432,7 @@ paths:
             schema:
               $ref: '#/components/schemas/PatchedCatalogItem'
       security:
-      - cookieAuth: []
-      - basicAuth: []
-      - {}
+      - jwtAuth: []
       responses:
         '200':
           content:
@@ -486,9 +456,7 @@ paths:
       tags:
       - servicios
       security:
-      - cookieAuth: []
-      - basicAuth: []
-      - {}
+      - jwtAuth: []
       responses:
         '204':
           description: No response body
@@ -737,10 +705,7 @@ components:
         * `servicio` - Servicio
         * `cambio` - Cambio
   securitySchemes:
-    basicAuth:
+    jwtAuth:
       type: http
-      scheme: basic
-    cookieAuth:
-      type: apiKey
-      in: cookie
-      name: sessionid
+      scheme: bearer
+      bearerFormat: JWT

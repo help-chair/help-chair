@@ -1,40 +1,74 @@
-"""Matriz de autorización y permisos planificada para la Fase 3 (integración con Access).
+from django.conf import settings
+from drf_spectacular.extensions import OpenApiAuthenticationExtension
+from rest_framework.permissions import SAFE_METHODS, BasePermission
+from rest_framework_simplejwt.authentication import JWTStatelessUserAuthentication
 
-Durante la Fase 2, los endpoints operan sin autenticación obligatoria para permitir
-pruebas de contrato y desarrollo desacoplado, validando únicamente la integridad de
-identificadores y transiciones de estado.
-
-En la Fase 3, una vez habilitada la validación de tokens/identidad con `services/access`,
-se aplicarán los siguientes permisos por rol:
-
-- `catalog:manage` (Admin de catálogo):
-  Crear, editar y activar/desactivar elementos en `/api/servicios/`.
-- `requests:create` (Usuario autenticado / Sistema):
-  Crear nuevas peticiones de tipo `servicio` o `cambio` en `/api/peticiones/`.
-- `requests:assign` (Coordinador / Agente):
-  Ejecutar `POST /api/peticiones/{id}/asignar/` y validar que `asignado_a_id` sea
-  un agente activo.
-- `requests:transition` (Agente asignado / Coordinador):
-  Ejecutar `POST /api/peticiones/{id}/cambiar-estado/` (el solicitante solo puede
-  cancelar o reabrir su propia petición).
-- `changes:approve` (Aprobador designado en onboarding):
-  Ejecutar `POST /api/peticiones/{id}/aprobar/` y `POST /api/peticiones/{id}/rechazar/`,
-  verificando contra Access que el usuario coincida con `aprobador_id` y tenga el permiso.
-"""
-
-from rest_framework.permissions import AllowAny, BasePermission
-
-PHASE3_PERMISSION_MATRIX: dict[str, str] = {
-    "catalog.manage": "Administrador de catálogo (CRUD de /api/servicios/)",
-    "requests.create": "Usuario autenticado o servicio interno (POST /api/peticiones/)",
-    "requests.assign": "Coordinador o agente activo (POST /api/peticiones/{id}/asignar/)",
-    "requests.transition": "Agente asignado o solicitante para cancelar/reabrir",
-    "changes.approve": "Aprobador autorizado en onboarding (aprobar/rechazar cambios)",
-}
+MANAGER_ROLES = {"admin", "supervisor", "agente"}
+APPROVER_ROLES = {"admin", "supervisor", "aprobador"}
 
 
-class Phase2OpenAccessPermission(BasePermission):
-    """Permiso explícito para Fase 2: acceso abierto previo a integración con Access."""
+class OptionalAccessJWTAuthentication(JWTStatelessUserAuthentication):
+    """Valida el JWT de Accesos únicamente cuando `JWT_AUTH_ENABLED=True`."""
+
+    def authenticate(self, request):
+        if not getattr(settings, "JWT_AUTH_ENABLED", False):
+            return None
+        return super().authenticate(request)
+
+
+class OptionalAccessJWTAuthenticationExtension(OpenApiAuthenticationExtension):
+    target_class = "peticiones.permissions.OptionalAccessJWTAuthentication"
+    name = "jwtAuth"
+
+    def get_security_definition(self, auto_schema):
+        return {
+            "type": "http",
+            "scheme": "bearer",
+            "bearerFormat": "JWT",
+        }
+
+
+def _get_token_role(request) -> str:
+    token = getattr(request, "auth", None)
+    if token is None:
+        return ""
+    if hasattr(token, "get"):
+        return str(token.get("rol") or token.get("role") or "").strip().lower()
+    return ""
+
+
+class RequestsServicePermission(BasePermission):
+    """Permisos de Fase 3 integrados con el JWT emitido por el servicio Accesos.
+
+    - Cuando `JWT_AUTH_ENABLED=False` (tests locales aislados / Schemathesis),
+      permite el acceso sin exigir cabecera Bearer.
+    - Cuando `JWT_AUTH_ENABLED=True` (testing / producción), exige un JWT válido
+      firmado por `help-chair-access` y valida rol para catálogo y aprobaciones.
+    """
+
+    message = "Se requiere un token JWT válido emitido por Accesos."
 
     def has_permission(self, request, view) -> bool:
-        return AllowAny().has_permission(request, view)
+        if not getattr(settings, "JWT_AUTH_ENABLED", False):
+            return True
+
+        user = getattr(request, "user", None)
+        if not user or not getattr(user, "is_authenticated", False):
+            return False
+
+        role = _get_token_role(request)
+        if not role:
+            return True
+
+        view_name = view.__class__.__name__
+        action_name = getattr(view, "action", None)
+
+        if view_name == "CatalogItemViewSet" and request.method not in SAFE_METHODS:
+            self.message = "Solo administradores o supervisores pueden editar el catálogo."
+            return role in MANAGER_ROLES
+
+        if action_name in {"approve", "reject"}:
+            self.message = "No tienes rol autorizado para aprobar o rechazar cambios."
+            return role in APPROVER_ROLES
+
+        return True

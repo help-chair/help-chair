@@ -67,9 +67,6 @@ TEMPLATES = [
     }
 ]
 
-# Base de datos propia del servicio (database per service).
-# Sin DATABASE_URL se usa SQLite: permite `make test` sin levantar PostgreSQL.
-# Un DATABASE_URL vacío (p. ej. copiado de .env.example) cuenta como "no definido".
 DATABASE_URL = env("DATABASE_URL", default="") or f"sqlite:///{BASE_DIR / 'db.sqlite3'}"
 DATABASES = {"default": env.db_url_config(DATABASE_URL)}
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
@@ -127,7 +124,21 @@ SPECTACULAR_SETTINGS = {
     },
     "SERVE_INCLUDE_SCHEMA": False,
     "POSTPROCESSING_HOOKS": ["events.serializers.contract_required_postprocessing"],
+    # El PATCH usa el mismo componente (EventUpdate) que el contrato, no "PatchedEventUpdate".
+    "COMPONENT_SPLIT_PATCH": False,
 }
+
+# --- Clasificación y vigilancia de eventos (reglas 1 y 3) ---
+# Clave del payload donde las fuentes mandan su severidad (info, warning, error...).
+EVENT_SEVERITY_KEY = env("EVENT_SEVERITY_KEY", default="severity")
+# Umbral de recurrencia por defecto (N veces en T días) cuando no hay una RecurrencePolicy.
+EVENT_RECURRENCE_DEFAULT = {
+    "threshold_count": env.int("EVENT_THRESHOLD_DEFAULT", default=3),
+    "window_days": env.int("EVENT_WINDOW_DAYS_DEFAULT", default=7),
+}
+# TEMPORAL hasta integrar el JWT de Accesos: permite identificar al actor con la cabecera
+# X-Actor-Ref. Es falsificable: NUNCA activarlo en producción.
+ALLOW_ACTOR_HEADER = env.bool("ALLOW_ACTOR_HEADER", default=False)
 
 LOGGING = {
     "version": 1,

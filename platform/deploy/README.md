@@ -17,7 +17,7 @@
 <!-- Qué hace esta carpeta y qué NO hace -->
 
 ### Stack tecnológico
-- Lenguaje / framework: _por definir por el equipo_
+- Lenguaje / framework: Django
 - Base de datos: _por definir por el equipo_ (propia de este servicio)
 
 ### Contrato mínimo de servicio

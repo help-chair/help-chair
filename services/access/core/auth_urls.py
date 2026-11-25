@@ -26,4 +26,5 @@ urlpatterns = [
         users.UserUnlockView.as_view(),
         name="usuarios-desbloquear",
     ),
+    path(".well-known/jwks.json", auth.JwksView.as_view(), name="auth-jwks"),
 ]

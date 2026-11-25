@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import (
+from ..models import (
     BusinessService,
     Event,
     EventCategory,
@@ -11,75 +11,8 @@ from .models import (
     Priority,
     Urgency,
 )
-from .models.choices import ClosureCode, Destination
-
-
-def nullable_text(value):
-    return None if value == "" else value
-
-
-class ErrorSerializer(serializers.Serializer):
-    code = serializers.CharField()
-    detail = serializers.CharField()
-    fields = serializers.DictField(child=serializers.CharField(), required=False)
-
-
-def contract_required_postprocessing(result, generator, request, public):
-    required_by_component = {
-        "EventCreate": ["origin", "title", "message"],
-        "EventRead": [
-            "id",
-            "origin",
-            "event_type",
-            "category",
-            "title",
-            "message",
-            "payload",
-            "state",
-            "action_required",
-            "fingerprint",
-            "occurrence_count",
-            "first_seen_at",
-            "last_seen_at",
-            "created_at",
-            "updated_at",
-        ],
-        "EventListItem": [
-            "id",
-            "origin",
-            "event_type",
-            "category",
-            "title",
-            "state",
-            "occurrence_count",
-            "last_seen_at",
-            "created_at",
-        ],
-        "EventDetail": [
-            "id",
-            "origin",
-            "event_type",
-            "category",
-            "title",
-            "message",
-            "payload",
-            "state",
-            "action_required",
-            "fingerprint",
-            "occurrence_count",
-            "first_seen_at",
-            "last_seen_at",
-            "created_at",
-            "updated_at",
-        ],
-        "EventPage": ["count", "results"],
-        "Error": ["code", "detail"],
-    }
-    schemas = result.get("components", {}).get("schemas", {})
-    for name, required in required_by_component.items():
-        if name in schemas:
-            schemas[name]["required"] = required
-    return result
+from ..models.choices import ClosureCode, Destination
+from .common import nullable_text
 
 
 class BusinessServiceSerializer(serializers.ModelSerializer):

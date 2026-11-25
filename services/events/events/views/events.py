@@ -1,13 +1,14 @@
 from django.db.models import Q
-from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, OpenApiTypes, extend_schema
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
 from rest_framework import serializers, status
 from rest_framework.exceptions import ValidationError
 from rest_framework.generics import get_object_or_404
-from rest_framework.pagination import LimitOffsetPagination
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import (
+from ..actors import get_actor_ref
+from ..models import (
     TERMINAL_STATES,
     Event,
     EventCategory,
@@ -16,15 +17,17 @@ from .models import (
     EventType,
     Priority,
 )
-from .serializers import (
+from ..pagination import EventLimitOffsetPagination
+from ..serializers import (
     ErrorSerializer,
     EventCreateSerializer,
     EventDetailSerializer,
     EventListItemSerializer,
     EventPageSerializer,
     EventReadSerializer,
+    EventUpdateSerializer,
 )
-from .services import register_event
+from ..services import register_event, update_event
 
 ALLOWED_ORDERING = (
     "created_at",
@@ -36,11 +39,6 @@ ALLOWED_ORDERING = (
     "resolution_due_at",
     "-resolution_due_at",
 )
-
-
-class EventLimitOffsetPagination(LimitOffsetPagination):
-    default_limit = 50
-    max_limit = 200
 
 
 class EventListCreateView(APIView):
@@ -135,9 +133,8 @@ class EventListCreateView(APIView):
             if offset_value < 0:
                 raise ValidationError({"offset": "Debe ser mayor o igual que cero."})
 
-        allowed_ordering = set(ALLOWED_ORDERING)
         ordering = request.query_params.get("ordering", "-created_at")
-        if ordering not in allowed_ordering:
+        if ordering not in ALLOWED_ORDERING:
             raise ValidationError({"ordering": "Valor de ordenación no válido."})
 
         paginator = EventLimitOffsetPagination()
@@ -146,7 +143,7 @@ class EventListCreateView(APIView):
 
     @extend_schema(
         operation_id="registerEvent",
-        request={"application/json": EventCreateSerializer},
+        request=EventCreateSerializer,
         responses={
             201: EventReadSerializer,
             200: EventReadSerializer,
@@ -157,12 +154,7 @@ class EventListCreateView(APIView):
         serializer = EventCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        actor_ref = ""
-        user = getattr(request, "user", None)
-        if user and getattr(user, "is_authenticated", False):
-            actor_ref = str(getattr(user, "pk", "") or "")
-
-        event, created = register_event(serializer.validated_data, actor_ref=actor_ref)
+        event, created = register_event(serializer.validated_data, actor_ref=get_actor_ref(request))
         data = EventReadSerializer(event).data
         if created:
             return Response(
@@ -191,3 +183,21 @@ class EventDetailView(APIView):
     def get(self, request, id):
         event = get_object_or_404(Event.objects.select_related("service", "source"), id=id)
         return Response(EventDetailSerializer(event).data)
+
+    @extend_schema(
+        operation_id="updateEvent",
+        request=EventUpdateSerializer,
+        responses={
+            200: EventReadSerializer,
+            404: OpenApiResponse(response=ErrorSerializer, description="Evento no encontrado"),
+            409: OpenApiResponse(response=ErrorSerializer, description="Conflicto de estado"),
+            422: OpenApiResponse(response=ErrorSerializer, description="Datos inválidos"),
+        },
+    )
+    def patch(self, request, id):
+        event = get_object_or_404(Event.objects.select_related("service", "source"), id=id)
+        serializer = EventUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        event = update_event(event, serializer.validated_data, actor_ref=get_actor_ref(request))
+        event = Event.objects.select_related("service", "source").get(pk=event.pk)
+        return Response(EventReadSerializer(event).data)

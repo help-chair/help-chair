@@ -7,6 +7,8 @@ from pathlib import Path
 import environ
 from django.core.exceptions import ImproperlyConfigured
 
+from config import llaves
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 env = environ.Env()
@@ -102,10 +104,24 @@ REST_FRAMEWORK = {
 # tabla que haya que arrastrar en cada modelo.
 EMPRESA_ID = env("EMPRESA_ID", default="empresa-demo")
 
+# El token se firma con RS256 para que los demás servicios validen con la llave
+# pública y nadie más pueda fabricar tokens. Ver config/llaves.py.
+JWT_LLAVE_PRIVADA = llaves.cargar_llave_privada(
+    env("JWT_PRIVATE_KEY", default=""),
+    es_desarrollo=DEBUG or "pytest" in sys.modules,
+    ruta_de_desarrollo=BASE_DIR / "build" / "jwt-dev.pem",
+)
+JWT_LLAVE_PUBLICA = llaves.llave_publica(JWT_LLAVE_PRIVADA)
+JWT_JWK_PUBLICA = llaves.jwk_publica(JWT_LLAVE_PRIVADA)
+JWT_KID = JWT_JWK_PUBLICA["kid"]
+
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=env.int("ACCESS_TOKEN_MINUTOS", default=15)),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=env.int("REFRESH_TOKEN_DIAS", default=1)),
     "UPDATE_LAST_LOGIN": True,
+    "ALGORITHM": llaves.ALGORITMO,
+    "SIGNING_KEY": JWT_LLAVE_PRIVADA,
+    "VERIFYING_KEY": JWT_LLAVE_PUBLICA,
     # El contrato nombra `sub` al identificador del usuario y pide `iss`.
     "USER_ID_FIELD": "id",
     "USER_ID_CLAIM": "sub",

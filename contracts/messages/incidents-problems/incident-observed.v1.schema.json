@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://help-chair.com/contracts/messages/incidents-problems/incident-observed.v1.schema.json",
+  "title": "Propuesta: incident.observed v1, Incidencias hacia Problemas",
+  "description": "Observación inmutable del alta; propuesta local pendiente de revisión. No acredita emisión, autenticación ni consumo real.",
+  "allOf": [
+    { "$ref": "../event-envelope.json" },
+    {
+      "properties": {
+        "id": { "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" },
+        "correlation_id": { "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" },
+        "type": { "const": "incident.observed" },
+        "version": { "const": 1 },
+        "origin": { "const": "incidents" },
+        "timestamp": { "pattern": "Z$" },
+        "occurred_at": { "pattern": "Z$" },
+        "payload": {
+          "type": "object",
+          "required": ["company_ref", "incident_ref", "created_at", "affected_service"],
+          "additionalProperties": false,
+          "properties": {
+            "company_ref": {
+              "type": "string", "minLength": 1, "maxLength": 64,
+              "pattern": "^\\S+$",
+              "description": "Propuesta: identidad opaca del stack suministrada por contexto confiable de aprovisionamiento, no por el reportante. No existe en Incident v0."
+            },
+            "incident_ref": {
+              "type": "string", "pattern": "^[1-9][0-9]{0,18}$", "maxLength": 64,
+              "description": "Propuesta: representación decimal canónica de Incident.id, sin prefijo INC ni conversión a UUID. El validador limita a int64 positivo."
+            },
+            "created_at": { "type": "string", "format": "date-time", "pattern": "Z$" },
+            "affected_service": {
+              "type": "string", "minLength": 1, "maxLength": 100, "pattern": "^\\S(?:.*\\S)?$",
+              "description": "Incident.affected_service sin normalización; este perfil propone exigirlo aunque el origen permite vacío. No equivale a una firma de recurrencia."
+            },
+            "source_event_id": {
+              "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^\\S+$",
+              "description": "Referencia externa opcional de Incident; omitir si está vacía. No identifica al incidente ni representa un contador."
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
-import { cargarArticulosDeEjemplo } from './data'
+import { cargarArticulosConRespaldo } from './api'
 import type { Articulo, Valoracion } from './types'
 
-// Estado del módulo en memoria (se pierde al recargar). Para conectarlo a services/knowledge,
-// cambia el cuerpo de estas funciones por llamadas a la API en src/api/; los componentes no cambian.
+// Estado del módulo: carga desde services/knowledge (con respaldo a datos de ejemplo)
+// y mantiene las valoraciones en memoria hasta que el backend exponga esos endpoints.
 
 export type EstadoCarga = 'cargando' | 'lista' | 'error'
 
-export function useArticulos(cargar: () => Promise<Articulo[]> = cargarArticulosDeEjemplo) {
+export function useArticulos(cargar: () => Promise<Articulo[]> = cargarArticulosConRespaldo) {
   const [carga, setCarga] = useState<EstadoCarga>('cargando')
   const [articulos, setArticulos] = useState<Articulo[]>([])
   const [valoraciones, setValoraciones] = useState<Valoracion[]>([])

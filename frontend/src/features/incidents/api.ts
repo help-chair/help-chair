@@ -1,9 +1,9 @@
 // Integración del módulo de Incidencias con services/incidents.
 // Llama a la API real y, si el servicio no responde, usa los datos de ejemplo.
 import { ApiError } from '@/api/client'
-import { listarIncidentes, type Incident } from '@/api/incidents'
+import { crearIncidente, listarIncidentes, type Incident } from '@/api/incidents'
 import { createSampleData } from './data'
-import type { Escalation, Priority, Ticket } from './types'
+import type { Escalation, NewTicketInput, Priority, Ticket } from './types'
 
 function servicioInalcanzable(error: unknown): boolean {
   if (error instanceof ApiError) return error.status === 404 || error.status >= 500
@@ -50,5 +50,20 @@ export async function cargarIncidentesConRespaldo(): Promise<{
   } catch (error) {
     if (!servicioInalcanzable(error)) throw error
     return createSampleData()
+  }
+}
+
+/** Envía el alta del incidente al contrato OpenAPI v1 sin bloquear la respuesta optimista. */
+export async function registrarIncidenteEnApi(input: NewTicketInput): Promise<void> {
+  try {
+    await crearIncidente({
+      title: input.description.slice(0, 200),
+      description: input.description,
+      impact: input.impact,
+      urgency: input.urgency,
+      reported_by: input.requesterId,
+    })
+  } catch (error) {
+    if (!servicioInalcanzable(error)) throw error
   }
 }

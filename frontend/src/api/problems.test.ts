@@ -1,5 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { listarErroresConocidos, listarProblemas } from './problems'
+import {
+  cambiarEstadoProblema,
+  crearErrorConocido,
+  crearProblema,
+  listarErroresConocidos,
+  listarProblemas,
+  vincularIncidenteProblema,
+} from './problems'
 
 function json(data: unknown) {
   return new Response(JSON.stringify(data), {
@@ -29,5 +36,30 @@ describe('api problems', () => {
     const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(json(VACIO))
     await listarErroresConocidos({ activo: true, q: 'SMTP' })
     expect(String(spy.mock.calls[0][0])).toBe('/api/problems/v1/errores-conocidos/?activo=true&q=SMTP')
+  })
+
+  it('envía creación, cambio de estado, vínculo y error conocido al contrato v1', async () => {
+    const spy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation(() => Promise.resolve(json({ id: 42 })))
+
+    await crearProblema({ titulo: 'Caída SMTP', descripcion: 'Falla los lunes' })
+    expect(spy.mock.calls[0][0]).toBe('/api/problems/v1/problemas/')
+    expect(spy.mock.calls[0][1]?.method).toBe('POST')
+
+    await cambiarEstadoProblema(42, { estado: 'en_analisis' })
+    expect(spy.mock.calls[1][0]).toBe('/api/problems/v1/problemas/42/estado/')
+
+    await vincularIncidenteProblema(42, 'INC-1')
+    expect(spy.mock.calls[2][0]).toBe('/api/problems/v1/problemas/42/incidentes/')
+
+    await crearErrorConocido({
+      problema_id: 42,
+      titulo: 'Certificado vencido',
+      descripcion: 'Rechaza TLS',
+      causa_raiz: 'No se renueva',
+      workaround: 'Renovar manualmente',
+    })
+    expect(spy.mock.calls[3][0]).toBe('/api/problems/v1/errores-conocidos/')
   })
 })

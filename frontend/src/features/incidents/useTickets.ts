@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useReducer, useState } from 'react'
-import { cargarIncidentesConRespaldo } from './api'
+import { cargarIncidentesConRespaldo, registrarIncidenteEnApi } from './api'
 import { nextTicketId } from './data'
 import type { Escalation, NewTicketInput, Ticket } from './types'
 
@@ -118,6 +118,7 @@ export function useTickets() {
       level: 1,
     }
     dispatch({ type: 'create', ticket })
+    void registrarIncidenteEnApi(input).catch(() => {})
     return ticket.id
   }
 

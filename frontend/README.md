@@ -82,34 +82,15 @@ npm install
 npm run dev
 ```
 
-#### Probar el sitio público sin backend
-El contrato del gateway se puede simular con Prism:
-```bash
-npm run mock:gateway          # terminal 1: mock en http://localhost:8000
-# .env → VITE_GATEWAY_MOCK=true
-npm run dev                   # terminal 2
-```
-Abre [http://localhost:5173/?site=public](http://localhost:5173/?site=public). El mock devuelve datos de ejemplo, no un flujo real.
+#### Conectar con los backends
+El frontend ya no usa servidores de mocks (Prism) ni datos simulados: todas las pantallas llaman a
+los microservicios reales con rutas relativas (`/api/<servicio>/v1/...`). En local, levanta los
+servicios que necesites (`make up` en `platform/deploy/local/` o `make run` en cada
+servicio) y el proxy de Vite reenvía cada prefijo al puerto de la tabla de abajo, sin reescribir
+la ruta, igual que el ingress del clúster de testing.
 
-#### Entrar al Service Desk sin backend
-Mientras `services/access` no exista, el inicio de sesión y la pantalla de Accesos caen en los datos
-simulados de `src/features/access/data.ts` y lo avisan en pantalla. Credenciales de prueba
-(contraseña `helpchair-demo` para todas):
-
-| Correo | Rol | Para qué sirve |
-|---|---|---|
-| `admin@empresa15.com` | Administrador | Ve todo el menú y administra usuarios |
-| `daniela.ruiz@empresa15.com` | Agente N1 | Eventos e Incidencias, sin Problemas ni Accesos |
-| `marco.estrada@empresa15.com` | Agente N2 | Panel de área, Incidencias escaladas y Problemas |
-| `lucia.ponce@empresa15.com` | Usuario final | Comprueba la navegación según rol |
-| `hugo.navarro@empresa15.com` | Usuario final (bloqueado) | Prueba el error de cuenta bloqueada |
-| `sofia.marin@empresa15.com` | Agente N1 (invitado) | Prueba el error de cuenta sin activar |
-
-Para probar contra el contrato real en vez del respaldo:
-```bash
-npm run mock:access           # terminal 1: mock de Accesos en http://localhost:8002
-npm run dev                   # terminal 2
-```
+Si un servicio no responde, la pantalla lo dice y ofrece **Reintentar**. Cada petición se corta a
+los 15 s (`TIEMPO_LIMITE_MS` en `src/api/client.ts`).
 
 ### Variables de Entorno
 
@@ -124,8 +105,6 @@ npm run dev                   # terminal 2
 | `VITE_API_INCIDENTS_URL` | Microservicio de Incidencias | `http://localhost:8004` |
 | `VITE_API_PROBLEMS_URL` | Microservicio de Problemas | `http://localhost:8005` |
 | `VITE_API_KNOWLEDGE_URL` | Base de Conocimiento | `http://localhost:8006` |
-| `VITE_GATEWAY_MOCK` | `true` si el gateway es el mock de Prism | `false` |
-| `VITE_USE_MOCKS` | Activa datos simulados cuando no haya backends | `true` |
 | `VITE_DEV_TENANT_ID` | Identificador de empresa en local | `empresa-demo` |
 
 **Producción (al arrancar el contenedor):**
@@ -208,13 +187,10 @@ npm install
 npm run dev
 ```
 
-#### Try the public site without a backend
-```bash
-npm run mock:gateway          # terminal 1: Prism mock at http://localhost:8000
-# .env → VITE_GATEWAY_MOCK=true
-npm run dev                   # terminal 2
-```
-Open [http://localhost:5173/?site=public](http://localhost:5173/?site=public).
+#### Connect to the backends
+There are no mock servers (Prism) or simulated data: every screen calls the real microservices
+through relative paths (`/api/<service>/v1/...`). Start the services you need locally; the Vite
+proxy forwards each prefix without rewriting the path, just like the testing cluster ingress.
 
 ### Production Deployment
 See [`DEPLOYMENT.md`](DEPLOYMENT.md) for Docker Compose and Kubernetes instructions. Production configuration is a single variable, `BASE_DOMAIN`, read when the container starts.

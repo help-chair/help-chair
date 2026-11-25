@@ -1,6 +1,6 @@
 // API de Problemas. Contrato: contracts/problems/openapi.yaml (Equipo 5).
 // Las rutas completas son `/api/problems/v1/problemas/` y `/api/problems/v1/errores-conocidos/`.
-import { apiGet, apiPost } from './client'
+import { apiDelete, apiGet, apiPost } from './client'
 import type {
   CambioEstado,
   ErrorConocido,
@@ -47,10 +47,18 @@ export function cambiarEstadoProblema(id: number, cambio: CambioEstado) {
   return apiPost<Problema>(`${BASE}/problemas/${id}/estado/`, cambio)
 }
 
+export function listarIncidentesDeProblema(id: number) {
+  return apiGet<ProblemaIncidente[]>(`${BASE}/problemas/${id}/incidentes/`)
+}
+
 export function vincularIncidenteProblema(id: number, incidenteId: string) {
   return apiPost<ProblemaIncidente>(`${BASE}/problemas/${id}/incidentes/`, {
     incidente_id: incidenteId,
   })
+}
+
+export function desvincularIncidenteProblema(id: number, incidenteId: string) {
+  return apiDelete(`${BASE}/problemas/${id}/incidentes/${encodeURIComponent(incidenteId)}/`)
 }
 
 export function crearErrorConocido(entrada: ErrorConocidoCrear) {

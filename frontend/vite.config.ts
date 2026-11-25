@@ -24,20 +24,10 @@ export default defineConfig(({ mode }) => {
       host: true,
       port: 5173,
       proxy: {
-        '/api/public': {
-          ...proxy('VITE_API_GATEWAY_URL', 'http://localhost:8000'),
-          // Prism (npm run mock:gateway) sirve las rutas sin el prefijo /api/public/v1
-          ...(env.VITE_GATEWAY_MOCK === 'true' && {
-            rewrite: (p: string) => p.replace(/^\/api\/public\/v1/, ''),
-          }),
-        },
-        '/api/events': {
-          ...proxy('VITE_API_EVENTS_URL', 'http://localhost:8001'),
-          // Prism (npm run mock:events) expone /api/v1/events en lugar de /api/events/v1/events
-          ...(env.VITE_EVENTS_MOCK === 'true' && {
-            rewrite: (p: string) => p.replace(/^\/api\/events\/v1/, '/api/v1'),
-          }),
-        },
+        // Sin reescrituras: las rutas llegan igual que en el ingress del clúster
+        // (/api/<servicio>/v1/...), así lo que funciona en local funciona en testing.
+        '/api/public': proxy('VITE_API_GATEWAY_URL', 'http://localhost:8000'),
+        '/api/events': proxy('VITE_API_EVENTS_URL', 'http://localhost:8001'),
         '/api/access': proxy('VITE_API_ACCESS_URL', 'http://localhost:8002'),
         '/api/requests': proxy('VITE_API_REQUESTS_URL', 'http://localhost:8003'),
         '/api/incidents': proxy('VITE_API_INCIDENTS_URL', 'http://localhost:8004'),

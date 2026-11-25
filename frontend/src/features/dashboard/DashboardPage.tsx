@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useState } from 'react'
 import {
   Activity,
   ArrowRight,
@@ -10,11 +11,14 @@ import {
   LifeBuoy,
   ShieldAlert,
 } from 'lucide-react'
+import { mensajeDeError } from '@/api/client'
 import type { TabKey } from '@/components/layout/ServiceDeskLayout'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import type { RolId } from '@/features/access/types'
-import { INITIAL_EVENTS } from '@/features/events/data'
+import { cargarEventos } from '@/features/events/api'
+import { DESTINO_LABEL, ESTADO_LABEL, hora } from '@/features/events/data'
+import type { EventListItem } from '@/features/events/types'
 import { N1AreaPanel } from './N1AreaPanel'
 import { N2AreaPanel } from './N2AreaPanel'
 
@@ -28,7 +32,6 @@ interface DashboardPageProps {
 
 export function DashboardPage({ onNavigate, secciones, rolId }: DashboardPageProps) {
   const puedeVer = (seccion: TabKey) => secciones === undefined || secciones.includes(seccion)
-  const recentEvents = INITIAL_EVENTS.slice(0, 3)
 
   const isTecnico = puedeVer('events') || puedeVer('incidents')
   const esN1 = rolId === 'agente_n1'
@@ -294,28 +297,7 @@ export function DashboardPage({ onNavigate, secciones, rolId }: DashboardPagePro
                 </Button>
               </div>
 
-              <div className="space-y-3">
-                {recentEvents.map((evt) => (
-                  <div
-                    key={evt.id}
-                    className="p-3.5 rounded-lg border border-border bg-slate-50/50 flex items-center justify-between gap-3 text-sm"
-                  >
-                    <div className="space-y-0.5">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs text-slate-500 font-semibold">
-                          {evt.id}
-                        </span>
-                        <span className="text-xs text-slate-400">• {evt.timestamp}</span>
-                        <span className="text-xs px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 font-medium border border-indigo-100">
-                          {evt.destination}
-                        </span>
-                      </div>
-                      <p className="font-medium text-slate-800">{evt.title}</p>
-                    </div>
-                    <span className="text-xs text-slate-500 shrink-0">{evt.status}</span>
-                  </div>
-                ))}
-              </div>
+              <EventosRecientes />
             </div>
 
             <div className="pt-4 border-t border-border flex items-center justify-between text-xs text-slate-400">
@@ -396,6 +378,98 @@ export function DashboardPage({ onNavigate, secciones, rolId }: DashboardPagePro
           </Card>
         )}
       </div>
+    </div>
+  )
+}
+
+type EstadoFeed =
+  | { estado: 'cargando' }
+  | { estado: 'lista'; eventos: EventListItem[] }
+  | { estado: 'error'; detalle: string }
+
+/** Las 3 señales más recientes de services/events, con carga, vacío y error. */
+function EventosRecientes() {
+  const [feed, setFeed] = useState<EstadoFeed>({ estado: 'cargando' })
+
+  const cargar = useCallback(() => {
+    let vigente = true
+    setFeed({ estado: 'cargando' })
+    cargarEventos({ ordering: '-last_seen_at' }).then(
+      (eventos) => {
+        if (vigente) setFeed({ estado: 'lista', eventos: eventos.slice(0, 3) })
+      },
+      (error: unknown) => {
+        if (vigente) {
+          setFeed({
+            estado: 'error',
+            detalle: mensajeDeError(error, 'Verifica tu conexión con el servicio de Eventos.'),
+          })
+        }
+      },
+    )
+    return () => {
+      vigente = false
+    }
+  }, [])
+
+  useEffect(() => cargar(), [cargar])
+
+  if (feed.estado === 'cargando') {
+    return (
+      <div aria-busy="true" className="space-y-3">
+        <p className="sr-only">Cargando eventos recientes…</p>
+        {[0, 1, 2].map((indice) => (
+          <div key={indice} className="h-16 animate-pulse rounded-lg bg-slate-100" />
+        ))}
+      </div>
+    )
+  }
+
+  if (feed.estado === 'error') {
+    return (
+      <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-800">
+        <p className="text-sm font-medium">No se pudieron cargar los eventos recientes.</p>
+        <p className="mt-1 text-xs text-red-700">{feed.detalle}</p>
+        <Button variant="outline" size="sm" className="mt-3" onClick={() => cargar()}>
+          Reintentar
+        </Button>
+      </div>
+    )
+  }
+
+  if (feed.eventos.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center rounded-lg border border-border p-6 text-center">
+        <CheckCircle2 size={24} aria-hidden="true" className="mb-2 text-emerald-700" />
+        <p className="text-sm font-semibold text-slate-800">Sin eventos recientes</p>
+        <p className="text-xs text-slate-500">
+          Aquí aparecerán las señales que registre el monitor de Eventos.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-3">
+      {feed.eventos.map((evt) => (
+        <div
+          key={evt.id}
+          className="p-3.5 rounded-lg border border-border bg-slate-50/50 flex items-center justify-between gap-3 text-sm"
+        >
+          <div className="space-y-0.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-slate-500">{hora(evt.last_seen_at)}</span>
+              {evt.destination && (
+                <span className="text-xs px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 font-medium border border-indigo-100">
+                  {DESTINO_LABEL[evt.destination]}
+                </span>
+              )}
+            </div>
+            <p className="font-medium text-slate-800">{evt.title}</p>
+          </div>
+          <span className="text-xs text-slate-500 shrink-0">{ESTADO_LABEL[evt.state]}</span>
+        </div>
+      ))}
     </div>
   )
 }

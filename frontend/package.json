@@ -17,12 +17,6 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "mock:gateway": "npx --yes @stoplight/prism-cli mock ../contracts/gateway/openapi.yaml -p 8000",
-    "mock:access": "npx --yes @stoplight/prism-cli mock ../contracts/access/openapi.yaml -p 8002",
-    "mock:events": "npx --yes @stoplight/prism-cli mock ../contracts/events/openapi.yaml -p 8001",
-    "mock:incidents": "npx --yes @stoplight/prism-cli mock ../contracts/incidents/openapi.yaml -p 8004",
-    "mock:problems": "npx --yes @stoplight/prism-cli mock ../contracts/problems/openapi.yaml -p 8005",
-    "mock:knowledge": "npx --yes @stoplight/prism-cli mock ../contracts/knowledge/openapi.yaml -p 8006",
     "check:contracts": "node scripts/check-contracts.mjs"
   },
   "dependencies": {

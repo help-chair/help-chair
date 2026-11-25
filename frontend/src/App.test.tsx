@@ -1,8 +1,7 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import App from './App'
-import { CLAVE_DEMO } from '@/features/access/data'
-import type { Sesion } from '@/features/access/types'
+import type { Permiso, RolId, Sesion } from '@/features/access/types'
 
 const sesion: Sesion = {
   acceso: 'jwt-de-prueba',
@@ -28,6 +27,31 @@ function json(data: unknown, status = 200) {
 }
 
 afterEach(() => vi.restoreAllMocks())
+
+/** Permisos de cada rol tal como los devuelve Accesos. */
+const PERMISOS: Record<RolId, Permiso[]> = {
+  administrador: [
+    'tickets:ver',
+    'tickets:atender',
+    'tickets:escalar',
+    'empresa:configurar',
+    'usuarios:administrar',
+  ],
+  agente_n2: ['tickets:ver', 'tickets:atender', 'tickets:escalar'],
+  agente_n1: ['tickets:ver', 'tickets:atender'],
+  usuario_final: ['tickets:ver'],
+}
+
+/** Accesos responde el login con el rol pedido; los demás servicios, con listas vacías. */
+function backendConRol(rol: RolId) {
+  const usuario = { ...sesion.usuario, id: `usr-${rol}`, rol, permisos: PERMISOS[rol] }
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+    const url = String(input)
+    if (url.startsWith('/api/access/v1/login')) return json({ ...sesion, usuario })
+    if (url.startsWith('/api/access/')) return json({ resultados: [] })
+    return json({ count: 0, next: null, previous: null, results: [] })
+  })
+}
 
 /** Deja la aplicación con sesión iniciada. */
 async function entrar() {
@@ -79,14 +103,9 @@ describe('App', () => {
   })
 
   it('oculta del menú las secciones que el rol no puede ver', async () => {
-    // Sin microservicio, el login cae en los datos simulados: Lucía es usuario final.
-    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'))
+    backendConRol('usuario_final')
     render(<App />)
-
-    const user = userEvent.setup()
-    await user.type(screen.getByLabelText(/correo de trabajo/i), 'lucia.ponce@empresa15.com')
-    await user.type(screen.getByLabelText(/^contraseña/i), CLAVE_DEMO)
-    await user.click(screen.getByRole('button', { name: /entrar/i }))
+    await entrar()
 
     const menu = within(await screen.findByRole('navigation', { name: /secciones/i }))
     expect(menu.getByRole('button', { name: /peticiones/i })).toBeInTheDocument()
@@ -111,18 +130,23 @@ describe('App', () => {
     expect(screen.getByRole('heading', { name: /gestión de peticiones/i })).toBeInTheDocument()
   })
 
-  async function entrarSimulado(correo: string) {
-    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'))
+  async function entrarComo(rol: RolId) {
+    backendConRol(rol)
     render(<App />)
-    const user = userEvent.setup()
-    await user.type(screen.getByLabelText(/correo de trabajo/i), correo)
-    await user.type(screen.getByLabelText(/^contraseña/i), CLAVE_DEMO)
-    await user.click(screen.getByRole('button', { name: /entrar/i }))
-    return user
+    return entrar()
   }
 
+  it('si Accesos no responde, el login lo explica y no entra con datos simulados', async () => {
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'))
+    render(<App />)
+    await entrar()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/no hay conexión con el servicio/i)
+    expect(screen.getByRole('heading', { name: /inicia sesión/i })).toBeInTheDocument()
+  })
+
   it('agente N1 ve su panel de primera línea, Eventos e Incidencias, no Problemas ni Accesos', async () => {
-    await entrarSimulado('daniela.ruiz@empresa15.com')
+    await entrarComo('agente_n1')
     const menu = within(await screen.findByRole('navigation', { name: /secciones/i }))
 
     expect(
@@ -138,7 +162,7 @@ describe('App', () => {
   })
 
   it('agente N2 ve el dashboard principal y su panel de área, no Accesos', async () => {
-    await entrarSimulado('marco.estrada@empresa15.com')
+    await entrarComo('agente_n2')
     const menu = within(await screen.findByRole('navigation', { name: /secciones/i }))
 
     expect(
@@ -153,7 +177,7 @@ describe('App', () => {
   })
 
   it('agente N2 abre Incidencias y ve la gestión, no el panel estático', async () => {
-    const user = await entrarSimulado('marco.estrada@empresa15.com')
+    const user = await entrarComo('agente_n2')
     const menu = within(await screen.findByRole('navigation', { name: /secciones/i }))
 
     await user.click(menu.getByRole('button', { name: /incidencias/i }))

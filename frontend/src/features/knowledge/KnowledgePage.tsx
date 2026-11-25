@@ -11,14 +11,14 @@ import type { Articulo, Categoria } from './types'
 import { useArticulos } from './useArticulos'
 
 interface KnowledgePageProps {
-  /** Para pruebas: reemplaza la carga de artículos de ejemplo. */
+  /** Para pruebas: reemplaza la carga desde services/knowledge. */
   cargarArticulos?: () => Promise<Articulo[]>
 }
 
 /**
  * Módulo de Base de Conocimiento (Equipo 5 · Knowledge Management), según el diseño de
- * frontend/docs/knowledge/. Trabaja con artículos de ejemplo en memoria hasta que
- * services/knowledge publique su API (contracts/knowledge/openapi.yaml).
+ * frontend/docs/knowledge/. Lee los artículos de services/knowledge
+ * (contracts/knowledge/openapi.yaml).
  */
 export function KnowledgePage({ cargarArticulos }: KnowledgePageProps) {
   const modulo = useArticulos(cargarArticulos)
@@ -162,9 +162,7 @@ export function KnowledgePage({ cargarArticulos }: KnowledgePageProps) {
       {modulo.carga === 'error' && (
         <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-800">
           <p className="font-medium">No se pudieron cargar los artículos.</p>
-          <p className="mt-1 text-xs text-red-700">
-            Verifica tu conexión con la Base de Conocimiento e inténtalo de nuevo.
-          </p>
+          <p className="mt-1 text-xs text-red-700">{modulo.errorCarga}</p>
           <Button variant="outline" size="sm" className="mt-3" onClick={() => modulo.recargar()}>
             Reintentar
           </Button>

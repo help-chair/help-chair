@@ -19,7 +19,8 @@ import type { Channel, Impact, NewTicketInput, Priority, Urgency } from './types
 interface NewTicketModalProps {
   open: boolean
   onClose: () => void
-  onCreate: (input: NewTicketInput) => void
+  /** Registra el caso en el servicio; devuelve el mensaje de error o `null` si salió bien. */
+  onCreate: (input: NewTicketInput) => Promise<string | null>
 }
 
 const MIN_DESCRIPTION_LENGTH = 10
@@ -55,7 +56,7 @@ function NewTicketForm({
   onCreate,
 }: {
   onCancel: () => void
-  onCreate: (input: NewTicketInput) => void
+  onCreate: (input: NewTicketInput) => Promise<string | null>
 }) {
   const [requesterId, setRequesterId] = useState('')
   const [requesterName, setRequesterName] = useState('')
@@ -68,6 +69,8 @@ function NewTicketForm({
   const [evidence, setEvidence] = useState<File | null>(null)
   const [errors, setErrors] = useState<Errors>({})
   const [submitAttempts, setSubmitAttempts] = useState(0)
+  const [sending, setSending] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
   const formRef = useRef<HTMLFormElement>(null)
 
   // Tras un envío con errores, lleva el foco al primer campo inválido.
@@ -98,15 +101,18 @@ function NewTicketForm({
     return found
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (sending) return
     const found = validate()
     setErrors(found)
+    setSubmitError(null)
     if (Object.keys(found).length > 0) {
       setSubmitAttempts((count) => count + 1)
       return
     }
-    onCreate({
+    setSending(true)
+    const error = await onCreate({
       requesterId: requesterId.trim().toUpperCase(),
       requesterName: requesterName.trim(),
       channel,
@@ -116,6 +122,11 @@ function NewTicketForm({
       impact,
       evidenceName: evidence?.name,
     })
+    // Si salió bien, el modal se cierra; si no, se conserva lo capturado y se muestra el motivo.
+    if (error) {
+      setSubmitError(error)
+      setSending(false)
+    }
   }
 
   return (
@@ -245,11 +256,21 @@ function NewTicketForm({
         />
       </div>
 
+      {submitError && (
+        <p
+          role="alert"
+          className="mx-5 mb-0 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700"
+        >
+          No se pudo registrar el incidente: {submitError}
+        </p>
+      )}
       <div className="flex flex-col-reverse gap-3 border-t border-border/50 p-5 sm:flex-row sm:justify-end">
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancelar
         </Button>
-        <Button type="submit">Crear ticket</Button>
+        <Button type="submit" disabled={sending}>
+          {sending ? 'Registrando…' : 'Crear ticket'}
+        </Button>
       </div>
     </form>
   )

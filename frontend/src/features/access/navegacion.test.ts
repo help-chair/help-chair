@@ -1,9 +1,22 @@
 import { seccionInicial, seccionesVisibles } from './navegacion'
-import { ROLES_SIMULADOS } from './data'
-import type { RolId } from './types'
+import type { Permiso, RolId } from './types'
+
+/** Permisos de cada rol tal como los devuelve GET /api/access/v1/roles. */
+const PERMISOS: Record<RolId, Permiso[]> = {
+  administrador: [
+    'tickets:ver',
+    'tickets:atender',
+    'tickets:escalar',
+    'empresa:configurar',
+    'usuarios:administrar',
+  ],
+  agente_n2: ['tickets:ver', 'tickets:atender', 'tickets:escalar'],
+  agente_n1: ['tickets:ver', 'tickets:atender'],
+  usuario_final: ['tickets:ver'],
+}
 
 function permisosDe(rol: RolId) {
-  return ROLES_SIMULADOS.find((r) => r.id === rol)!.permisos
+  return PERMISOS[rol]
 }
 
 describe('navegación según rol', () => {

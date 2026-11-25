@@ -71,7 +71,7 @@ export default function App() {
         )
       )}
       {tabActual === 'access' && <UsersPage usuario={sesion.usuario} />}
-      {tabActual === 'incidents' && <IncidentsPage />}
+      {tabActual === 'incidents' && <IncidentsPage agenteId={sesion.usuario.id} />}
       {tabActual === 'problems' && <ProblemsPage />}
       {tabActual === 'knowledge' && <KnowledgePage />}
     </ServiceDeskLayout>

@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cargarArticulosConRespaldo } from './api'
+import { ApiError } from '@/api/client'
+import { cargarArticulos } from './api'
 
 afterEach(() => vi.restoreAllMocks())
 
-describe('cargarArticulosConRespaldo', () => {
+describe('cargarArticulos', () => {
   it('mapea artículos de la API al formato del módulo', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(
@@ -31,16 +32,17 @@ describe('cargarArticulosConRespaldo', () => {
       ),
     )
 
-    const articulos = await cargarArticulosConRespaldo()
+    const articulos = await cargarArticulos()
     expect(articulos).toHaveLength(1)
     expect(articulos[0].titulo).toBe('Conectar a la VPN')
     expect(articulos[0].visibilidad).toBe('publico')
     expect(articulos[0].pasos).toEqual(['Abrir cliente', 'Ingresar credenciales'])
   })
 
-  it('usa los artículos de ejemplo cuando el servicio no responde', async () => {
-    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('sin backend'))
-    const articulos = await cargarArticulosConRespaldo()
-    expect(articulos.length).toBeGreaterThan(0)
+  it('si el servicio no responde, propaga el error (sin datos de ejemplo)', async () => {
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'))
+    const error = await cargarArticulos().catch((e: unknown) => e)
+    expect(error).toBeInstanceOf(ApiError)
+    expect((error as ApiError).status).toBe(0)
   })
 })

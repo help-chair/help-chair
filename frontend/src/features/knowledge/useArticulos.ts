@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useState } from 'react'
-import { cargarArticulosConRespaldo } from './api'
+import { mensajeDeError } from '@/api/client'
+import { cargarArticulos } from './api'
 import type { Articulo, Valoracion } from './types'
 
-// Estado del módulo: carga desde services/knowledge (con respaldo a datos de ejemplo)
-// y mantiene las valoraciones en memoria hasta que el backend exponga esos endpoints.
+// Estado del módulo: los artículos vienen de services/knowledge. Las consultas y valoraciones
+// siguen en memoria porque el contrato v1 todavía no tiene endpoints para guardarlas.
 
 export type EstadoCarga = 'cargando' | 'lista' | 'error'
 
-export function useArticulos(cargar: () => Promise<Articulo[]> = cargarArticulosConRespaldo) {
+export function useArticulos(cargar: () => Promise<Articulo[]> = cargarArticulos) {
   const [carga, setCarga] = useState<EstadoCarga>('cargando')
+  const [errorCarga, setErrorCarga] = useState('')
   const [articulos, setArticulos] = useState<Articulo[]>([])
   const [valoraciones, setValoraciones] = useState<Valoracion[]>([])
 
@@ -21,8 +23,10 @@ export function useArticulos(cargar: () => Promise<Articulo[]> = cargarArticulos
         setArticulos(nuevos)
         setCarga('lista')
       },
-      () => {
-        if (vigente) setCarga('error')
+      (error: unknown) => {
+        if (!vigente) return
+        setErrorCarga(mensajeDeError(error, 'Verifica tu conexión con la Base de Conocimiento.'))
+        setCarga('error')
       },
     )
     return () => {
@@ -55,5 +59,5 @@ export function useArticulos(cargar: () => Promise<Articulo[]> = cargarArticulos
     )
   }
 
-  return { carga, recargar, articulos, valoraciones, registrarConsulta, valorar }
+  return { carga, errorCarga, recargar, articulos, valoraciones, registrarConsulta, valorar }
 }

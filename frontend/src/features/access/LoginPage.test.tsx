@@ -93,15 +93,15 @@ describe('LoginPage', () => {
     expect(screen.getByRole('button', { name: /entrar/i })).toBeDisabled()
   })
 
-  it('lista las cuentas de prueba por rol en desarrollo', () => {
-    render(<LoginPage onAuthenticated={vi.fn()} />)
+  it('sin conexión con Accesos lo explica y no entra con cuentas simuladas', async () => {
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'))
+    const onAuthenticated = vi.fn()
+    render(<LoginPage onAuthenticated={onAuthenticated} />)
 
-    expect(screen.getByText(/cuentas de prueba \(solo desarrollo\)/i)).toBeInTheDocument()
-    expect(screen.getByText('admin@empresa15.com')).toBeInTheDocument()
-    expect(screen.getByText('daniela.ruiz@empresa15.com')).toBeInTheDocument()
-    expect(screen.getByText('marco.estrada@empresa15.com')).toBeInTheDocument()
-    expect(screen.getByText('lucia.ponce@empresa15.com')).toBeInTheDocument()
-    expect(screen.getByText('hugo.navarro@empresa15.com')).toBeInTheDocument()
-    expect(screen.getByText('sofia.marin@empresa15.com')).toBeInTheDocument()
+    expect(screen.queryByText(/cuentas de prueba/i)).not.toBeInTheDocument()
+    await capturar('admin@acme.com', 'una-clave-muy-larga-1')
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/no hay conexión con el servicio/i)
+    expect(onAuthenticated).not.toHaveBeenCalled()
   })
 })

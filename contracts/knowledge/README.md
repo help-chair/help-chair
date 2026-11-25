@@ -1,10 +1,15 @@
 # Contrato v0 de KB — #112 / #134
 
 Una sola propuesta OpenAPI para ambas issues. Responsable: Pablo. Contrato v0
-propuesto para revisión. No cierra issues ni acredita revisión de
+propuesto para revisión. No cierra issues ni acredita aprobación de todos los
 consumidores, integración de API o conformidad exhaustiva ITIL 4.
 
 ## Base y alcance
+
+El contrato de #230 y el modelo de #228 ya están integrados. La
+[guía de integración para Frontend](frontend-integration.md) responde a sus tres
+preguntas sobre autor, categorías y campos fuera de v0, y coteja los siete
+criterios de #112 sin presentar decisiones pendientes como acuerdos.
 
 - Modelo/fixture: PR #228, commit `4f8573d442de3c01a4f866d5468f3f4ac6e2d4ec`,
   todavía abierto al elaborar el borrador. No duplica ni modifica su esquema.
@@ -69,16 +74,18 @@ marca criterios de las issues como cerrados ni sustituye la revisión humana.
 
 | Criterio | Entrega/evidencia disponible | Qué falta |
 |---|---|---|
-| #112/#134: OpenAPI de KB y operaciones | Un YAML en PR #230; cinco operaciones de negocio previstas y dos de salud | Revisión e integración autorizada |
-| #112/#134: DTO consistente con el modelo | Lectura/alta/PATCH contrastados con #228; cuatro artículos de fixture fijados a 4f8573d | Confirmación de consumidores y contraste con el modelo finalmente integrado |
+| #112/#134: OpenAPI de KB y operaciones | YAML integrado por PR #230; cinco operaciones de negocio previstas y dos de salud | Acuerdos abiertos no se resuelven solo por integración |
+| #112/#134: DTO consistente con el modelo | Lectura/alta/PATCH contrastados con #228 integrado; cuatro artículos de fixture fijados a 4f8573d | Confirmación de consumidores |
 | #112/#134: entradas, respuestas, errores y ejemplos válidos | 41 ejemplos y 37 negativos aprobados; OpenAPI válido; 16 casos Prism | No prueba API real, permisos, búsqueda o reglas de BD |
 | #112: audiencia, autenticación y referencias por ID | Propuestas explícitas; UUID cabe en articulo_kb_id de texto de hasta 64 caracteres | Acuerdos de Accesos y consumidores; no hay FK externa |
-| #112: revisión registrada y distinción previsto/implementado | Solicitudes a CODEOWNER y seis equipos, matriz A1–A9; x-implementation-status | Respuestas/OK reales, ajustes y aprobación |
-| #137: revisión de ambos contratos | Problemas integrado con prefijo actualizado; KB propuesto en #230 | OK de Eventos, Incidencias y Frontend sobre ambos contratos; comentarios atendidos y merge autorizado |
+| #112: revisión registrada y distinción previsto/implementado | Aprobación de Leon2411, observación neutral de Frontend, matriz A1–A9; x-implementation-status | Respuestas/acuerdos restantes y revisión de las aclaraciones |
+| #137: revisión de ambos contratos | Ambos contratos integrados; operaciones de KB aún previstas | OK de Eventos, Incidencias y Frontend sobre ambos contratos; comentarios atendidos y flujo de integración autorizado |
 
 La [matriz A1–A9 del PR #230](https://github.com/help-chair/help-chair/pull/230#issuecomment-7084100013)
-concentra las preguntas; evitar solicitudes duplicadas. Al corte documental del
-22 de noviembre no hay revisiones ni respuestas de consumidores en ese PR.
+concentra las preguntas; evitar solicitudes duplicadas. Al corte del 24 de noviembre
+existen aprobación de Leon2411 y una [revisión neutral de Frontend](https://github.com/help-chair/help-chair/pull/230#issuecomment-7089155841)
+con tres preguntas. La [guía de integración](frontend-integration.md) prepara su
+respuesta técnica, sin atribuirle aprobación de todos los acuerdos o equipos.
 La [aprobación de Pablo en #182](https://github.com/help-chair/help-chair/pull/182#pullrequestreview-5967452203)
 corresponde al commit 67b2dee del contrato anterior de Problemas. No acredita por
 sí sola el OK de los tres equipos exigidos por #137, la revisión del cambio de
@@ -212,5 +219,6 @@ comprobación de límites de paginación; la última no detectó bloqueantes.
 No equivalen a aprobación de CODEOWNERS ni de los consumidores.
 Prism se detuvo al terminar; no se arrancaron APIs ni BD. No se ejecutó la suite
 Django de #111 ni la de modelos del PR #228 en esta actividad contractual.
-El contrato está en contracts/knowledge. Siguen pendientes revisión de consumidores,
-CODEOWNERS y acuerdos abiertos. Las issues continúan abiertas.
+El contrato está integrado en contracts/knowledge y #134 está completada. #112
+sigue abierta: hay aprobación registrada en #230 y respuesta neutral de Frontend,
+pero quedan acuerdos y revisión de las aclaraciones de integración pendientes.

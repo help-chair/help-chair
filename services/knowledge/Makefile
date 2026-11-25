@@ -4,12 +4,13 @@ SERVICE   := knowledge
 PORT      ?= 8006
 IMAGE     ?= ghcr.io/help-chair/hc-$(SERVICE)
 TAG       ?= dev
+export OPENAPI_OUTPUT
 CONTAINER ?= $(shell command -v podman >/dev/null 2>&1 && echo podman || echo docker)
 
 ifneq ($(shell command -v uv 2>/dev/null),)
   MODE  := uv
-  RUN   := uv run
-  SETUP := uv sync
+  RUN   := uv run --frozen
+  SETUP := uv sync --frozen
 else
   MODE  := venv+pip
   RUN   :=
@@ -24,8 +25,7 @@ help: ## Muestra esta ayuda
 	@echo "Servicio $(SERVICE) · modo: $(MODE)"
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-15s %s\n", $$1, $$2}'
 
-setup: ## Instala dependencias y crea .env si no existe
-	@test -f .env || cp .env.example .env
+setup: ## Instala dependencias; la configuración procede del entorno del proceso
 	$(SETUP)
 
 run: ## Arranca el servidor de desarrollo
@@ -52,12 +52,13 @@ format: ## ruff: corrige estilo y formatea
 build: ## Construye la imagen OCI (Podman o Docker)
 	$(CONTAINER) build -t $(IMAGE):$(TAG) .
 
-seed: ## Datos de ejemplo (cada equipo lo implementa)
-	@echo "TODO: implementar datos de ejemplo de $(SERVICE) (manage.py loaddata / comando propio)"
+seed: ## Carga la fixture de ensayo; requiere CONFIRM_DEMO=1
+	@test "$(CONFIRM_DEMO)" = "1" || { echo "Seed desactivado: requiere CONFIRM_DEMO=1 y una BD de ensayo."; exit 2; }
+	@echo "ADVERTENCIA: recargar kb_demo sobrescribe sus ejemplos. Solo para BD de ensayo."
+	$(RUN) python manage.py loaddata kb_demo
 
-openapi: ## Exporta el contrato a contracts/$(SERVICE)/openapi.yaml
-	@mkdir -p ../../contracts/$(SERVICE)
-	$(RUN) python manage.py spectacular --file ../../contracts/$(SERVICE)/openapi.yaml --validate
+openapi: ## Exporta solo el esquema runtime; requiere OPENAPI_OUTPUT fuera de contracts/
+	$(RUN) python scripts/export_schema.py
 
 lock: ## (requiere uv) Actualiza uv.lock y regenera requirements*.txt
 	uv lock -q

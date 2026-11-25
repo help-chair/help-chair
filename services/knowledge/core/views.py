@@ -24,6 +24,6 @@ def ready(request):
     try:
         check_database()
     except Exception:
-        logger.exception("readiness: la base de datos no responde")
+        logger.warning("readiness_database_unavailable")
         return JsonResponse({"status": "unavailable", "database": "down"}, status=503)
     return JsonResponse({"status": "ok", "database": "up"})

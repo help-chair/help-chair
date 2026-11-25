@@ -1,3 +1,5 @@
+import secrets
+
 import pytest
 
 from core import views
@@ -16,10 +18,16 @@ def test_ready_ok(client):
     assert response.json()["database"] == "up"
 
 
-def test_ready_devuelve_503_si_la_bd_falla(client, monkeypatch):
+def test_ready_devuelve_503_si_la_bd_falla(client, monkeypatch, caplog):
+    private_value = secrets.token_urlsafe(40)
+
     def boom():
-        raise RuntimeError("bd caida")
+        raise RuntimeError(private_value)
 
     monkeypatch.setattr(views, "check_database", boom)
     response = client.get("/health/ready")
     assert response.status_code == 503
+    assert response.json() == {"status": "unavailable", "database": "down"}
+    assert client.get("/health/live").status_code == 200
+    sanitized = private_value not in caplog.text
+    assert sanitized, "Readiness must not log database exception details"

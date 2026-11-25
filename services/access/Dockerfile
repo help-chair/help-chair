@@ -21,9 +21,14 @@ RUN groupadd --system --gid 10001 app \
 WORKDIR /app
 COPY --from=builder /opt/venv /opt/venv
 COPY . .
-RUN SECRET_KEY=build-only python manage.py collectstatic --noinput \
+# collectstatic no firma nada, pero importa los settings y estos exigen una
+# llave. Se genera una aqui y se tira con la capa: no queda en la imagen, y la
+# regla de que el servicio no arranca sin JWT_PRIVATE_KEY se mantiene intacta.
+RUN SECRET_KEY=build-only \
+    JWT_PRIVATE_KEY="$(python -c 'from config.llaves import generar_llave_privada; print(generar_llave_privada())')" \
+    python manage.py collectstatic --noinput \
  && chown -R app:app /app
 USER app
 EXPOSE 8002
 # exec => gunicorn es PID 1 y recibe SIGTERM (cierre con gracia)
-CMD ["sh", "-c", "exec gunicorn config.wsgi:application --bind 0.0.0.0:${PORT} --workers ${WEB_CONCURRENCY} --graceful-timeout 30"]
+CMD ["sh", "-c", "exec gunicorn config.wsgi:application --bind 0.0.0.0:${PORT} --workers ${WEB_CONCURRENCY} --graceful-timeout 30 --no-control-socket"]

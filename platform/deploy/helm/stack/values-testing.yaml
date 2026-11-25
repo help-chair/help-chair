@@ -1,0 +1,11 @@
+# Ambiente testing (VM con k3s). Jenkins sustituye la etiqueta: --set global.imageTag=<sha-del-commit>
+global:
+  baseDomain: help-chair.com      # sin dominio aún: <IP>.sslip.io (ver el runbook del clúster)
+  imageTag: develop
+secrets:
+  create: true
+mailpit:
+  enabled: true
+ingress:
+  enabled: true
+  className: traefik

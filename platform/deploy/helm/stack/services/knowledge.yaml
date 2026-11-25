@@ -1,0 +1,8 @@
+# Servicio knowledge - Equipo 5 (Base de Conocimiento). Lo edita SOLO su equipo (CODEOWNERS). Guía: ../README.md
+# El nombre del archivo debe coincidir con 'name'.
+name: knowledge
+port: 8006                       # el mismo PORT del servicio (Makefile y .env.example)
+image:
+  repository: hc-knowledge              # ghcr.io/help-chair/hc-knowledge:<global.imageTag>
+ingress:
+  path: /api/knowledge                  # prefijo público del ingress (el servicio debe responder bajo /api/knowledge/v1)

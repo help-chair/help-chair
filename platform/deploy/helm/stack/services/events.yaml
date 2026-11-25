@@ -1,0 +1,13 @@
+# Servicio events - Equipo 1 (Eventos). Lo edita SOLO su equipo (CODEOWNERS). Guía: ../README.md
+# El nombre del archivo debe coincidir con 'name'.
+name: events
+port: 8001                       # el mismo PORT del servicio (Makefile y .env.example)
+image:
+  repository: hc-events              # ghcr.io/help-chair/hc-events:<global.imageTag>
+ingress:
+  path: /api/events                  # prefijo público del ingress (el servicio debe responder bajo /api/events/v1)
+db:
+  image: docker.io/timescale/timescaledb:latest-pg16   # fija una versión (p. ej. 2.x.y-pg16) cuando se decida
+  resources:
+    requests: {memory: 256Mi}
+    limits: {memory: 512Mi}

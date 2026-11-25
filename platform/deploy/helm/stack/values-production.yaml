@@ -1,0 +1,24 @@
+# Producción (un namespace por empresa). global.imageTag es obligatorio: --set global.imageTag=<sha>
+global:
+  baseDomain: help-chair.com
+secrets:
+  create: false                   # los crea el aprovisionador (README.md, sección Secretos)
+mailpit:
+  enabled: false
+smtp:
+  host: smtp.help-chair.com       # ajusta cuando se decida el servidor SMTP real
+  port: 587
+broker:
+  persistence: {enabled: true, size: 1Gi, storageClass: ""}
+defaults:
+  db:
+    storage: 5Gi
+ingress:
+  enabled: true
+  className: traefik
+  tls: {enabled: true, secretName: "", clusterIssuer: letsencrypt-prod}
+networkPolicy:
+  enabled: true
+  allowFromNamespaces: [platform]
+quota:
+  enabled: true

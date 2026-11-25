@@ -1,0 +1,8 @@
+# Servicio problems - Equipo 5 (Problemas). Lo edita SOLO su equipo (CODEOWNERS). Guía: ../README.md
+# El nombre del archivo debe coincidir con 'name'.
+name: problems
+port: 8005                       # el mismo PORT del servicio (Makefile y .env.example)
+image:
+  repository: hc-problems              # ghcr.io/help-chair/hc-problems:<global.imageTag>
+ingress:
+  path: /api/problems                  # prefijo público del ingress (el servicio debe responder bajo /api/problems/v1)

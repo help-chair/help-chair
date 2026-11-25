@@ -1,0 +1,94 @@
+{{- if .Values.broker.enabled }}
+{{- $b := .Values.broker }}
+{{- $ctx := dict "root" $ "name" "broker" "component" "broker" }}
+{{- if $b.persistence.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: broker-data
+  labels:
+    {{- include "stack.labels" $ctx | nindent 4 }}
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- with $b.persistence.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ $b.persistence.size }}
+{{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: broker
+  labels:
+    {{- include "stack.labels" $ctx | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate   # el volumen es ReadWriteOnce
+  selector:
+    matchLabels:
+      {{- include "stack.selector" (dict "root" $ "name" "broker") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "stack.labels" $ctx | nindent 8 }}
+    spec:
+      {{- with $.Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: nats
+          image: {{ $b.image }}
+          imagePullPolicy: {{ $.Values.global.imagePullPolicy }}
+          args:
+            {{- toYaml $b.args | nindent 12 }}
+          ports:
+            - {name: client, containerPort: 4222}
+            - {name: monitor, containerPort: 8222}
+          readinessProbe:
+            httpGet: {path: /healthz, port: monitor}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /healthz, port: monitor}
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            {{- toYaml $b.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+          volumeMounts:
+            - {name: data, mountPath: /data}
+      volumes:
+        - name: data
+          {{- if $b.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: broker-data
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: broker
+  labels:
+    {{- include "stack.labels" $ctx | nindent 4 }}
+spec:
+  selector:
+    {{- include "stack.selector" (dict "root" $ "name" "broker") | nindent 4 }}
+  ports:
+    - {name: client, port: 4222, targetPort: client}
+    - {name: monitor, port: 8222, targetPort: monitor}
+{{- end }}

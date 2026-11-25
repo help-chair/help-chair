@@ -1,0 +1,6 @@
+apiVersion: v2
+name: hc-stack
+description: Stack de UNA empresa de Help Chair - un servicio Django con su PostgreSQL por cada archivo de services/, más el broker (NATS)
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

@@ -1,0 +1,103 @@
+{{- $services := include "stack.services" . | fromYaml }}
+{{- range $name := keys $services | sortAlpha }}
+{{- $svc := get $services $name }}
+{{- if $svc.enabled }}
+{{- $ctx := dict "root" $ "name" $name "svc" $svc }}
+{{- $image := include "stack.image" $ctx }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "stack.labels" (dict "root" $ "name" $name "component" "app") | nindent 4 }}
+spec:
+  replicas: {{ int $svc.replicas }}
+  selector:
+    matchLabels:
+      {{- include "stack.selector" (dict "root" $ "name" $name) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "stack.labels" (dict "root" $ "name" $name "component" "app") | nindent 8 }}
+      annotations:
+        # un cambio en las variables reinicia los pods
+        checksum/config: {{ include "stack.appConfig" $ctx | sha256sum }}
+    spec:
+      terminationGracePeriodSeconds: 35   # gunicorn: --graceful-timeout 30
+      {{- with $.Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml $svc.podSecurityContext | nindent 8 }}
+      {{- if and $svc.migrate $svc.db.enabled }}
+      initContainers:
+        - name: migrate
+          image: {{ $image }}
+          imagePullPolicy: {{ $.Values.global.imagePullPolicy }}
+          command: ["python", "manage.py", "migrate", "--noinput"]
+          envFrom:
+            - configMapRef:
+                name: {{ $name }}-config
+          env:
+            {{- include "stack.appEnv" $ctx | nindent 12 }}
+          resources:
+            {{- toYaml $svc.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml $svc.containerSecurityContext | nindent 12 }}
+      {{- end }}
+      containers:
+        - name: app
+          image: {{ $image }}
+          imagePullPolicy: {{ $.Values.global.imagePullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ int $svc.port }}
+          envFrom:
+            - configMapRef:
+                name: {{ $name }}-config
+          env:
+            {{- include "stack.appEnv" $ctx | nindent 12 }}
+          startupProbe:
+            httpGet:
+              path: {{ $svc.probes.startup.path }}
+              port: http
+            periodSeconds: {{ $svc.probes.startup.periodSeconds }}
+            failureThreshold: {{ $svc.probes.startup.failureThreshold }}
+            timeoutSeconds: {{ $svc.probes.startup.timeoutSeconds }}
+          livenessProbe:
+            httpGet:
+              path: {{ $svc.probes.liveness.path }}
+              port: http
+            periodSeconds: {{ $svc.probes.liveness.periodSeconds }}
+            failureThreshold: {{ $svc.probes.liveness.failureThreshold }}
+            timeoutSeconds: {{ $svc.probes.liveness.timeoutSeconds }}
+          readinessProbe:
+            httpGet:
+              path: {{ $svc.probes.readiness.path }}
+              port: http
+            periodSeconds: {{ $svc.probes.readiness.periodSeconds }}
+            failureThreshold: {{ $svc.probes.readiness.failureThreshold }}
+            timeoutSeconds: {{ $svc.probes.readiness.timeoutSeconds }}
+          resources:
+            {{- toYaml $svc.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml $svc.containerSecurityContext | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "stack.labels" (dict "root" $ "name" $name "component" "app") | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "stack.selector" (dict "root" $ "name" $name) | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ int $svc.port }}
+      targetPort: http
+{{- end }}
+{{- end }}

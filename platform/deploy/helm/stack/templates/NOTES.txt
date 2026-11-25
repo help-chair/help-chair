@@ -1,0 +1,20 @@
+Stack de la empresa "{{ .Values.global.tenantId }}" instalado en el namespace {{ .Release.Namespace }}.
+
+Estado:
+  kubectl -n {{ .Release.Namespace }} get pods,svc,pvc
+
+Servicios:
+{{- $services := include "stack.services" . | fromYaml }}
+{{- range $name := keys $services | sortAlpha }}
+{{- $svc := get $services $name }}
+{{- if $svc.enabled }}
+  - {{ $name }} (puerto {{ int $svc.port }}){{ if $svc.ingress.path }} -> {{ $svc.ingress.path }}{{ end }}
+{{- end }}
+{{- end }}
+{{ if .Values.ingress.enabled }}
+URL: {{ if .Values.ingress.tls.enabled }}https{{ else }}http{{ end }}://{{ default (printf "%s.%s" .Values.global.tenantId .Values.global.baseDomain) .Values.ingress.host }}
+{{- end }}
+{{ if not .Values.secrets.create }}
+OJO: secrets.create=false. Cada servicio necesita el Secret "<servicio>-secret" con SECRET_KEY y
+POSTGRES_PASSWORD (ver README.md, sección Secretos). Sin él los pods quedan en CreateContainerConfigError.
+{{- end }}

@@ -1,0 +1,120 @@
+# Valores por defecto del stack. Orden de prioridad (de menor a mayor):
+#   1. defaults (este archivo)  2. services/<nombre>.yaml (lo edita cada equipo)
+#   3. serviceOverrides.<nombre> de values-<ambiente>.yaml  4. --set de la línea de comandos
+# Cómo agregar un servicio: README.md de esta carpeta.
+
+global:
+  tenantId: empresa-demo          # identificador de la empresa; también va en EMPRESA_ID / TENANT_ID
+  baseDomain: help-chair.com      # el stack responde en <tenantId>.<baseDomain>
+  imageRegistry: ghcr.io/help-chair
+  imageTag: ""                    # obligatorio: usa el SHA del commit (--set global.imageTag=<sha>)
+  imagePullPolicy: IfNotPresent
+  imagePullSecrets: []            # p. ej. [{name: ghcr-pull}] si las imágenes son privadas
+
+# Valores que heredan TODOS los servicios (cada services/<nombre>.yaml puede cambiarlos)
+defaults:
+  enabled: true
+  image:
+    repository: ""              # obligatorio en services/<nombre>.yaml (p. ej. hc-events)
+    tag: ""                     # por defecto global.imageTag
+  replicas: 1
+  workers: 2                      # WEB_CONCURRENCY de gunicorn
+  debug: false
+  logLevel: INFO
+  allowedHosts: "*"               # el ingress ya filtra por Host
+  migrate: true                   # initContainer que corre `manage.py migrate` antes de arrancar
+  env: {}                         # variables propias del servicio (todas se convierten en texto)
+  secretName: ""                  # por defecto <servicio>-secret (claves SECRET_KEY y POSTGRES_PASSWORD)
+  resources:                      # requests de CPU bajos a propósito: en una VM pequeña son los requests, no el uso real,
+    requests: {cpu: 50m, memory: 128Mi}   # los que limitan cuántas empresas caben. Mide con `kubectl top pods`.
+    limits: {cpu: 500m, memory: 256Mi}
+  probes:
+    startup: {path: /health/live, periodSeconds: 5, failureThreshold: 30, timeoutSeconds: 3}
+    liveness: {path: /health/live, periodSeconds: 15, failureThreshold: 3, timeoutSeconds: 3}
+    readiness: {path: /health/ready, periodSeconds: 10, failureThreshold: 3, timeoutSeconds: 3}
+  podSecurityContext:             # coincide con el usuario de los Dockerfile de la plantilla (UID 10001)
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    seccompProfile: {type: RuntimeDefault}
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: false # pásalo a true cuando el servicio solo escriba en /tmp
+    capabilities: {drop: [ALL]}
+  ingress:
+    path: ""                      # p. ej. /api/events; vacío = el servicio no se publica
+  db:
+    enabled: true
+    image: docker.io/library/postgres:16-alpine
+    user: ""                      # por defecto, el nombre del servicio
+    name: ""                      # por defecto, el nombre del servicio
+    storage: 1Gi
+    storageClass: ""              # vacío = la clase por defecto del clúster (k3s: local-path)
+    args: ["-c", "shared_buffers=64MB", "-c", "max_connections=50"]
+    resources:
+      requests: {cpu: 50m, memory: 128Mi}
+      limits: {cpu: 500m, memory: 256Mi}
+    securityContext:              # postgres:*-alpine y timescaledb usan el UID 70 (las imágenes Debian, el 999)
+      runAsNonRoot: true
+      runAsUser: 70
+      runAsGroup: 70
+      fsGroup: 70
+      seccompProfile: {type: RuntimeDefault}
+
+# Cada ambiente puede ajustar un servicio concreto sin tocar el archivo del equipo:
+#   serviceOverrides:
+#     events: {resources: {limits: {memory: 512Mi}}}
+serviceOverrides: {}
+
+# Crea los Secret de cada servicio (SECRET_KEY y POSTGRES_PASSWORD aleatorios y conservados al actualizar).
+# En producción los crea el aprovisionador: ponlo en false y consulta README.md.
+secrets:
+  create: false
+
+broker:
+  enabled: true
+  image: docker.io/library/nats:2-alpine
+  args: ["-js", "-sd", "/data", "-m", "8222"]
+  persistence: {enabled: false, size: 1Gi, storageClass: ""}
+  resources:
+    requests: {cpu: 50m, memory: 32Mi}
+    limits: {cpu: 250m, memory: 128Mi}
+
+mailpit:                          # buzón de pruebas: solo en dev y testing
+  enabled: false
+  image: docker.io/axllent/mailpit:latest   # fija una versión cuando el equipo la elija
+  resources:
+    requests: {cpu: 25m, memory: 32Mi}
+    limits: {cpu: 250m, memory: 64Mi}
+
+smtp:                             # solo si mailpit está desactivado
+  host: ""
+  port: 587
+
+ingress:
+  enabled: false
+  className: traefik              # traefik viene con k3s; ver platform/deploy/cluster/README.md
+  host: ""                        # por defecto <tenantId>.<baseDomain>
+  annotations: {}
+  tls: {enabled: false, secretName: "", clusterIssuer: ""}
+
+frontend:                         # el frontend es global y se despliega aparte; aquí solo se enruta "/"
+  externalName: ""                # p. ej. frontend.frontend.svc.cluster.local
+
+networkPolicy:                    # aísla el namespace: solo entran pods del mismo namespace y del ingress
+  enabled: false
+  ingressControllerNamespace: kube-system   # traefik (k3s); con ingress-nginx: ingress-nginx
+  allowFromNamespaces: []         # p. ej. [platform] para el aprovisionador y el gateway
+
+quota:                            # ResourceQuota + LimitRange del namespace de la empresa
+  enabled: false
+  hard:
+    requests.cpu: "4"
+    requests.memory: 6Gi
+    limits.cpu: "8"
+    limits.memory: 8Gi
+    persistentvolumeclaims: "12"
+    pods: "40"
+  containerDefault:
+    limits: {cpu: 500m, memory: 256Mi}
+    requests: {cpu: 50m, memory: 64Mi}

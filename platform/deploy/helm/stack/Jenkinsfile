@@ -1,0 +1,13 @@
+// Valida el chart de Helm: helm lint + helm template (y kubeconform si está instalado).
+// Se ejecuta solo cuando cambia platform/deploy/helm/. El agente necesita helm.
+// Si usas la plantilla de Plataforma (platform/templates/Jenkinsfile.template), conserva su
+// estructura y copia solo esta etapa.
+pipeline {
+  agent any
+  stages {
+    stage('Helm lint y template') {
+      when { changeset 'platform/deploy/helm/**' }
+      steps { sh 'make helm-check' }
+    }
+  }
+}

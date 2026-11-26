@@ -1,6 +1,7 @@
 """API REST de problemas (contrato: contracts/problems/openapi.yaml, prefijo /api/problems/v1)."""
 
-from django.db import transaction
+from django.db import IntegrityError, transaction
+from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import (
     OpenApiExample,
     OpenApiParameter,
@@ -10,13 +11,17 @@ from drf_spectacular.utils import (
 )
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import NotFound
 from rest_framework.response import Response
 
+from core.errors import Conflict
 from core.filters import filter_by_choices
 from core.schemas import INVALID_DATA, NOT_FOUND, PAGE_OUT_OF_RANGE, ErrorSerializer
-from problems.models import Problema
+from problems.models import Problema, ProblemaIncidente
 from problems.serializers import (
+    IncidentLinkSerializer,
     ProblemCreateSerializer,
+    ProblemIncidentReadSerializer,
     ProblemReadSerializer,
     ProblemUpdateSerializer,
     StateChangeSerializer,
@@ -117,3 +122,92 @@ class ProblemViewSet(
             serializer.is_valid(raise_exception=True)
             problem = serializer.save()
         return Response(ProblemReadSerializer(problem).data)
+
+    # --- Incidentes vinculados (#272) ------------------------------------------------------------
+
+    @extend_schema(
+        operation_id="listProblemaIncidentes",
+        responses={200: ProblemIncidentReadSerializer(many=True), 404: NOT_FOUND},
+    )
+    @action(detail=True, methods=["get"], url_path="incidentes", pagination_class=None)
+    def incidents(self, request, *args, **kwargs):
+        """Arreglo sin paginar, del vínculo más antiguo al más reciente."""
+        problem = self.get_object()
+        links = problem.incidentes.order_by("vinculado_en", "id")
+        return Response(ProblemIncidentReadSerializer(links, many=True).data)
+
+    @extend_schema(
+        operation_id="linkProblemaIncidente",
+        request=IncidentLinkSerializer,
+        responses={
+            201: ProblemIncidentReadSerializer,
+            400: INVALID_DATA,
+            404: NOT_FOUND,
+            409: OpenApiResponse(
+                ErrorSerializer,
+                description="El incidente ya está vinculado a este problema",
+                examples=[
+                    OpenApiExample(
+                        "incidente_ya_vinculado",
+                        value={
+                            "codigo": "incidente_ya_vinculado",
+                            "detalle": "INC-1 ya está vinculado a PRB-42.",
+                        },
+                        response_only=True,
+                        status_codes=["409"],
+                    )
+                ],
+            ),
+        },
+    )
+    @incidents.mapping.post
+    def link_incident(self, request, *args, **kwargs):
+        problem = self.get_object()
+        serializer = IncidentLinkSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        incident_id = serializer.validated_data["incidente_id"]
+        try:
+            # El savepoint deja usable la transacción si la UniqueConstraint rechaza el alta.
+            with transaction.atomic():
+                link = ProblemaIncidente.objects.create(problema=problem, incidente_id=incident_id)
+        except IntegrityError:
+            if not problem.incidentes.filter(incidente_id=incident_id).exists():
+                raise
+            raise Conflict(
+                f"{incident_id} ya está vinculado a PRB-{problem.pk}.",
+                error_code="incidente_ya_vinculado",
+            ) from None
+        return Response(ProblemIncidentReadSerializer(link).data, status=status.HTTP_201_CREATED)
+
+    @extend_schema(
+        operation_id="unlinkProblemaIncidente",
+        parameters=[
+            OpenApiParameter(
+                "incidente_id",
+                OpenApiTypes.STR,
+                OpenApiParameter.PATH,
+                description="ID del incidente en el servicio de Incidencias",
+            )
+        ],
+        request=None,
+        responses={
+            204: None,
+            404: OpenApiResponse(
+                ErrorSerializer,
+                description="El problema no existe o el incidente no está vinculado a él",
+            ),
+        },
+    )
+    @action(
+        detail=True,
+        methods=["delete"],
+        # Sin límite de longitud en la ruta: un ID que no existe da el 404 JSON, no el de Django.
+        url_path=r"incidentes/(?P<incidente_id>[^/]+)",
+        pagination_class=None,
+    )
+    def unlink_incident(self, request, incidente_id, *args, **kwargs):
+        problem = self.get_object()
+        deleted, _ = problem.incidentes.filter(incidente_id=incidente_id).delete()
+        if not deleted:
+            raise NotFound(f"{incidente_id} no está vinculado a PRB-{problem.pk}.")
+        return Response(status=status.HTTP_204_NO_CONTENT)

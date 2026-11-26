@@ -9,9 +9,9 @@ El esquema, migración inicial y admin ya integrados de #13 se conservan. Django
 admin usa autenticación local de Django; no constituye integración JWT de negocio.
 Los modelos no importan código ni consultan bases de otros servicios. Sus claves
 internas son bigint; las referencias externas son texto de hasta 64 caracteres.
-El CRUD de problemas y su cambio de estado están implementados (#271); incidentes
-vinculados (#272), errores conocidos (#273), detector N/T y autorización de negocio
-siguen pendientes. No se emiten tokens de Accesos.
+El CRUD de problemas y su cambio de estado (#271) y el vínculo con incidentes
+(#272) están implementados; errores conocidos (#273), detector N/T y autorización
+de negocio siguen pendientes. No se emiten tokens de Accesos.
 
 Requisitos: Linux/WSL, Python 3.12, uv, Make, PostgreSQL 16 y Podman para la imagen.
 El Dockerfile produce una imagen OCI; no requiere Docker Desktop.
@@ -78,8 +78,10 @@ admin es local Django; la identidad de negocio corresponde a Accesos.
 | GET, POST | /api/problems/v1/problemas/ | Lista paginada (filtros `estado`, `prioridad`, `origen`) y alta |
 | GET, PATCH | /api/problems/v1/problemas/{id}/ | Consulta y actualización parcial (sin PUT ni DELETE) |
 | POST | /api/problems/v1/problemas/{id}/estado/ | Cambio de estado según `problems/states.py` |
+| GET, POST | /api/problems/v1/problemas/{id}/incidentes/ | Lista (arreglo sin paginar) y vínculo de incidentes |
+| DELETE | /api/problems/v1/problemas/{id}/incidentes/{incidente_id}/ | Desvincula un incidente |
 
-### API de problemas (#271)
+### API de problemas (#271, #272)
 
 - **Autenticación pendiente (Fase 3).** La API todavía **no valida el JWT de Accesos**
   que exige el contrato: hoy cualquier solicitud está permitida. La autenticación y
@@ -98,8 +100,13 @@ admin es local Django; la identidad de negocio corresponde a Accesos.
   (filtros validados contra los `TextChoices` del modelo; valor inválido → 400).
 - **Nombres.** Los identificadores del código van en inglés; rutas, campos JSON,
   valores de `codigo`, `operationId` y mensajes al usuario siguen el contrato en español.
-- **Pruebas.** `tests/factories.py` (factory_boy) ofrece `ProblemFactory` coherente
-  con el estado para las pruebas de #272 y #273.
+- **Incidentes vinculados (#272).** El incidente se guarda solo por su ID de texto
+  (1–64 caracteres): no se consulta ni valida contra Incidencias y no hay llave
+  foránea entre servicios. La restricción única `(problema_id, incidente_id)` se
+  traduce en 409 `incidente_ya_vinculado`; el mismo incidente sí puede vincularse a
+  problemas distintos. Desvincular un incidente no vinculado a ese problema da 404.
+- **Pruebas.** `tests/factories.py` (factory_boy) ofrece `ProblemFactory`, coherente
+  con el estado, y `ProblemIncidentFactory`, reutilizables para #273.
 
 La política confirmada por Pablo exige PostgreSQL y entorno real incluso en local
 /tests; las indicaciones anteriores de #205 sobre .env/defaults/SQLite se sustituyen
@@ -262,8 +269,8 @@ images without requiring Docker Desktop. The diagram above preserves the merged
 #13 schema: bigint internal IDs, local relations and text external references.
 Models, initial migration, model tests and Django admin remain unchanged. Local
 admin authentication does not implement Access JWT or business authorization.
-Problem CRUD and state transitions are implemented (#271); linked incidents (#272),
-known errors (#273) and the N/T detector belong to subsequent increments. The API
+Problem CRUD and state transitions (#271) and incident links by text ID (#272) are
+implemented; known errors (#273) and the N/T detector belong to subsequent increments. The API
 does **not** validate Access JWTs yet (Phase 3): authentication/permissions live
 only in `REST_FRAMEWORK` in `config/settings.py` (`AllowAny`, marked TODO).
 

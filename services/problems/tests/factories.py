@@ -3,7 +3,7 @@
 import factory
 from django.utils import timezone
 
-from problems.models import Problema
+from problems.models import Problema, ProblemaIncidente
 from problems.states import ROOT_CAUSE_REQUIRED_STATES
 
 # Estados a los que solo se llega habiendo documentado la causa raíz.
@@ -28,3 +28,13 @@ class ProblemFactory(factory.django.DjangoModelFactory):
     resuelto_en = factory.LazyAttribute(
         lambda o: timezone.now() if o.estado == Problema.Estado.RESUELTO else None
     )
+
+
+class ProblemIncidentFactory(factory.django.DjangoModelFactory):
+    """Vínculo problema–incidente; el ID del incidente es texto libre, como en Incidencias."""
+
+    class Meta:
+        model = ProblemaIncidente
+
+    problema = factory.SubFactory(ProblemFactory)
+    incidente_id = factory.Sequence(lambda n: f"INC-{n}")

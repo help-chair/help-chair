@@ -4,6 +4,8 @@
 - ``ProblemCreateSerializer``: ``ProblemaCrear``; siempre crea en ``registrado``.
 - ``ProblemUpdateSerializer``: ``ProblemaActualizar``; rechaza campos fuera del esquema.
 - ``StateChangeSerializer``: ``CambioEstado``; aplica las reglas de ``problems.states``.
+- ``ProblemIncidentReadSerializer``: lectura (``ProblemaIncidente``).
+- ``IncidentLinkSerializer``: ``VincularIncidente``; solo valida ``incidente_id``.
 
 ``component_name`` conserva en el esquema runtime los nombres de componente del contrato.
 """
@@ -17,7 +19,7 @@ from rest_framework.settings import api_settings
 
 from core.errors import Conflict
 from problems import states
-from problems.models import Problema
+from problems.models import Problema, ProblemaIncidente
 
 
 @extend_schema_serializer(component_name="Problema")
@@ -113,3 +115,22 @@ class StateChangeSerializer(serializers.Serializer):
         instance.estado = target
         instance.save(update_fields=updated_fields)
         return instance
+
+
+@extend_schema_serializer(component_name="ProblemaIncidente")
+class ProblemIncidentReadSerializer(serializers.ModelSerializer):
+    """Solo lectura: id, problema_id y vinculado_en los asigna el servicio."""
+
+    problema_id = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = ProblemaIncidente
+        fields = ("id", "problema_id", "incidente_id", "vinculado_en")
+        read_only_fields = fields
+
+
+@extend_schema_serializer(component_name="VincularIncidente")
+class IncidentLinkSerializer(serializers.Serializer):
+    """El ID se guarda tal cual: no se consulta ni valida contra el servicio de Incidencias."""
+
+    incidente_id = serializers.CharField(min_length=1, max_length=64)

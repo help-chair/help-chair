@@ -14,6 +14,7 @@ from ..models import (
     EventCategory,
     EventState,
 )
+from ..outbox.messages import enqueue_state_changed
 from ..priority import PriorityContext, resolve_priority
 from .classification import classify_event_type, watch_warning
 from .lifecycle import auto_close_informational, record_history
@@ -178,6 +179,14 @@ def register_event(validated_data: dict, actor_ref: str = "") -> tuple[Event, bo
         to_state=EventState.NEW,
         description="Evento registrado",
         metadata={"priority": priority_result.as_metadata()} if priority else {},
+    )
+    enqueue_state_changed(  # alta: from_state nulo -> NEW, en la misma transacción
+        event,
+        from_state=None,
+        to_state=EventState.NEW,
+        actor_type=ActorType.SYSTEM,
+        actor_ref=actor_ref,
+        changed_at=event.created_at,
     )
     event = auto_close_informational(event)  # regla 1: informativo de sistema sin acción
     watch_warning(event, previous_count=0)  # regla 3: advertencia, vigilancia y alerta

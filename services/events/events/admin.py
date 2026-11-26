@@ -1,10 +1,13 @@
 from django.contrib import admin
+from django.utils import timezone
 
 from .models import (
     BusinessService,
     Event,
     EventHistory,
     EventSource,
+    OutboxMessage,
+    OutboxStatus,
     PriorityMatrix,
     PriorityModifier,
     RecurrencePolicy,
@@ -130,3 +133,27 @@ class EventHistoryAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+@admin.register(OutboxMessage)
+class OutboxMessageAdmin(admin.ModelAdmin):
+    """Mensajes de salida al broker. Solo lectura, salvo la acción de reintentar."""
+
+    list_display = ("created_at", "message_type", "subject", "status", "attempts", "published_at")
+    list_filter = ("status", "message_type")
+    search_fields = ("id", "aggregate_id", "subject", "last_error")
+    date_hierarchy = "created_at"
+    actions = ["retry_messages"]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    @admin.action(description="Reintentar (volver a PENDING)")
+    def retry_messages(self, request, queryset):
+        updated = queryset.exclude(status=OutboxStatus.PUBLISHED).update(
+            status=OutboxStatus.PENDING, attempts=0, next_attempt_at=timezone.now()
+        )
+        self.message_user(request, f"{updated} mensaje(s) vuelven a PENDING.")

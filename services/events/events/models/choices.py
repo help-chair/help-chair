@@ -122,6 +122,12 @@ class RecurrenceAction(models.TextChoices):
     CREATE_PROBLEM = "CREATE_PROBLEM", "Crear problema"
 
 
+class OutboxStatus(models.TextChoices):
+    PENDING = "PENDING", "Pendiente"
+    PUBLISHED = "PUBLISHED", "Publicado"
+    FAILED = "FAILED", "Fallido"
+
+
 class ModifierField(models.TextChoices):
     SERVICE_IMPORTANCE = "SERVICE_IMPORTANCE", "Importancia del servicio"
     EVENT_CATEGORY = "EVENT_CATEGORY", "Categoría del evento"

@@ -78,6 +78,12 @@ STORAGES = {
 
 REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    # TODO Fase 3: validar JWT de Accesos. Único punto de autenticación/permisos de la API:
+    # hoy no se autentica a nadie y cualquier solicitud está permitida.
+    "DEFAULT_AUTHENTICATION_CLASSES": [],
+    "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.AllowAny"],
+    "DEFAULT_PAGINATION_CLASS": "core.pagination.StandardPagination",
+    "EXCEPTION_HANDLER": "core.errors.handle_exception",
 }
 
 SPECTACULAR_SETTINGS = {

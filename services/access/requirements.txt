@@ -35,6 +35,8 @@ jsonschema==4.26.0
     # via drf-spectacular
 jsonschema-specifications==2025.9.1
     # via jsonschema
+nats-py==2.17.0
+    # via hc-access
 psycopg==3.3.9
     # via hc-access
 psycopg-binary==3.3.9 ; implementation_name != 'pypy'

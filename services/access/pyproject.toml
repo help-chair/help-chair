@@ -10,6 +10,8 @@ dependencies = [
     "djangorestframework-simplejwt>=5.3",
     # El extra `crypto` trae cryptography, que es lo que PyJWT necesita para RS256.
     "pyjwt[crypto]>=2.9",
+    # Cliente del broker; solo lo importa el comando que publica la bandeja.
+    "nats-py>=2.6",
     "django-environ>=0.11",
     "gunicorn>=22.0",
     "psycopg[binary]>=3.2",

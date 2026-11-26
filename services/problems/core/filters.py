@@ -5,16 +5,21 @@ from rest_framework.exceptions import ValidationError
 
 
 def filter_by_choices(
-    queryset, query_params, choices_by_field: dict[str, type[models.TextChoices]]
+    queryset,
+    query_params,
+    filters: dict[str, tuple[str, type[models.TextChoices]]],
 ):
-    """Aplica ``campo=valor`` por cada filtro presente; un valor fuera de las opciones es un 400."""
+    """Aplica ``parámetro=valor`` por cada filtro presente; un valor fuera de las opciones es 400.
+
+    ``filters`` mapea el parámetro público (el del contrato) al campo del modelo y sus opciones.
+    """
     errors = {}
-    for field, choices in choices_by_field.items():
-        if field not in query_params:
+    for param, (field, choices) in filters.items():
+        if param not in query_params:
             continue
-        value = query_params.get(field)
+        value = query_params.get(param)
         if value not in choices.values:
-            errors[field] = f'"{value}" no es una opción válida.'
+            errors[param] = f'"{value}" no es una opción válida.'
             continue
         queryset = queryset.filter(**{field: value})
     if errors:

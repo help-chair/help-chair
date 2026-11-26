@@ -17,7 +17,7 @@ from rest_framework.response import Response
 from core.errors import Conflict
 from core.filters import filter_by_choices
 from core.schemas import INVALID_DATA, NOT_FOUND, PAGE_OUT_OF_RANGE, ErrorSerializer
-from problems.models import Problema, ProblemaIncidente
+from problems.models import Problem, ProblemIncident
 from problems.serializers import (
     IncidentLinkSerializer,
     ProblemCreateSerializer,
@@ -27,10 +27,11 @@ from problems.serializers import (
     StateChangeSerializer,
 )
 
+# Parámetro del contrato -> (campo del modelo, opciones).
 LIST_FILTERS = {
-    "estado": Problema.Estado,
-    "prioridad": Problema.Prioridad,
-    "origen": Problema.Origen,
+    "estado": ("status", Problem.Status),
+    "prioridad": ("priority", Problem.Priority),
+    "origen": ("origin", Problem.Origin),
 }
 
 
@@ -39,7 +40,8 @@ LIST_FILTERS = {
     list=extend_schema(
         operation_id="listProblemas",
         parameters=[
-            OpenApiParameter(field, enum=choices.values) for field, choices in LIST_FILTERS.items()
+            OpenApiParameter(param, enum=choices.values)
+            for param, (_, choices) in LIST_FILTERS.items()
         ],
         responses={200: ProblemReadSerializer, 400: INVALID_DATA, 404: PAGE_OUT_OF_RANGE},
     ),
@@ -89,11 +91,11 @@ class ProblemViewSet(
 ):
     """Sin PUT ni DELETE: el router no los enruta y DRF responde 405."""
 
-    queryset = Problema.objects.all()
+    queryset = Problem.objects.all()
     serializer_class = ProblemReadSerializer
 
     def get_queryset(self):
-        queryset = Problema.objects.order_by("-creado_en", "-id")
+        queryset = Problem.objects.order_by("-created_at", "-id")
         if self.action == "list":
             return filter_by_choices(queryset, self.request.query_params, LIST_FILTERS)
         if self.action == "change_state":
@@ -133,7 +135,7 @@ class ProblemViewSet(
     def incidents(self, request, *args, **kwargs):
         """Arreglo sin paginar, del vínculo más antiguo al más reciente."""
         problem = self.get_object()
-        links = problem.incidentes.order_by("vinculado_en", "id")
+        links = problem.incidents.order_by("linked_at", "id")
         return Response(ProblemIncidentReadSerializer(links, many=True).data)
 
     @extend_schema(
@@ -165,13 +167,13 @@ class ProblemViewSet(
         problem = self.get_object()
         serializer = IncidentLinkSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        incident_id = serializer.validated_data["incidente_id"]
+        incident_id = serializer.validated_data["incident_id"]
         try:
             # El savepoint deja usable la transacción si la UniqueConstraint rechaza el alta.
             with transaction.atomic():
-                link = ProblemaIncidente.objects.create(problema=problem, incidente_id=incident_id)
+                link = ProblemIncident.objects.create(problem=problem, incident_id=incident_id)
         except IntegrityError:
-            if not problem.incidentes.filter(incidente_id=incident_id).exists():
+            if not problem.incidents.filter(incident_id=incident_id).exists():
                 raise
             raise Conflict(
                 f"{incident_id} ya está vinculado a PRB-{problem.pk}.",
@@ -202,12 +204,14 @@ class ProblemViewSet(
         detail=True,
         methods=["delete"],
         # Sin límite de longitud en la ruta: un ID que no existe da el 404 JSON, no el de Django.
+        # El grupo se llama como el parámetro del contrato ({incidente_id}).
         url_path=r"incidentes/(?P<incidente_id>[^/]+)",
         pagination_class=None,
     )
-    def unlink_incident(self, request, incidente_id, *args, **kwargs):
+    def unlink_incident(self, request, *args, **kwargs):
+        incident_id = kwargs["incidente_id"]
         problem = self.get_object()
-        deleted, _ = problem.incidentes.filter(incidente_id=incidente_id).delete()
+        deleted, _ = problem.incidents.filter(incident_id=incident_id).delete()
         if not deleted:
-            raise NotFound(f"{incidente_id} no está vinculado a PRB-{problem.pk}.")
+            raise NotFound(f"{incident_id} no está vinculado a PRB-{problem.pk}.")
         return Response(status=status.HTTP_204_NO_CONTENT)

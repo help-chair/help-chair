@@ -1,21 +1,23 @@
 """Ciclo de vida del problema: única fuente de verdad de las transiciones permitidas."""
 
-from problems.models import Problema
+from problems.models import Problem
 
-State = Problema.Estado
+Status = Problem.Status
 
 ALLOWED_TRANSITIONS: dict[str, frozenset[str]] = {
-    State.REGISTRADO: frozenset({State.EN_ANALISIS, State.CERRADO}),
-    State.EN_ANALISIS: frozenset({State.CAUSA_IDENTIFICADA, State.REGISTRADO}),
-    State.CAUSA_IDENTIFICADA: frozenset({State.ERROR_CONOCIDO, State.RESUELTO, State.EN_ANALISIS}),
-    State.ERROR_CONOCIDO: frozenset({State.RESUELTO, State.EN_ANALISIS}),
+    Status.REGISTERED: frozenset({Status.IN_ANALYSIS, Status.CLOSED}),
+    Status.IN_ANALYSIS: frozenset({Status.ROOT_CAUSE_IDENTIFIED, Status.REGISTERED}),
+    Status.ROOT_CAUSE_IDENTIFIED: frozenset(
+        {Status.KNOWN_ERROR, Status.RESOLVED, Status.IN_ANALYSIS}
+    ),
+    Status.KNOWN_ERROR: frozenset({Status.RESOLVED, Status.IN_ANALYSIS}),
     # resuelto -> en_analisis es reabrir el problema.
-    State.RESUELTO: frozenset({State.CERRADO, State.EN_ANALISIS}),
-    State.CERRADO: frozenset(),
+    Status.RESOLVED: frozenset({Status.CLOSED, Status.IN_ANALYSIS}),
+    Status.CLOSED: frozenset(),
 }
 
 # Estados destino que exigen una causa raíz no vacía.
-ROOT_CAUSE_REQUIRED_STATES = frozenset({State.CAUSA_IDENTIFICADA, State.ERROR_CONOCIDO})
+ROOT_CAUSE_REQUIRED_STATES = frozenset({Status.ROOT_CAUSE_IDENTIFIED, Status.KNOWN_ERROR})
 
 
 def is_valid_transition(current: str, target: str) -> bool:
@@ -24,7 +26,7 @@ def is_valid_transition(current: str, target: str) -> bool:
 
 
 def is_reopening(current: str, target: str) -> bool:
-    return current == State.RESUELTO and target == State.EN_ANALISIS
+    return current == Status.RESOLVED and target == Status.IN_ANALYSIS
 
 
 def invalid_transition_message(current: str, target: str) -> str:

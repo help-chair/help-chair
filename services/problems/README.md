@@ -17,49 +17,63 @@ Requisitos: Linux/WSL, Python 3.12, uv, Make, PostgreSQL 16 y Podman para la ima
 El Dockerfile produce una imagen OCI; no requiere Docker Desktop.
 
 ### Modelo de datos
-Los IDs de otros servicios (`asignado_a_id`, `incidente_id`, `articulo_kb_id`) se guardan como texto, **sin llaves foráneas**: cada servicio es dueño de su propia base de datos.
+
+Los identificadores del código (modelos, campos, tablas) están en inglés desde la
+migración `0002_english_identifiers`; los `verbose_name` del admin y las etiquetas de
+las opciones siguen en español. **El JSON del contrato conserva los nombres en
+español**: los serializers mapean cada campo con `source=` (por ejemplo `titulo` →
+`title`, `causa_raiz` → `root_cause`, `incidente_id` → `incident_id`), y los valores
+de los enums (`registrado`, `en_analisis`…) no cambian.
+
+Los IDs de otros servicios (`assignee_id`, `incident_id`, `kb_article_id`) se guardan como texto, **sin llaves foráneas**: cada servicio es dueño de su propia base de datos.
 
 ```mermaid
 erDiagram
-    PROBLEMA ||--o{ PROBLEMA_INCIDENTE : "incidentes"
-    PROBLEMA ||--o{ ERROR_CONOCIDO : "errores_conocidos"
+    PROBLEM ||--o{ PROBLEM_INCIDENT : "incidents"
+    PROBLEM ||--o{ KNOWN_ERROR : "known_errors"
 
-    PROBLEMA {
+    PROBLEM {
         bigint id PK
-        varchar titulo "200"
-        text descripcion
-        varchar estado "registrado | en_analisis | causa_identificada | error_conocido | resuelto | cerrado"
-        varchar prioridad "baja | media | alta | critica"
-        varchar origen "manual | patron"
-        text causa_raiz "opcional"
-        varchar asignado_a_id "ID en Accesos, sin FK"
-        timestamptz creado_en
-        timestamptz actualizado_en
-        timestamptz resuelto_en "nullable"
+        varchar title "200 · JSON titulo"
+        text description "JSON descripcion"
+        varchar status "JSON estado · registrado | en_analisis | causa_identificada | error_conocido | resuelto | cerrado"
+        varchar priority "JSON prioridad · baja | media | alta | critica"
+        varchar origin "JSON origen · manual | patron"
+        text root_cause "opcional · JSON causa_raiz"
+        varchar assignee_id "ID en Accesos, sin FK · JSON asignado_a_id"
+        timestamptz created_at "JSON creado_en"
+        timestamptz updated_at "JSON actualizado_en"
+        timestamptz resolved_at "nullable · JSON resuelto_en"
     }
 
-    PROBLEMA_INCIDENTE {
+    PROBLEM_INCIDENT {
         bigint id PK
-        bigint problema_id FK
-        varchar incidente_id "ID en Incidencias, sin FK"
-        timestamptz vinculado_en
+        bigint problem_id FK "JSON problema_id"
+        varchar incident_id "ID en Incidencias, sin FK · JSON incidente_id"
+        timestamptz linked_at "JSON vinculado_en"
     }
 
-    ERROR_CONOCIDO {
+    KNOWN_ERROR {
         bigint id PK
-        bigint problema_id FK
-        varchar titulo "200"
-        text descripcion
-        text causa_raiz
+        bigint problem_id FK "JSON problema_id"
+        varchar title "200 · JSON titulo"
+        text description "JSON descripcion"
+        text root_cause "JSON causa_raiz"
         text workaround
-        varchar articulo_kb_id "ID en Knowledge, sin FK"
-        boolean activo "default true"
-        timestamptz creado_en
-        timestamptz actualizado_en
+        varchar kb_article_id "ID en Knowledge, sin FK · JSON articulo_kb_id"
+        boolean is_active "default true · JSON activo"
+        timestamptz created_at "JSON creado_en"
+        timestamptz updated_at "JSON actualizado_en"
     }
 ```
 
-`PROBLEMA_INCIDENTE` tiene una restricción única `(problema_id, incidente_id)`: un incidente no puede vincularse dos veces al mismo problema.
+Tablas: `problems_problem`, `problems_problemincident` y `problems_knownerror`.
+`PROBLEM_INCIDENT` tiene la restricción única `problem_incident_unique`
+`(problem_id, incident_id)`: un incidente no puede vincularse dos veces al mismo problema.
+La `0002` solo renombra tablas y columnas (`RenameModel`/`RenameField`), así que conserva
+los datos; la restricción única se quita y se vuelve a crear con su nombre nuevo en la
+misma transacción. La clave primaria y el índice de la FK conservan en PostgreSQL los
+nombres que les dio la `0001`; Django no depende de esos nombres.
 
 ### Responsabilidad y rutas operativas
 
@@ -98,11 +112,14 @@ admin es local Django; la identidad de negocio corresponde a Accesos.
 - **Paginación y filtros reutilizables.** `core/pagination.py` (`page`, `page_size`
   20 por defecto, máximo 100; página fuera de rango → 404) y `core/filters.py`
   (filtros validados contra los `TextChoices` del modelo; valor inválido → 400).
-- **Nombres.** Los identificadores del código van en inglés; rutas, campos JSON,
-  valores de `codigo`, `operationId` y mensajes al usuario siguen el contrato en español.
+- **Nombres.** Los identificadores del código van en inglés, incluidos modelos y
+  campos; rutas, campos JSON, parámetros de consulta, valores de los enums y de
+  `codigo`, `operationId` y mensajes al usuario siguen el contrato en español. El
+  mapeo JSON → modelo está en `PROBLEM_JSON_FIELDS` (`problems/serializers.py`) y el
+  de filtros en `LIST_FILTERS` (`problems/views.py`).
 - **Incidentes vinculados (#272).** El incidente se guarda solo por su ID de texto
   (1–64 caracteres): no se consulta ni valida contra Incidencias y no hay llave
-  foránea entre servicios. La restricción única `(problema_id, incidente_id)` se
+  foránea entre servicios. La restricción única `(problem_id, incident_id)` se
   traduce en 409 `incidente_ya_vinculado`; el mismo incidente sí puede vincularse a
   problemas distintos. Desvincular un incidente no vinculado a ese problema da 404.
 - **Pruebas.** `tests/factories.py` (factory_boy) ofrece `ProblemFactory`, coherente
@@ -228,7 +245,7 @@ Live verifica proceso. Ready ejecuta SELECT 1 y devuelve 503/database down si la
 no responde. Después del arranque, detener solo la BD de ensayo debe mantener live
 200, dar ready 503 y recuperar ready 200 al restaurar la BD sin reiniciar la API.
 Un arranque frío esperando la migración es un caso distinto. Ready no demuestra
-que las tablas estén migradas: verificar también problems.0001_initial y consultas.
+que las tablas estén migradas: verificar también problems.0001_initial, 0002 y consultas.
 Los tiempos de conexión y DNS se acotan; medirlos en el entorno de ejecución.
 
 Logs Django y gunicorn son JSON a stderr. Access registra método/estado/duración;
@@ -267,7 +284,9 @@ Team 5 owns this independent Problems service and its PostgreSQL 16 database.
 Python 3.12, Django/DRF, uv, Make and Linux/WSL are required; Podman builds/runs OCI
 images without requiring Docker Desktop. The diagram above preserves the merged
 #13 schema: bigint internal IDs, local relations and text external references.
-Models, initial migration, model tests and Django admin remain unchanged. Local
+Code identifiers (models, fields, tables) are English since migration 0002, which
+only renames tables/columns and keeps the data; the contract JSON keeps its Spanish
+names through serializer `source=` mappings, and enum values are unchanged. Local
 admin authentication does not implement Access JWT or business authorization.
 Problem CRUD and state transitions (#271) and incident links by text ID (#272) are
 implemented; known errors (#273) and the N/T detector belong to subsequent increments. The API
@@ -309,7 +328,7 @@ localhost:5445; containers use problems-db:5432. Never share Knowledge's DB or
 volume. From services/problems with the private environment already supplied,
 run the setup/migration/check/run commands shown above. Setup uses the existing
 lock without configuring secrets. Repeating migrate must have nothing pending;
-check existing problems.0001_initial rather than recreating #13. Development run
+check existing problems.0001_initial/0002 rather than recreating #13. Development run
 also migrates and uses Make PORT; gunicorn uses its environment. Avoid occupying
 8005 with the development server and container simultaneously. Create any demo
 staff user interactively, without publishing credentials or treating its local PK

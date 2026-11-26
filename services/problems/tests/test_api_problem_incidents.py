@@ -7,7 +7,7 @@ import pytest
 import yaml
 from django.utils import timezone
 
-from problems.models import ProblemaIncidente
+from problems.models import ProblemIncident
 from tests.factories import ProblemFactory, ProblemIncidentFactory
 
 pytestmark = pytest.mark.django_db
@@ -48,11 +48,11 @@ def test_list_without_links_is_an_empty_array(api):
 
 def test_list_returns_only_this_problems_links_oldest_first(api, contract):
     problem = ProblemFactory()
-    newer = ProblemIncidentFactory(problema=problem, incidente_id="INC-2")
-    older = ProblemIncidentFactory(problema=problem, incidente_id="INC-1")
-    ProblemIncidentFactory(incidente_id="INC-3")
-    ProblemaIncidente.objects.filter(pk=older.pk).update(
-        vinculado_en=timezone.now() - timedelta(hours=1)
+    newer = ProblemIncidentFactory(problem=problem, incident_id="INC-2")
+    older = ProblemIncidentFactory(problem=problem, incident_id="INC-1")
+    ProblemIncidentFactory(incident_id="INC-3")
+    ProblemIncident.objects.filter(pk=older.pk).update(
+        linked_at=timezone.now() - timedelta(hours=1)
     )
     body = api.get(incidents_url(problem.pk)).json()
     assert [item["incidente_id"] for item in body] == ["INC-1", "INC-2"]
@@ -64,7 +64,7 @@ def test_list_returns_only_this_problems_links_oldest_first(api, contract):
 
 def test_list_is_not_paginated(api):
     problem = ProblemFactory()
-    ProblemIncidentFactory.create_batch(25, problema=problem)
+    ProblemIncidentFactory.create_batch(25, problem=problem)
     response = api.get(incidents_url(problem.pk), {"page": "abc", "page_size": 5})
     assert response.status_code == 200
     assert isinstance(response.json(), list)
@@ -88,8 +88,8 @@ def test_link_incident_returns_201_with_the_link(api, contract):
     assert body["problema_id"] == problem.pk
     assert body["incidente_id"] == "INC-1"
     assert body["vinculado_en"]
-    link = ProblemaIncidente.objects.get(pk=body["id"])
-    assert (link.problema_id, link.incidente_id) == (problem.pk, "INC-1")
+    link = ProblemIncident.objects.get(pk=body["id"])
+    assert (link.problem_id, link.incident_id) == (problem.pk, "INC-1")
 
 
 def test_read_only_fields_in_the_body_are_ignored(api):
@@ -104,7 +104,7 @@ def test_read_only_fields_in_the_body_are_ignored(api):
     assert body["problema_id"] == problem.pk
     assert body["id"] != 777
     assert not body["vinculado_en"].startswith("2000")
-    assert not other.incidentes.exists()
+    assert not other.incidents.exists()
 
 
 @pytest.mark.parametrize("incident_id", ["cualquier-texto 123", "x" * 64, "123"])
@@ -120,7 +120,7 @@ def test_same_incident_can_be_linked_to_two_different_problems(api):
     for problem in (first, second):
         response = api.post(incidents_url(problem.pk), {"incidente_id": "INC-1"}, format="json")
         assert response.status_code == 201
-    assert ProblemaIncidente.objects.filter(incidente_id="INC-1").count() == 2
+    assert ProblemIncident.objects.filter(incident_id="INC-1").count() == 2
 
 
 @pytest.mark.parametrize(
@@ -139,7 +139,7 @@ def test_link_with_invalid_incident_id_is_400(api, payload):
     body = assert_error(response, 400, "datos_invalidos")
     assert set(body["campos"]) == {"incidente_id"}
     assert isinstance(body["campos"]["incidente_id"], str)
-    assert not ProblemaIncidente.objects.exists()
+    assert not ProblemIncident.objects.exists()
 
 
 def test_link_with_malformed_json_is_400(api):
@@ -153,26 +153,26 @@ def test_link_with_malformed_json_is_400(api):
 def test_link_to_missing_problem_is_404(api):
     response = api.post(incidents_url(999999), {"incidente_id": "INC-1"}, format="json")
     assert_error(response, 404, "no_encontrado")
-    assert not ProblemaIncidente.objects.exists()
+    assert not ProblemIncident.objects.exists()
 
 
 def test_link_already_linked_incident_is_409(api):
-    link = ProblemIncidentFactory(incidente_id="INC-1")
-    response = api.post(incidents_url(link.problema_id), {"incidente_id": "INC-1"}, format="json")
+    link = ProblemIncidentFactory(incident_id="INC-1")
+    response = api.post(incidents_url(link.problem_id), {"incidente_id": "INC-1"}, format="json")
     assert response.status_code == 409
     assert response.json() == {
         "codigo": "incidente_ya_vinculado",
-        "detalle": f"INC-1 ya está vinculado a PRB-{link.problema_id}.",
+        "detalle": f"INC-1 ya está vinculado a PRB-{link.problem_id}.",
     }
-    assert ProblemaIncidente.objects.count() == 1
+    assert ProblemIncident.objects.count() == 1
 
 
 def test_link_still_works_after_a_409(api):
-    link = ProblemIncidentFactory(incidente_id="INC-1")
-    url = incidents_url(link.problema_id)
+    link = ProblemIncidentFactory(incident_id="INC-1")
+    url = incidents_url(link.problem_id)
     assert api.post(url, {"incidente_id": "INC-1"}, format="json").status_code == 409
     assert api.post(url, {"incidente_id": "INC-2"}, format="json").status_code == 201
-    assert link.problema.incidentes.count() == 2
+    assert link.problem.incidents.count() == 2
 
 
 # --- Unlink --------------------------------------------------------------------------------------
@@ -180,26 +180,26 @@ def test_link_still_works_after_a_409(api):
 
 def test_unlink_returns_204_and_keeps_other_links(api):
     problem = ProblemFactory()
-    ProblemIncidentFactory(problema=problem, incidente_id="INC-1")
-    kept = ProblemIncidentFactory(problema=problem, incidente_id="INC-2")
-    elsewhere = ProblemIncidentFactory(incidente_id="INC-1")
+    ProblemIncidentFactory(problem=problem, incident_id="INC-1")
+    kept = ProblemIncidentFactory(problem=problem, incident_id="INC-2")
+    elsewhere = ProblemIncidentFactory(incident_id="INC-1")
     response = api.delete(link_url(problem.pk, "INC-1"))
     assert response.status_code == 204
     assert response.content == b""
-    assert list(problem.incidentes.all()) == [kept]
-    assert ProblemaIncidente.objects.filter(pk=elsewhere.pk).exists()
+    assert list(problem.incidents.all()) == [kept]
+    assert ProblemIncident.objects.filter(pk=elsewhere.pk).exists()
 
 
 def test_unlink_incident_id_with_spaces_encoded_in_the_url(api):
-    link = ProblemIncidentFactory(incidente_id="INC 1")
-    assert api.delete(link_url(link.problema_id, "INC%201")).status_code == 204
-    assert not ProblemaIncidente.objects.exists()
+    link = ProblemIncidentFactory(incident_id="INC 1")
+    assert api.delete(link_url(link.problem_id, "INC%201")).status_code == 204
+    assert not ProblemIncident.objects.exists()
 
 
 def test_incident_can_be_linked_again_after_unlinking(api):
-    link = ProblemIncidentFactory(incidente_id="INC-1")
-    api.delete(link_url(link.problema_id, "INC-1"))
-    response = api.post(incidents_url(link.problema_id), {"incidente_id": "INC-1"}, format="json")
+    link = ProblemIncidentFactory(incident_id="INC-1")
+    api.delete(link_url(link.problem_id, "INC-1"))
+    response = api.post(incidents_url(link.problem_id), {"incidente_id": "INC-1"}, format="json")
     assert response.status_code == 201
 
 
@@ -211,9 +211,9 @@ def test_unlink_incident_not_linked_is_404(api):
 
 def test_unlink_incident_linked_only_to_another_problem_is_404(api):
     problem = ProblemFactory()
-    other_link = ProblemIncidentFactory(incidente_id="INC-1")
+    other_link = ProblemIncidentFactory(incident_id="INC-1")
     assert_error(api.delete(link_url(problem.pk, "INC-1")), 404, "no_encontrado")
-    assert ProblemaIncidente.objects.filter(pk=other_link.pk).exists()
+    assert ProblemIncident.objects.filter(pk=other_link.pk).exists()
 
 
 def test_unlink_with_an_id_longer_than_64_is_a_json_404(api):
@@ -243,12 +243,12 @@ def test_unlink_for_missing_problem_is_404(api, pk):
     ],
 )
 def test_methods_not_allowed_are_405(api, method, route):
-    link = ProblemIncidentFactory(incidente_id="INC-1")
+    link = ProblemIncidentFactory(incident_id="INC-1")
     urls = {
-        "collection": incidents_url(link.problema_id),
-        "item": link_url(link.problema_id, "INC-1"),
+        "collection": incidents_url(link.problem_id),
+        "item": link_url(link.problem_id, "INC-1"),
     }
     response = getattr(api, method)(urls[route], {"incidente_id": "INC-2"}, format="json")
     body = assert_error(response, 405, "metodo_no_permitido")
     assert method.upper() in body["detalle"]
-    assert list(ProblemaIncidente.objects.values_list("incidente_id", flat=True)) == ["INC-1"]
+    assert list(ProblemIncident.objects.values_list("incident_id", flat=True)) == ["INC-1"]

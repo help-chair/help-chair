@@ -3,39 +3,39 @@
 from django.core.management.base import BaseCommand, CommandError
 from django.db import DatabaseError, connection, transaction
 
-from problems.models import ErrorConocido, Problema, ProblemaIncidente
+from problems.models import KnownError, Problem, ProblemIncident
 
 DEMO_ID = 1100001
 LOCK_ID = 11020261122
 CAUSE = "La renovación programada del certificado del servidor de ensayo está desactivada."
 ROWS = (
     (
-        Problema,
+        Problem,
         {
-            "titulo": "Demo Problems: interrupciones del correo de ensayo",
-            "descripcion": "Incidentes sintéticos de conexión TLS al correo de demostración.",
-            "estado": Problema.Estado.ERROR_CONOCIDO,
-            "prioridad": Problema.Prioridad.MEDIA,
-            "origen": Problema.Origen.MANUAL,
-            "causa_raiz": CAUSE,
-            "asignado_a_id": "",
-            "resuelto_en": None,
+            "title": "Demo Problems: interrupciones del correo de ensayo",
+            "description": "Incidentes sintéticos de conexión TLS al correo de demostración.",
+            "status": Problem.Status.KNOWN_ERROR,
+            "priority": Problem.Priority.MEDIUM,
+            "origin": Problem.Origin.MANUAL,
+            "root_cause": CAUSE,
+            "assignee_id": "",
+            "resolved_at": None,
         },
     ),
     (
-        ProblemaIncidente,
-        {"problema_id": DEMO_ID, "incidente_id": "DEMO-PROBLEMS-110-INCIDENTE"},
+        ProblemIncident,
+        {"problem_id": DEMO_ID, "incident_id": "DEMO-PROBLEMS-110-INCIDENTE"},
     ),
     (
-        ErrorConocido,
+        KnownError,
         {
-            "problema_id": DEMO_ID,
-            "titulo": "Demo Problems: certificado de correo vencido",
-            "descripcion": "El servidor de ensayo rechaza conexiones TLS.",
-            "causa_raiz": CAUSE,
+            "problem_id": DEMO_ID,
+            "title": "Demo Problems: certificado de correo vencido",
+            "description": "El servidor de ensayo rechaza conexiones TLS.",
+            "root_cause": CAUSE,
             "workaround": "Renovar manualmente el certificado del entorno de ensayo.",
-            "articulo_kb_id": "",
-            "activo": True,
+            "kb_article_id": "",
+            "is_active": True,
         },
     ),
 )

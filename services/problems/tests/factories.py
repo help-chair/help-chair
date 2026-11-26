@@ -3,30 +3,30 @@
 import factory
 from django.utils import timezone
 
-from problems.models import Problema, ProblemaIncidente
+from problems.models import Problem, ProblemIncident
 from problems.states import ROOT_CAUSE_REQUIRED_STATES
 
 # Estados a los que solo se llega habiendo documentado la causa raíz.
-_STATES_WITH_ROOT_CAUSE = ROOT_CAUSE_REQUIRED_STATES | {Problema.Estado.RESUELTO}
+_STATES_WITH_ROOT_CAUSE = ROOT_CAUSE_REQUIRED_STATES | {Problem.Status.RESOLVED}
 
 
 class ProblemFactory(factory.django.DjangoModelFactory):
-    """Problema coherente con su estado: causa raíz y ``resuelto_en`` se derivan de ``estado``."""
+    """Problema coherente: ``root_cause`` y ``resolved_at`` se derivan de ``status``."""
 
     class Meta:
-        model = Problema
+        model = Problem
 
-    titulo = factory.Sequence(lambda n: f"Problema de prueba {n}")
-    descripcion = factory.LazyAttribute(lambda o: f"Descripción de {o.titulo.lower()}.")
-    estado = Problema.Estado.REGISTRADO
-    prioridad = Problema.Prioridad.MEDIA
-    origen = Problema.Origen.MANUAL
-    causa_raiz = factory.LazyAttribute(
-        lambda o: "Causa raíz documentada." if o.estado in _STATES_WITH_ROOT_CAUSE else ""
+    title = factory.Sequence(lambda n: f"Problema de prueba {n}")
+    description = factory.LazyAttribute(lambda o: f"Descripción de {o.title.lower()}.")
+    status = Problem.Status.REGISTERED
+    priority = Problem.Priority.MEDIUM
+    origin = Problem.Origin.MANUAL
+    root_cause = factory.LazyAttribute(
+        lambda o: "Causa raíz documentada." if o.status in _STATES_WITH_ROOT_CAUSE else ""
     )
-    asignado_a_id = ""
-    resuelto_en = factory.LazyAttribute(
-        lambda o: timezone.now() if o.estado == Problema.Estado.RESUELTO else None
+    assignee_id = ""
+    resolved_at = factory.LazyAttribute(
+        lambda o: timezone.now() if o.status == Problem.Status.RESOLVED else None
     )
 
 
@@ -34,7 +34,7 @@ class ProblemIncidentFactory(factory.django.DjangoModelFactory):
     """Vínculo problema–incidente; el ID del incidente es texto libre, como en Incidencias."""
 
     class Meta:
-        model = ProblemaIncidente
+        model = ProblemIncident
 
-    problema = factory.SubFactory(ProblemFactory)
-    incidente_id = factory.Sequence(lambda n: f"INC-{n}")
+    problem = factory.SubFactory(ProblemFactory)
+    incident_id = factory.Sequence(lambda n: f"INC-{n}")

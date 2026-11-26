@@ -97,6 +97,11 @@ export function listRoles() {
   return apiGet<{ resultados: Rol[] }>(`${BASE}/roles`)
 }
 
+/** Crea un departamento. Lo usa el asistente de onboarding; requiere `empresa:configurar`. */
+export function createDepartment(nombre: string) {
+  return apiPost<Departamento>(`${BASE}/departamentos`, { nombre })
+}
+
 export function listDepartments() {
   return apiGet<{ resultados: Departamento[] }>(`${BASE}/departamentos`)
 }

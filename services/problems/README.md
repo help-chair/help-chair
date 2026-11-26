@@ -9,8 +9,9 @@ El esquema, migración inicial y admin ya integrados de #13 se conservan. Django
 admin usa autenticación local de Django; no constituye integración JWT de negocio.
 Los modelos no importan código ni consultan bases de otros servicios. Sus claves
 internas son bigint; las referencias externas son texto de hasta 64 caracteres.
-CRUD REST, transiciones de API, detector N/T y autorización de negocio quedan
-fuera de este incremento de cimientos. No se emiten tokens de Accesos.
+El CRUD de problemas y su cambio de estado están implementados (#271); incidentes
+vinculados (#272), errores conocidos (#273), detector N/T y autorización de negocio
+siguen pendientes. No se emiten tokens de Accesos.
 
 Requisitos: Linux/WSL, Python 3.12, uv, Make, PostgreSQL 16 y Podman para la imagen.
 El Dockerfile produce una imagen OCI; no requiere Docker Desktop.
@@ -74,6 +75,31 @@ admin es local Django; la identidad de negocio corresponde a Accesos.
 | GET | /health/ready | Conexión a BD comprobada |
 | GET | /api/schema/ | Esquema parcial del runtime |
 | GET | /api/docs/ | Swagger del runtime |
+| GET, POST | /api/problems/v1/problemas/ | Lista paginada (filtros `estado`, `prioridad`, `origen`) y alta |
+| GET, PATCH | /api/problems/v1/problemas/{id}/ | Consulta y actualización parcial (sin PUT ni DELETE) |
+| POST | /api/problems/v1/problemas/{id}/estado/ | Cambio de estado según `problems/states.py` |
+
+### API de problemas (#271)
+
+- **Autenticación pendiente (Fase 3).** La API todavía **no valida el JWT de Accesos**
+  que exige el contrato: hoy cualquier solicitud está permitida. La autenticación y
+  los permisos están en un solo lugar, `REST_FRAMEWORK` de `config/settings.py`
+  (`DEFAULT_AUTHENTICATION_CLASSES` vacío y `DEFAULT_PERMISSION_CLASSES` = `AllowAny`,
+  marcado `TODO Fase 3: validar JWT de Accesos`). No exponer el servicio fuera de
+  entornos de desarrollo/ensayo hasta completar esa fase.
+- **Transiciones.** La tabla de transiciones permitidas (`ALLOWED_TRANSITIONS`) y los
+  estados que exigen `causa_raiz` viven solo en `problems/states.py`. Una transición no
+  permitida (o al mismo estado) responde 409 `transicion_invalida`.
+- **Errores.** `core/errors.py` (`handle_exception`) da a todas las vistas DRF el
+  formato `{codigo, detalle, campos}`; `campos` mapea cada campo a su primer mensaje.
+  `core/schemas.py` documenta ese formato (`ErrorSerializer`) en `/api/docs/`.
+- **Paginación y filtros reutilizables.** `core/pagination.py` (`page`, `page_size`
+  20 por defecto, máximo 100; página fuera de rango → 404) y `core/filters.py`
+  (filtros validados contra los `TextChoices` del modelo; valor inválido → 400).
+- **Nombres.** Los identificadores del código van en inglés; rutas, campos JSON,
+  valores de `codigo`, `operationId` y mensajes al usuario siguen el contrato en español.
+- **Pruebas.** `tests/factories.py` (factory_boy) ofrece `ProblemFactory` coherente
+  con el estado para las pruebas de #272 y #273.
 
 La política confirmada por Pablo exige PostgreSQL y entorno real incluso en local
 /tests; las indicaciones anteriores de #205 sobre .env/defaults/SQLite se sustituyen
@@ -236,7 +262,10 @@ images without requiring Docker Desktop. The diagram above preserves the merged
 #13 schema: bigint internal IDs, local relations and text external references.
 Models, initial migration, model tests and Django admin remain unchanged. Local
 admin authentication does not implement Access JWT or business authorization.
-REST CRUD, API transitions and the N/T detector belong to subsequent increments.
+Problem CRUD and state transitions are implemented (#271); linked incidents (#272),
+known errors (#273) and the N/T detector belong to subsequent increments. The API
+does **not** validate Access JWTs yet (Phase 3): authentication/permissions live
+only in `REST_FRAMEWORK` in `config/settings.py` (`AllowAny`, marked TODO).
 
 ### Responsibility and operational routes
 

@@ -1,0 +1,31 @@
+"""Paginación común de las listas del servicio (esquema ``Paginado`` del contrato)."""
+
+from rest_framework.exceptions import ValidationError
+from rest_framework.pagination import PageNumberPagination
+
+
+class StandardPagination(PageNumberPagination):
+    """``page`` (desde 1) y ``page_size`` (20 por defecto, máximo 100).
+
+    Un ``page`` o ``page_size`` que no sea entero positivo es un 400; un ``page_size`` mayor que el
+    máximo se recorta a 100 y una página sin elementos (fuera de rango) es un 404.
+    """
+
+    page_size = 20
+    page_size_query_param = "page_size"
+    max_page_size = 100
+    invalid_page_message = "La página solicitada no existe."
+
+    def paginate_queryset(self, queryset, request, view=None):
+        errors = {}
+        for param in (self.page_query_param, self.page_size_query_param):
+            value = request.query_params.get(param)
+            if value is not None and not _is_positive_integer(value):
+                errors[param] = "Debe ser un número entero mayor o igual a 1."
+        if errors:
+            raise ValidationError(errors)
+        return super().paginate_queryset(queryset, request, view)
+
+
+def _is_positive_integer(value: str) -> bool:
+    return value.isascii() and value.isdigit() and int(value) >= 1

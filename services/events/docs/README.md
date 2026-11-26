@@ -251,14 +251,21 @@ Patrón *outbox*: el mensaje se guarda en la misma transacción que el evento y 
 
 | Campo | Tipo | Nulo | Notas |
 |---|---|---|---|
-| id | uuid PK | no | también es el `message_id` del sobre |
+| id | uuid PK | no | también es el `id` del sobre y la clave de idempotencia (`Nats-Msg-Id`, `Idempotency-Key`) |
 | aggregate_id | uuid | no | el `event.id` |
-| message_type | varchar(80) | no | |
+| message_type | varchar(80) | no | `event.state_changed`, `event.routed` |
+| version | smallint | no | versión del payload; por defecto `1` |
+| subject | varchar(120) | no | `events.state_changed`, `events.routed.<destino>` |
 | payload | jsonb | no | conforme a `contracts/messages/` |
-| status | enum | no | |
-| attempts | int | no | |
-| next_attempt_at | timestamptz | sí | |
+| occurred_at | timestamptz | no | cuándo ocurrió el hecho (el `timestamp` del sobre es cuándo se publica) |
+| correlation_id | uuid | sí | |
+| status | enum | no | `PENDING`, `PUBLISHED`, `FAILED` |
+| attempts | int | no | intentos de publicación |
+| next_attempt_at | timestamptz | no | siguiente intento (espera exponencial tras una falla permanente) |
+| last_error | text | sí | último error de publicación |
 | created_at / published_at | timestamptz | no / sí | |
+
+Índices: (`status`, `next_attempt_at`) y (`aggregate_id`, `created_at`). Migración `0004_outbox_message`. Funcionamiento, reintentos y plan B: [`outbox.md`](outbox.md).
 
 ### `processed_message`
 Idempotencia del consumidor (evita procesar dos veces un mensaje, por ejemplo los eventos de login de Accesos).
@@ -330,6 +337,7 @@ DATABASE_URL=postgresql://events:events@localhost:5441/events
 
 ```bash
 make migrate                                          # aplica las migraciones
+make seed                                             # matriz de prioridad y modificadores por defecto (manage.py seed_priority)
 uv run python manage.py showmigrations events         # todas con [X]
 uv run python manage.py makemigrations --check --dry-run   # sigue sin cambios
 ```
@@ -410,6 +418,43 @@ podman compose -f platform/deploy/local/compose.yaml down
 | Modelo de datos y diagrama entidad-relación | `docs/README.md` y migraciones |
 | Las 9 reglas como pruebas parametrizadas | `tests/test_rules.py` (`xfail` donde falte implementación) |
 | Borrador OpenAPI y esquema del mensaje común | `contracts/events/openapi.yaml`, `contracts/messages/` (`make openapi`) |
+
+### Prioridad de eventos
+
+La prioridad (P1 a P4) se calcula al registrar un evento en `events/priority.py`, en dos pasos:
+
+1. **Base:** la matriz impacto × urgencia (`PriorityMatrix`, tabla `priority_matrix`) da la prioridad base. Si el evento no trae impacto **y** urgencia, queda sin prioridad.
+2. **Modificadores:** cada modificador activo (`PriorityModifier`, tabla `priority_modifier`) cuya condición se cumple suma `levels_delta` niveles (`+1` sube de P3 a P2; `-1` baja de P2 a P3). Los niveles se acumulan y el resultado se limita al rango P1–P4.
+
+| `condition_field` | `condition_value` | Se cumple cuando |
+|---|---|---|
+| `SERVICE_IMPORTANCE` | `CRITICAL`, `HIGH`, `MEDIUM`, `LOW` | la importancia del servicio afectado es ese valor |
+| `EVENT_CATEGORY` | `SECURITY`, `REQUEST`, `FAILURE`, `CHANGE`, `GENERAL` | la categoría del evento es ese valor |
+| `EVENT_TYPE` | `INFORMATION`, `WARNING`, `EXCEPTION` | el tipo del evento es ese valor |
+| `OCCURRENCE_COUNT` | entero mayor que cero | `occurrence_count >= condition_value` |
+
+- **Importancia por empresa:** cada empresa tiene su propia BD, así que la importancia de cada servicio (`BusinessService.importance`), la matriz y los modificadores son propios de la empresa. Se editan desde `/admin/`.
+- **Recurrencia:** al deduplicar un evento abierto, la prioridad se recalcula con el nuevo `occurrence_count`; si cambia, se registra un `PRIORITY_CHANGE` en el historial con el valor anterior y el nuevo.
+- **Trazabilidad:** el historial guarda en `metadata.priority` la base, la prioridad final, los niveles y los códigos de los modificadores aplicados.
+- **Validación:** `levels_delta` va de `-3` a `3` y no puede ser `0`; `condition_value` debe ser válido para su `condition_field`.
+- **Detalle:** `GET /api/v1/events/{id}` devuelve `priority` junto con `service.importance`.
+
+**Valores por defecto (`make seed` o `manage.py seed_priority`):**
+
+| Impacto \ Urgencia | `HIGH` | `MEDIUM` | `LOW` |
+|---|---|---|---|
+| `HIGH` | P1 | P2 | P3 |
+| `MEDIUM` | P2 | P3 | P4 |
+| `LOW` | P3 | P4 | P4 |
+
+| Modificador | Condición | Niveles |
+|---|---|---|
+| `servicio-critico` | `SERVICE_IMPORTANCE = CRITICAL` | `+1` |
+| `servicio-baja-importancia` | `SERVICE_IMPORTANCE = LOW` | `-1` |
+| `recurrencia-10` | `OCCURRENCE_COUNT >= 10` | `+1` |
+
+- La siembra es idempotente: solo crea lo que falta y no pisa la configuración de la empresa. `seed_priority --reset` restablece los valores por defecto.
+- Pruebas: `tests/test_priority.py` (tabla de casos del cálculo, límites P1–P4, validación, siembra e integración con el registro y el detalle).
 
 ### Mock del contrato OpenAPI (Prism)
 

@@ -19,6 +19,7 @@ from .choices import (
     EventType,
     Impact,
     ModifierField,
+    OutboxStatus,
     Priority,
     RecurrenceAction,
     ServiceImportance,
@@ -27,6 +28,7 @@ from .choices import (
 )
 from .event import Event
 from .history import EventHistory
+from .outbox import OutboxMessage
 
 __all__ = [
     "ALLOWED_TRANSITIONS",
@@ -45,6 +47,8 @@ __all__ = [
     "EventType",
     "Impact",
     "ModifierField",
+    "OutboxMessage",
+    "OutboxStatus",
     "Priority",
     "PriorityMatrix",
     "PriorityModifier",

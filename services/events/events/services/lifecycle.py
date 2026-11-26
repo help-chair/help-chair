@@ -19,6 +19,7 @@ from ..models import (
     EventState,
     EventType,
 )
+from ..outbox.messages import enqueue_state_changed
 
 # Estados desde los que se puede (re)asignar un evento.
 ASSIGNABLE_STATES = {
@@ -164,6 +165,15 @@ def transition_event(
         description=description or reason,
         rule_code=rule_code,
         metadata={"closure_code": event.closure_code} if event.closure_code else {},
+    )
+    # Misma transacción: el mensaje existe solo si el cambio de estado se confirma.
+    enqueue_state_changed(
+        event,
+        from_state=current,
+        to_state=target,
+        actor_type=actor_type,
+        actor_ref=actor_ref,
+        changed_at=now,
     )
     return event
 

@@ -12,6 +12,7 @@ dependencies = [
     "gunicorn>=22.0",
     "psycopg[binary]>=3.2",
     "whitenoise>=6.7",
+    "nats-py>=2.6",
 ]
 
 [dependency-groups]
@@ -24,6 +25,7 @@ dev = [
     "openapi-spec-validator>=0.7",
     "ruff>=0.8",
     "pre-commit>=3.7",
+    "jsonschema>=4.21",
 ]
 
 [tool.uv]

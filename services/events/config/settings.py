@@ -136,6 +136,23 @@ EVENT_RECURRENCE_DEFAULT = {
     "threshold_count": env.int("EVENT_THRESHOLD_DEFAULT", default=3),
     "window_days": env.int("EVENT_WINDOW_DAYS_DEFAULT", default=7),
 }
+# --- Publicación al broker (outbox + NATS JetStream, docs/outbox.md) ---
+# Vacío = los mensajes se acumulan en outbox_message y `publish_outbox` falla avisando.
+BROKER_URL = env("BROKER_URL", default="")
+OUTBOX_STREAM = env("OUTBOX_STREAM", default="EVENTS")
+OUTBOX_STREAM_MAX_AGE_DAYS = env.int("OUTBOX_STREAM_MAX_AGE_DAYS", default=7)
+OUTBOX_PUBLISH_TIMEOUT_SECONDS = env.float("OUTBOX_PUBLISH_TIMEOUT_SECONDS", default=5.0)
+OUTBOX_BATCH_SIZE = env.int("OUTBOX_BATCH_SIZE", default=50)
+OUTBOX_MAX_ATTEMPTS = env.int("OUTBOX_MAX_ATTEMPTS", default=10)
+OUTBOX_BACKOFF_BASE_SECONDS = env.int("OUTBOX_BACKOFF_BASE_SECONDS", default=5)
+OUTBOX_BACKOFF_MAX_SECONDS = env.int("OUTBOX_BACKOFF_MAX_SECONDS", default=900)
+OUTBOX_POLL_INTERVAL_SECONDS = env.float("OUTBOX_POLL_INTERVAL_SECONDS", default=2.0)
+# Transporte: `jetstream` (por omisión) o `http` (plan B: POST síncrono, misma interfaz).
+OUTBOX_TRANSPORT = env("OUTBOX_TRANSPORT", default="jetstream")
+# Plan B: `patrón=url1,url2;patrón=url3` (comodines de NATS en el patrón). Ver docs/outbox.md.
+OUTBOX_HTTP_ROUTES = env("OUTBOX_HTTP_ROUTES", default="")
+OUTBOX_HTTP_TOKEN = env("OUTBOX_HTTP_TOKEN", default="")
+
 # TEMPORAL hasta integrar el JWT de Accesos: permite identificar al actor con la cabecera
 # X-Actor-Ref. Es falsificable: NUNCA activarlo en producción.
 ALLOW_ACTOR_HEADER = env.bool("ALLOW_ACTOR_HEADER", default=False)

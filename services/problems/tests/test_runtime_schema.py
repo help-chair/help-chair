@@ -13,6 +13,9 @@ OPERATION_IDS = [
     "getProblema",
     "updateProblema",
     "changeProblemaEstado",
+    "listProblemaIncidentes",
+    "linkProblemaIncidente",
+    "unlinkProblemaIncidente",
 ]
 # 401 se documentará cuando se valide el JWT de Accesos (Fase 3).
 PENDING_CODES = {"401"}

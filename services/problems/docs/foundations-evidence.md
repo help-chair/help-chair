@@ -12,7 +12,7 @@ Esta actualización de prosa no reejecuta la suite ni modifica backend o esquema
 | #110: PostgreSQL y migraciones | problems/migrations/0001_initial.py; make migrate dos veces; migrate --check | Aplicación desde vacío, una migración inicial registrada, segunda sin pendientes |
 | #110: salud y fallo BD | [views.py](../core/views.py), [compose.yaml](../compose.yaml) | Live200/ready503 al caer BD; recuperación200 sin reiniciar API; Compose2.22s |
 | #110: contenedor y logs | [Dockerfile](../Dockerfile), gunicorn.conf.py, config/logging.py | Build sin secretos; UID10001/PID1; JSON; SIGTERM exit0/OOM=false en3.05s; persistencia |
-| #110 y parte Problems de #135: calidad | [Makefile](../Makefile); make lint/test/build; tests/test_modelos.py; hooks explícitos | Exit0; 50 pruebas, cobertura informada95%; cuatro casos originales de modelo conservados; pre-commit Passed |
+| #110 y parte Problems de #135: calidad | [Makefile](../Makefile); make lint/test/build; tests/test_models.py (antes test_modelos.py); hooks explícitos | Exit0; 50 pruebas, cobertura informada95%; cuatro casos originales de modelo conservados; pre-commit Passed |
 | #110: datos repetibles | [seed_demo.py](../problems/management/commands/seed_demo.py), tests/test_seed.py | Opt-in, repetición, filas ajenas, colisiones/rollback, concurrencia y secuencias sin rebobinar |
 | #110 y parte Problems de #136: guía | [README bilingüe](../README.md), .env.example | Requisitos, alcance, puertos, entorno privado, migraciones, seed, salud y comandos documentados; diagrama de #13 conservado |
 | #110: revisión y evidencia | PR231, commit45183f3 | Evidencia local publicada; aprobación de CODEOWNERS e integración aún pendientes |

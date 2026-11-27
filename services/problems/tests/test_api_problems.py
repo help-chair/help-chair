@@ -7,7 +7,7 @@ import pytest
 import yaml
 from django.utils import timezone
 
-from problems.models import Problema
+from problems.models import Problem
 from tests.factories import ProblemFactory
 
 pytestmark = pytest.mark.django_db
@@ -47,7 +47,7 @@ def test_list_is_ordered_newest_first(api):
     oldest, newest, middle = ProblemFactory.create_batch(3)
     now = timezone.now()
     for problem, hours in ((oldest, 3), (middle, 2), (newest, 1)):
-        Problema.objects.filter(pk=problem.pk).update(creado_en=now - timedelta(hours=hours))
+        Problem.objects.filter(pk=problem.pk).update(created_at=now - timedelta(hours=hours))
     ids = [p["id"] for p in api.get(LIST_URL).json()["results"]]
     assert ids == [newest.pk, middle.pk, oldest.pk]
 
@@ -102,25 +102,25 @@ def test_invalid_pagination_params_are_400(api, param, value):
 
 
 @pytest.mark.parametrize(
-    ("field", "value", "other"),
+    ("param", "field", "value", "other"),
     [
-        ("estado", Problema.Estado.EN_ANALISIS, Problema.Estado.REGISTRADO),
-        ("prioridad", Problema.Prioridad.CRITICA, Problema.Prioridad.BAJA),
-        ("origen", Problema.Origen.PATRON, Problema.Origen.MANUAL),
+        ("estado", "status", Problem.Status.IN_ANALYSIS, Problem.Status.REGISTERED),
+        ("prioridad", "priority", Problem.Priority.CRITICAL, Problem.Priority.LOW),
+        ("origen", "origin", Problem.Origin.PATTERN, Problem.Origin.MANUAL),
     ],
 )
-def test_valid_filters(api, field, value, other):
+def test_valid_filters(api, param, field, value, other):
     expected = ProblemFactory(**{field: value})
     ProblemFactory(**{field: other})
-    body = api.get(LIST_URL, {field: value}).json()
+    body = api.get(LIST_URL, {param: value}).json()
     assert body["count"] == 1
     assert body["results"][0]["id"] == expected.pk
 
 
 def test_filters_can_be_combined(api):
-    expected = ProblemFactory(prioridad="alta", origen="patron")
-    ProblemFactory(prioridad="alta", origen="manual")
-    ProblemFactory(prioridad="baja", origen="patron")
+    expected = ProblemFactory(priority="alta", origin="patron")
+    ProblemFactory(priority="alta", origin="manual")
+    ProblemFactory(priority="baja", origin="patron")
     body = api.get(LIST_URL, {"prioridad": "alta", "origen": "patron"}).json()
     assert [p["id"] for p in body["results"]] == [expected.pk]
 
@@ -160,7 +160,7 @@ def test_create_with_required_fields_applies_defaults(api, contract):
     assert body["causa_raiz"] == ""
     assert body["asignado_a_id"] == ""
     assert body["resuelto_en"] is None
-    assert Problema.objects.get(pk=body["id"]).titulo == "Correo caído"
+    assert Problem.objects.get(pk=body["id"]).title == "Correo caído"
 
 
 def test_create_with_all_fields(api):
@@ -177,12 +177,12 @@ def test_create_with_all_fields(api):
     assert body["estado"] == "registrado"
 
 
-def test_create_is_always_registrado_even_if_another_state_is_sent(api):
+def test_create_is_always_registered_even_if_another_status_is_sent(api):
     payload = {"titulo": "T", "descripcion": "D", "estado": "cerrado", "resuelto_en": None}
     response = api.post(LIST_URL, payload, format="json")
     assert response.status_code == 201
     assert response.json()["estado"] == "registrado"
-    assert Problema.objects.get().estado == "registrado"
+    assert Problem.objects.get().status == "registrado"
 
 
 @pytest.mark.parametrize(
@@ -201,7 +201,7 @@ def test_create_with_invalid_data_is_400(api, payload, field):
     body = assert_error(api.post(LIST_URL, payload, format="json"), 400, "datos_invalidos")
     assert field in body["campos"]
     assert all(isinstance(message, str) for message in body["campos"].values())
-    assert not Problema.objects.exists()
+    assert not Problem.objects.exists()
 
 
 def test_validation_error_format(api):
@@ -226,7 +226,7 @@ def test_malformed_json_is_400(api):
 
 
 def test_retrieve_a_problem(api):
-    problem = ProblemFactory(estado="resuelto", asignado_a_id="usr-1")
+    problem = ProblemFactory(status="resuelto", assignee_id="usr-1")
     response = api.get(detail_url(problem.pk))
     assert response.status_code == 200
     body = response.json()
@@ -245,16 +245,16 @@ def test_retrieve_missing_problem_is_404(api, pk):
 
 
 def test_patch_updates_only_the_sent_fields(api):
-    problem = ProblemFactory(estado="en_analisis", prioridad="baja")
+    problem = ProblemFactory(status="en_analisis", priority="baja")
     payload = {"prioridad": "critica", "asignado_a_id": "usr-17", "causa_raiz": "Disco lleno."}
     response = api.patch(detail_url(problem.pk), payload, format="json")
     assert response.status_code == 200
     body = response.json()
     assert {field: body[field] for field in payload} == payload
-    assert body["titulo"] == problem.titulo
+    assert body["titulo"] == problem.title
     assert body["estado"] == "en_analisis"
     problem.refresh_from_db()
-    assert problem.prioridad == "critica"
+    assert problem.priority == "critica"
 
 
 def test_patch_title_and_description(api):
@@ -275,7 +275,7 @@ def test_patch_rejects_state_and_origin(api, field, value):
     body = assert_error(response, 400, "datos_invalidos")
     assert set(body["campos"]) == {field}
     problem.refresh_from_db()
-    assert (problem.estado, problem.origen, problem.prioridad) == ("registrado", "manual", "media")
+    assert (problem.status, problem.origin, problem.priority) == ("registrado", "manual", "media")
 
 
 @pytest.mark.parametrize("field", ["id", "resuelto_en", "creado_en", "actualizado_en", "otro"])
@@ -341,4 +341,4 @@ def test_methods_not_allowed_are_405(api, method, route):
     response = getattr(api, method)(urls[route], {"titulo": "X"}, format="json")
     body = assert_error(response, 405, "metodo_no_permitido")
     assert method.upper() in body["detalle"]
-    assert Problema.objects.filter(pk=problem.pk).exists()
+    assert Problem.objects.filter(pk=problem.pk).exists()

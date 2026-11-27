@@ -8,7 +8,7 @@ from django.core.management.base import CommandError
 from django.db import IntegrityError, connection, connections
 
 from problems.management.commands.seed_demo import DEMO_ID, ROWS
-from problems.models import ErrorConocido, Problema, ProblemaIncidente
+from problems.models import KnownError, Problem, ProblemIncident
 
 pytestmark = pytest.mark.django_db(transaction=True)
 
@@ -37,51 +37,51 @@ def test_seed_requires_opt_in_and_does_not_write():
 
 
 def test_seed_is_repeatable_preserves_existing_rows_and_dates():
-    unrelated = Problema.objects.create(
-        titulo="Registro ajeno", descripcion="Conservar este registro."
+    unrelated = Problem.objects.create(
+        title="Registro ajeno", description="Conservar este registro."
     )
     seed()
-    problem = Problema.objects.get(pk=DEMO_ID)
-    created = problem.creado_en
-    updated = problem.actualizado_en
+    problem = Problem.objects.get(pk=DEMO_ID)
+    created = problem.created_at
+    updated = problem.updated_at
     seed()
     assert counts() == (2, 1, 1)
     problem.refresh_from_db()
     unrelated.refresh_from_db()
-    assert unrelated.titulo == "Registro ajeno"
-    assert problem.creado_en == created
-    assert problem.actualizado_en == updated
-    error = ErrorConocido.objects.get(pk=DEMO_ID)
-    link = ProblemaIncidente.objects.get(pk=DEMO_ID)
-    assert link.problema_id == error.problema_id == problem.pk
-    assert error.causa_raiz == problem.causa_raiz
+    assert unrelated.title == "Registro ajeno"
+    assert problem.created_at == created
+    assert problem.updated_at == updated
+    error = KnownError.objects.get(pk=DEMO_ID)
+    link = ProblemIncident.objects.get(pk=DEMO_ID)
+    assert link.problem_id == error.problem_id == problem.pk
+    assert error.root_cause == problem.root_cause
     assert error.workaround
-    assert error.articulo_kb_id == ""
+    assert error.kb_article_id == ""
 
 
 def test_collision_does_not_overwrite_an_unrelated_problem():
-    occupied = Problema.objects.create(pk=DEMO_ID, titulo="Ajeno", descripcion="No reemplazar.")
+    occupied = Problem.objects.create(pk=DEMO_ID, title="Ajeno", description="No reemplazar.")
     with pytest.raises(CommandError, match="ID reservado"):
         seed()
     occupied.refresh_from_db()
-    assert occupied.titulo == "Ajeno"
+    assert occupied.title == "Ajeno"
     assert counts() == (1, 0, 0)
 
 
 def test_later_collision_leaves_no_partial_demo_rows():
-    owner = Problema.objects.create(titulo="Ajeno", descripcion="Registro previo.")
-    ErrorConocido.objects.create(
+    owner = Problem.objects.create(title="Ajeno", description="Registro previo.")
+    KnownError.objects.create(
         pk=DEMO_ID,
-        problema=owner,
-        titulo="Ajeno",
-        descripcion="No reemplazar.",
-        causa_raiz="Causa del registro ajeno.",
+        problem=owner,
+        title="Ajeno",
+        description="No reemplazar.",
+        root_cause="Causa del registro ajeno.",
         workaround="Solución temporal ajena.",
     )
     with pytest.raises(CommandError, match="ID reservado"):
         seed()
     assert counts() == (1, 0, 1)
-    assert not Problema.objects.filter(pk=DEMO_ID).exists()
+    assert not Problem.objects.filter(pk=DEMO_ID).exists()
 
 
 def test_database_failure_rolls_back_rows_and_does_not_disclose_details(monkeypatch):
@@ -90,7 +90,7 @@ def test_database_failure_rolls_back_rows_and_does_not_disclose_details(monkeypa
     def fail(**kwargs):
         raise IntegrityError(private_value)
 
-    monkeypatch.setattr(ErrorConocido.objects, "create", fail)
+    monkeypatch.setattr(KnownError.objects, "create", fail)
     with pytest.raises(CommandError, match="no se completó la operación") as caught:
         seed()
     safe_error = private_value not in str(caught.value) and caught.value.__suppress_context__
@@ -117,24 +117,24 @@ def test_concurrent_seed_calls_keep_one_demo_set():
 
 def test_edited_demo_is_preserved_and_requires_operator_resolution():
     seed()
-    Problema.objects.filter(pk=DEMO_ID).update(titulo="Ejemplo editado")
+    Problem.objects.filter(pk=DEMO_ID).update(title="Ejemplo editado")
     with pytest.raises(CommandError, match="ejemplo fue modificado"):
         seed()
-    assert Problema.objects.get(pk=DEMO_ID).titulo == "Ejemplo editado"
+    assert Problem.objects.get(pk=DEMO_ID).title == "Ejemplo editado"
     assert counts() == (1, 1, 1)
 
 
 def test_sequences_allow_subsequent_automatic_ids_for_all_three_models():
     seed()
-    problem = Problema.objects.create(titulo="Alta posterior", descripcion="ID automático.")
-    error = ErrorConocido.objects.create(
-        problema=problem,
-        titulo="Error posterior",
-        descripcion="ID automático.",
-        causa_raiz="Causa de ensayo.",
+    problem = Problem.objects.create(title="Alta posterior", description="ID automático.")
+    error = KnownError.objects.create(
+        problem=problem,
+        title="Error posterior",
+        description="ID automático.",
+        root_cause="Causa de ensayo.",
         workaround="Solución temporal de ensayo.",
     )
-    link = ProblemaIncidente.objects.create(problema=problem, incidente_id="INC-POSTERIOR")
+    link = ProblemIncident.objects.create(problem=problem, incident_id="INC-POSTERIOR")
     assert all(row.pk > DEMO_ID for row in (problem, error, link))
 
 
@@ -143,13 +143,13 @@ def test_seed_never_rewinds_sequences_already_ahead():
     for model, _ in ROWS:
         sequence_value(model, ahead)
     seed()
-    problem = Problema.objects.create(titulo="Alta posterior", descripcion="Secuencia adelantada.")
-    error = ErrorConocido.objects.create(
-        problema=problem,
-        titulo="Error posterior",
-        descripcion="Secuencia adelantada.",
-        causa_raiz="Causa de ensayo.",
+    problem = Problem.objects.create(title="Alta posterior", description="Secuencia adelantada.")
+    error = KnownError.objects.create(
+        problem=problem,
+        title="Error posterior",
+        description="Secuencia adelantada.",
+        root_cause="Causa de ensayo.",
         workaround="Solución temporal de ensayo.",
     )
-    link = ProblemaIncidente.objects.create(problema=problem, incidente_id="INC-ADELANTADO")
+    link = ProblemIncident.objects.create(problem=problem, incident_id="INC-ADELANTADO")
     assert all(row.pk > ahead for row in (problem, error, link))

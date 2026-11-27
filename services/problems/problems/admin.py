@@ -1,37 +1,39 @@
+"""Admin de Django; columnas y formularios usan los ``verbose_name`` en español."""
+
 from django.contrib import admin
 
-from .models import ErrorConocido, Problema, ProblemaIncidente
+from .models import KnownError, Problem, ProblemIncident
 
 
-class ProblemaIncidenteInline(admin.TabularInline):
-    model = ProblemaIncidente
+class ProblemIncidentInline(admin.TabularInline):
+    model = ProblemIncident
     extra = 0
-    readonly_fields = ["vinculado_en"]
+    readonly_fields = ["linked_at"]
 
 
-class ErrorConocidoInline(admin.StackedInline):
-    model = ErrorConocido
+class KnownErrorInline(admin.StackedInline):
+    model = KnownError
     extra = 0
 
 
-@admin.register(Problema)
-class ProblemaAdmin(admin.ModelAdmin):
-    list_display = ["id", "titulo", "estado", "prioridad", "origen", "asignado_a_id", "creado_en"]
-    list_filter = ["estado", "prioridad", "origen"]
-    search_fields = ["titulo", "descripcion", "causa_raiz"]
-    readonly_fields = ["creado_en", "actualizado_en"]
-    inlines = [ProblemaIncidenteInline, ErrorConocidoInline]
+@admin.register(Problem)
+class ProblemAdmin(admin.ModelAdmin):
+    list_display = ["id", "title", "status", "priority", "origin", "assignee_id", "created_at"]
+    list_filter = ["status", "priority", "origin"]
+    search_fields = ["title", "description", "root_cause"]
+    readonly_fields = ["created_at", "updated_at"]
+    inlines = [ProblemIncidentInline, KnownErrorInline]
 
 
-@admin.register(ErrorConocido)
-class ErrorConocidoAdmin(admin.ModelAdmin):
-    list_display = ["id", "titulo", "problema", "activo", "articulo_kb_id", "creado_en"]
-    list_filter = ["activo"]
-    search_fields = ["titulo", "descripcion", "causa_raiz", "workaround"]
-    readonly_fields = ["creado_en", "actualizado_en"]
+@admin.register(KnownError)
+class KnownErrorAdmin(admin.ModelAdmin):
+    list_display = ["id", "title", "problem", "is_active", "kb_article_id", "created_at"]
+    list_filter = ["is_active"]
+    search_fields = ["title", "description", "root_cause", "workaround"]
+    readonly_fields = ["created_at", "updated_at"]
 
 
-@admin.register(ProblemaIncidente)
-class ProblemaIncidenteAdmin(admin.ModelAdmin):
-    list_display = ["id", "problema", "incidente_id", "vinculado_en"]
-    search_fields = ["incidente_id"]
+@admin.register(ProblemIncident)
+class ProblemIncidentAdmin(admin.ModelAdmin):
+    list_display = ["id", "problem", "incident_id", "linked_at"]
+    search_fields = ["incident_id"]

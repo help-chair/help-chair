@@ -2,13 +2,13 @@
 
 Crea **todo lo que necesita una empresa** en su propio namespace: un servicio Django con su PostgreSQL por cada archivo de `services/`, el broker (NATS) y, según el ambiente, Mailpit, ingress, aislamiento de red y cuotas. El mismo chart sirve para `dev`, `testing` y `production`; solo cambia el archivo de valores.
 
-> Probado con Helm 4.3 (`helm lint`, `helm template`) y validado contra el esquema de Kubernetes 1.35 con kubeconform: `make helm-check`. **No** se instaló en un clúster real: eso se hace en la fase 3, cuando exista el clúster de testing.
+> Probado con Helm 4.3 (`helm lint`, `helm template`) y validado contra el esquema de Kubernetes 1.35 con kubeconform: `make helm-check` (o `make deploy-check` para validar también el compose). **No** se instaló en un clúster real: eso se hace en la fase 3, cuando exista el clúster de testing.
 
 ## Estructura
 
 ```
 platform/deploy/helm/
-├── check.sh                  # helm lint + helm template + kubeconform de los 3 ambientes
+├── check.sh                  # helm lint + helm template + kubeconform de los 3 ambientes (make helm-check)
 └── stack/
     ├── Chart.yaml
     ├── values.yaml           # valores por defecto (todos los servicios los heredan)
@@ -139,7 +139,7 @@ Los `requests` son los que el planificador reserva: dividen la capacidad de la V
 make helm-check
 ```
 
-Ejecuta, para `dev`, `testing` y `production`: `helm lint`, `helm template` y, si está instalado, `kubeconform` contra el esquema de Kubernetes. `Jenkinsfile` (en esta carpeta) lo corre cuando cambia algo de `platform/deploy/helm/`. Requiere `helm` en el agente de Jenkins.
+Ejecuta, para `dev`, `testing` y `production`: `helm lint`, `helm template` y, si está instalado, `kubeconform` contra el esquema de Kubernetes. Lo corre Jenkins con `platform/deploy/Jenkinsfile` cuando cambia algo de `platform/deploy/` (etapa **Helm**; ver `platform/deploy/README.md`). El agente necesita `helm` y `kubeconform`; en CI, `kubeconform` es obligatorio.
 
 ## CODEOWNERS
 

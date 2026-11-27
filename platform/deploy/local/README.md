@@ -73,6 +73,7 @@ sudo systemctl daemon-reload      # y cierra sesión y vuelve a entrar
 | `make build` | Reconstruye las imágenes sin levantar |
 | `make health` | Código HTTP de `/health/ready` de cada servicio |
 | `make reset` | **Borra los datos** y levanta de cero; pide escribir `si` (`YES=1` omite la pregunta) |
+| `make compose-check` | Valida `compose.yaml` y los manifiestos del plan B (lo ejecuta también Jenkins) |
 
 Los volúmenes se llaman `help-chair_<servicio>-data` (`podman volume ls`). El proyecto se llama `help-chair` gracias a `name:` en el compose; sin eso Podman lo llamaría `local` por el nombre de la carpeta.
 
@@ -112,6 +113,7 @@ make kube-reset     # borra también los datos
 | `compose.yaml`: YAML válido, límites en todos los servicios, puertos solo en 127.0.0.1, volúmenes declarados, `service_healthy`, `$$` y `name:` interpretados por `podman-compose 1.6.0` | Revisado |
 | Manifiestos de `kube/` contra el esquema de Kubernetes 1.35 (modo estricto) | 17 recursos válidos |
 | Objetivos `make up`, `down`, `logs`, `reset` | Comandos verificados en modo simulado |
+| `make compose-check` (compose + manifiestos al día + esquema de Kubernetes) | Pasa; rechaza seis tipos de error ensayados a propósito |
 | **Ejecución real en Fedora con Podman sin root** | **Pendiente: hazla con la lista de abajo** |
 
 ### Lista para registrar en el PR (Fedora, Podman sin root)

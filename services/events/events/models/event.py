@@ -15,6 +15,7 @@ from .choices import (
     EventState,
     EventType,
     Impact,
+    MatchKind,
     Priority,
     Urgency,
 )
@@ -106,3 +107,27 @@ class Event(AuditModel):
 
     def can_transition_to(self, new_state: str) -> bool:
         return EventState(new_state) in ALLOWED_TRANSITIONS.get(EventState(self.state), set())
+
+
+class EventOccurrence(models.Model):
+    """Cada llegada de un evento (la primera y las repiticiones). Base de n_eventos_similares"""
+
+    event = models.ForeignKey(Event, on_delete=models.PROTECT, related_name="occurrences")
+    occurred_at = models.DateTimeField()
+    fingerprint = models.CharField(max_length=64)
+    source = models.CharField(max_length=100)
+    payload = models.JSONField(default=dict, blank=True)
+    ingestion_key = models.CharField(max_length=100, blank=True, default="")
+    received_at = models.DateTimeField(auto_now_add=True)
+    match_kind = models.CharField(max_length=8, choices=MatchKind.choices, default=MatchKind.NEW)
+    similarity = models.FloatField(null=True, blank=True)
+
+    class Meta:
+        db_table = "event_occurrence"
+        indexes = [
+            models.Index(fields=["fingerprint", "-occurred_at"], name="ix_occ_fp_time"),
+            models.Index(fields=["event", "-occurred_at"], name="ix_occ_event_time"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.fingerprint[:8]} @ {self.occurred_at:%Y-%m-%d %H:%M} ({self.match_kind})"

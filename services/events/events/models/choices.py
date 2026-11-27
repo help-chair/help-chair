@@ -133,3 +133,11 @@ class ModifierField(models.TextChoices):
     EVENT_CATEGORY = "EVENT_CATEGORY", "Categoría del evento"
     EVENT_TYPE = "EVENT_TYPE", "Tipo de evento"
     OCCURRENCE_COUNT = "OCCURRENCE_COUNT", "Ocurrencias (mínimo)"
+
+
+class MatchKind(models.TextChoices):
+    """Como se asocio una ocurrencia a su evento"""
+
+    NEW = "NEW", "Evento Nuevo"
+    EXACT = "EXACT", "Misma huella"
+    FUZZY = "FUZZY", "Similitud"

@@ -94,11 +94,11 @@ REST_FRAMEWORK = {
 SPECTACULAR_SETTINGS = {
     "TITLE": "Help-Chair Events Service API (Contrato v1)",
     "DESCRIPTION": (
-        "Contrato de Eventos v1 congelado. Cubre el registro, la deduplicación, el listado y el "
-        "detalle de eventos. JWT Bearer o X-API-Key son validados en el gateway; el servicio "
-        "permite tráfico interno directo sin credenciales. Las rutas del borrador v0 aún no "
-        "implementadas (actualización/reclasificación, transiciones, historial, catálogo, SLA, "
-        "recurrencia y fuentes) quedan fuera del alcance de v1."
+        "Contrato de Eventos v1 congelado. Cubre el registro, la deduplicación, el listado, "
+        "el detalle, la actualización, las transiciones de estado y el historial de eventos. "
+        "JWT Bearer o X-API-Key son validados en el gateway; el servicio permite tráfico "
+        "interno directo sin credenciales. Catálogo, SLA, recurrencia y fuentes quedan "
+        "fuera del alcance de v1."
     ),
     "VERSION": "1.0.0",
     "SERVERS": [
@@ -152,6 +152,18 @@ OUTBOX_TRANSPORT = env("OUTBOX_TRANSPORT", default="jetstream")
 # Plan B: `patrón=url1,url2;patrón=url3` (comodines de NATS en el patrón). Ver docs/outbox.md.
 OUTBOX_HTTP_ROUTES = env("OUTBOX_HTTP_ROUTES", default="")
 OUTBOX_HTTP_TOKEN = env("OUTBOX_HTTP_TOKEN", default="")
+
+# --- Deduplicación ---
+# Etapa 1 (siempre): misma huella normalizada. Etapa 2 (opcional): similitud Jaro-Winkler.
+EVENT_FUZZY_ENABLED = env.bool("EVENT_FUZZY_ENABLED", default=False)
+EVENT_FUZZY_THRESHOLD = env.float("EVENT_FUZZY_THRESHOLD", default=0.95)
+EVENT_FUZZY_TOKEN_THRESHOLD = env.float("EVENT_FUZZY_TOKEN_THRESHOLD", default=0.88)
+EVENT_FUZZY_MAX_DIFF_TOKENS = env.int("EVENT_FUZZY_MAX_DIFF_TOKENS", default=1)
+EVENT_FUZZY_MIN_LENGTH = env.int("EVENT_FUZZY_MIN_LENGTH", default=20)
+EVENT_FUZZY_MAX_CANDIDATES = env.int("EVENT_FUZZY_MAX_CANDIDATES", default=50)
+EVENT_FUZZY_TYPES = env.list("EVENT_FUZZY_TYPES", default=["WARNING", "INFORMATION"])
+# True: también enmascara números cortos al normalizar (más fusiones, más riesgo de over-merge).
+EVENT_MASK_SHORT_NUMBERS = env.bool("EVENT_MASK_SHORT_NUMBERS", default=False)
 
 # TEMPORAL hasta integrar el JWT de Accesos: permite identificar al actor con la cabecera
 # X-Actor-Ref. Es falsificable: NUNCA activarlo en producción.

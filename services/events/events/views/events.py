@@ -143,7 +143,7 @@ class EventListCreateView(APIView):
 
     @extend_schema(
         operation_id="registerEvent",
-        request=EventCreateSerializer,
+        request={"application/json": EventCreateSerializer},
         responses={
             201: EventReadSerializer,
             200: EventReadSerializer,
@@ -186,7 +186,7 @@ class EventDetailView(APIView):
 
     @extend_schema(
         operation_id="updateEvent",
-        request=EventUpdateSerializer,
+        request={"application/json": EventUpdateSerializer},
         responses={
             200: EventReadSerializer,
             404: OpenApiResponse(response=ErrorSerializer, description="Evento no encontrado"),

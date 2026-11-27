@@ -1,73 +1,73 @@
-"""Registro de eventos: huella, deduplicación, clasificación, prioridad, SLA y reglas 1 y 3."""
-
-import hashlib
-import json
+"""Registro de eventos: clasificación, huella, deduplicación, prioridad, SLA y reglas 1 y 3."""
 
 from django.db import IntegrityError, transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from ..models import (
-    TERMINAL_STATES,
     ActorType,
     ChangeType,
     Event,
     EventCategory,
+    EventOccurrence,
     EventState,
+    MatchKind,
 )
 from ..outbox.messages import enqueue_state_changed
 from ..priority import PriorityContext, resolve_priority
 from .classification import classify_event_type, watch_warning
+from .deduplication import (
+    find_fuzzy_match,
+    find_open_event_by_fingerprint,
+    similar_event_count,
+)
+
+# from .dispatch import schedule_dispatch
+from .fingerprint import compute_fingerprint
 from .lifecycle import auto_close_informational, record_history
 from .priority import priority_context, resolve_sla
 
 
-def compute_fingerprint(origin, title, message, service_code, source_name, payload) -> str:
-    fingerprint_input = json.dumps(
-        {
-            "origin": origin,
-            "title": title,
-            "message": message,
-            "service_code": service_code,
-            "source_name": source_name,
-            "payload": payload,
-        },
-        sort_keys=True,
-        ensure_ascii=False,
+def _add_occurrence(
+    event, *, event_dt, payload, ingestion_key, kind, similarity=None, actor_ref=""
+) -> Event:
+    """Suma una ocurrencia a un evento abierto, recalcula la prioridad y aplica la regla 3."""
+    EventOccurrence.objects.create(
+        event=event,
+        occurred_at=event_dt,
+        fingerprint=event.fingerprint,
+        match_kind=kind,
+        similarity=similarity,
+        payload=payload,
+        ingestion_key=ingestion_key or "",
     )
-    return hashlib.sha256(fingerprint_input.encode("utf-8")).hexdigest()
-
-
-def _find_open_event(fingerprint):
-    return (
-        Event.objects.select_for_update()
-        .filter(fingerprint=fingerprint)
-        .exclude(state__in=TERMINAL_STATES)
-        .first()
-    )
-
-
-def _add_occurrence(open_event, event_dt, ingestion_key, actor_ref=""):
-    """Suma una ocurrencia al evento abierto, recalcula la prioridad y aplica la regla 3."""
-    previous_count = open_event.occurrence_count
-    open_event.occurrence_count = previous_count + 1
-    open_event.last_seen_at = event_dt
+    event.occurrence_count += 1
+    event.last_seen_at = max(event.last_seen_at, event_dt)
+    event.first_seen_at = min(event.first_seen_at, event_dt)
     if ingestion_key:
-        stored_payload = dict(open_event.payload or {})
+        stored_payload = dict(event.payload or {})
         stored_payload["_ingestion_key"] = ingestion_key
-        open_event.payload = stored_payload
-    update_fields = ["occurrence_count", "last_seen_at", "payload", "updated_at"]
+        event.payload = stored_payload
+    update_fields = [
+        "occurrence_count",
+        "last_seen_at",
+        "first_seen_at",
+        "payload",
+        "updated_at",
+    ]
 
-    old_priority = open_event.priority
-    result = resolve_priority(open_event.impact, open_event.urgency, priority_context(open_event))
+    # Más ocurrencias pueden subir la prioridad (modificador OCCURRENCE_COUNT).
+    old_priority = event.priority
+    result = resolve_priority(event.impact, event.urgency, priority_context(event))
     new_priority = result.priority.value if result.priority else old_priority
     if new_priority != old_priority:
-        open_event.priority = new_priority
+        event.priority = new_priority
         update_fields.append("priority")
-    open_event.save(update_fields=update_fields)
+    event.save(update_fields=update_fields)
 
     if new_priority != old_priority:
         record_history(
-            open_event,
+            event,
             change_type=ChangeType.PRIORITY_CHANGE,
             actor_type=ActorType.SYSTEM,
             actor_ref=actor_ref,
@@ -77,8 +77,19 @@ def _add_occurrence(open_event, event_dt, ingestion_key, actor_ref=""):
             description="Prioridad recalculada por recurrencia",
             metadata={"priority": result.as_metadata()},
         )
-    watch_warning(open_event, previous_count=previous_count)
-    return open_event
+    if kind == MatchKind.FUZZY:
+        record_history(
+            event,
+            change_type=ChangeType.SYSTEM,
+            actor_type=ActorType.RULE,
+            actor_ref="dedup",
+            description=f"Ocurrencia fusionada por similitud ({similarity:.3f})",
+            metadata={"match_kind": kind, "similarity": similarity},
+        )
+    count = similar_event_count(event)
+    watch_warning(event, previous_count=count - 1, current_count=count)  # regla 3
+    # schedule_dispatch(event.pk)  # si cruzó el umbral, la regla 7 lo enruta a Problemas
+    return event
 
 
 @transaction.atomic
@@ -90,33 +101,63 @@ def register_event(validated_data: dict, actor_ref: str = "") -> tuple[Event, bo
     ingestion_key = validated_data.get("ingestion_key")
 
     if ingestion_key:
-        existing = Event.objects.filter(payload___ingestion_key=ingestion_key).first()
+        existing = (
+            Event.objects.filter(
+                Q(payload___ingestion_key=ingestion_key)
+                | Q(occurrences__ingestion_key=ingestion_key)
+            )
+            .distinct()
+            .first()
+        )
         if existing:
             return existing, False
 
     service = validated_data.get("service")
     source = validated_data.get("source")
-    service_code = service.code if service else None
-    source_name = source.name if source else None
-    fingerprint = compute_fingerprint(
-        validated_data["origin"],
-        validated_data["title"],
-        validated_data["message"],
-        service_code,
-        source_name,
-        clean_payload,
-    )
-
-    open_event = _find_open_event(fingerprint)
-    if open_event:
-        return _add_occurrence(open_event, event_dt, ingestion_key, actor_ref), False
-
+    category = validated_data.get("category") or EventCategory.GENERAL
+    # El tipo se clasifica antes de la huella, porque la huella lo incluye.
     event_type = classify_event_type(
         origin=validated_data["origin"],
         declared=validated_data.get("event_type"),
         payload=clean_payload,
     )
-    category = validated_data.get("category") or EventCategory.GENERAL
+    fingerprint = compute_fingerprint(
+        event_type=event_type,
+        origin=validated_data["origin"],
+        source_name=source.name if source else None,
+        service_code=service.code if service else None,
+        title=validated_data["title"],
+        message=validated_data["message"],
+    )
+
+    def merge(open_event, kind, similarity=None):
+        return _add_occurrence(
+            open_event,
+            event_dt=event_dt,
+            payload=clean_payload,
+            ingestion_key=ingestion_key,
+            kind=kind,
+            similarity=similarity,
+            actor_ref=actor_ref,
+        )
+
+    # Etapa 1: misma huella en un evento abierto. Etapa 2 (opcional): similitud.
+    open_event = find_open_event_by_fingerprint(fingerprint)
+    if open_event:
+        return merge(open_event, MatchKind.EXACT), False
+    fuzzy = find_fuzzy_match(
+        event_type=event_type,
+        origin=validated_data["origin"],
+        category=category,
+        source=source,
+        service=service,
+        title=validated_data["title"],
+        message=validated_data["message"],
+        event_dt=event_dt,
+    )
+    if fuzzy:
+        return merge(fuzzy.event, fuzzy.kind, fuzzy.similarity), False
+
     impact = validated_data.get("impact") or ""
     urgency = validated_data.get("urgency") or ""
     priority_result = resolve_priority(
@@ -166,11 +207,19 @@ def register_event(validated_data: dict, actor_ref: str = "") -> tuple[Event, bo
     except IntegrityError:
         # Carrera: otra petición creó el evento abierto con esta huella entre la consulta y el
         # INSERT (restricción uq_event_open_fingerprint). Se cuenta como una ocurrencia más.
-        open_event = _find_open_event(fingerprint)
+        open_event = find_open_event_by_fingerprint(fingerprint)
         if open_event is None:
             raise
-        return _add_occurrence(open_event, event_dt, ingestion_key, actor_ref), False
+        return merge(open_event, MatchKind.EXACT), False
 
+    EventOccurrence.objects.create(
+        event=event,
+        occurred_at=event_dt,
+        fingerprint=fingerprint,
+        match_kind=MatchKind.NEW,
+        payload=clean_payload,
+        ingestion_key=ingestion_key or "",
+    )
     record_history(
         event,
         change_type=ChangeType.SYSTEM,
@@ -189,5 +238,7 @@ def register_event(validated_data: dict, actor_ref: str = "") -> tuple[Event, bo
         changed_at=event.created_at,
     )
     event = auto_close_informational(event)  # regla 1: informativo de sistema sin acción
-    watch_warning(event, previous_count=0)  # regla 3: advertencia, vigilancia y alerta
+    count = similar_event_count(event)
+    watch_warning(event, previous_count=count - 1, current_count=count)  # regla 3
+    # schedule_dispatch(event.pk)  # reglas 4 a 9: no hace nada si el evento ya se cerró (R1)
     return event, True

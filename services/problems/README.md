@@ -13,6 +13,9 @@ El CRUD de problemas y su cambio de estado están implementados (#271); incident
 vinculados (#272), errores conocidos (#273), detector N/T y autorización de negocio
 siguen pendientes. No se emiten tokens de Accesos.
 
+La propuesta parcial [esquema de observaciones #38](docs/recurrence-storage.md)
+añade almacenamiento local; no activa ingesta, deduplicación ni detector.
+
 Requisitos: Linux/WSL, Python 3.12, uv, Make, PostgreSQL 16 y Podman para la imagen.
 El Dockerfile produce una imagen OCI; no requiere Docker Desktop.
 

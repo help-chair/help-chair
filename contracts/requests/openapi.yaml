@@ -1,0 +1,459 @@
+openapi: 3.0.3
+info:
+  title: Help Chair - requests
+  version: 0.1.0
+  description: API del servicio requests (contrato en contracts/requests/).
+paths:
+  /api/peticiones/:
+    get:
+      operationId: peticiones_list
+      tags:
+      - peticiones
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Peticion'
+          description: ''
+    post:
+      operationId: peticiones_create
+      tags:
+      - peticiones
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Peticion'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Peticion'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Peticion'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Peticion'
+          description: ''
+  /api/peticiones/{id}/:
+    get:
+      operationId: peticiones_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: Un Cadena UUID que identifique este peticion.
+        required: true
+      tags:
+      - peticiones
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Peticion'
+          description: ''
+    put:
+      operationId: peticiones_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: Un Cadena UUID que identifique este peticion.
+        required: true
+      tags:
+      - peticiones
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Peticion'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Peticion'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Peticion'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Peticion'
+          description: ''
+    patch:
+      operationId: peticiones_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: Un Cadena UUID que identifique este peticion.
+        required: true
+      tags:
+      - peticiones
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedPeticion'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedPeticion'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedPeticion'
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Peticion'
+          description: ''
+    delete:
+      operationId: peticiones_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: Un Cadena UUID que identifique este peticion.
+        required: true
+      tags:
+      - peticiones
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '204':
+          description: No response body
+  /api/peticiones/{id}/asignar/:
+    post:
+      operationId: peticiones_asignar_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: Un Cadena UUID que identifique este peticion.
+        required: true
+      tags:
+      - peticiones
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Asignar'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Asignar'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Asignar'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Peticion'
+          description: ''
+  /api/peticiones/{id}/cambiar-estado/:
+    post:
+      operationId: peticiones_cambiar_estado_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: Un Cadena UUID que identifique este peticion.
+        required: true
+      tags:
+      - peticiones
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CambioEstado'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CambioEstado'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CambioEstado'
+        required: true
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Peticion'
+          description: ''
+  /api/servicios/:
+    get:
+      operationId: servicios_list
+      tags:
+      - servicios
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ServicioSolicitable'
+          description: ''
+  /api/servicios/{id}/:
+    get:
+      operationId: servicios_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: Un valor de entero único que identifique este servicio solicitable.
+        required: true
+      tags:
+      - servicios
+      security:
+      - cookieAuth: []
+      - basicAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServicioSolicitable'
+          description: ''
+components:
+  schemas:
+    Asignar:
+      type: object
+      properties:
+        asignado_a_id:
+          type: integer
+          minimum: 1
+      required:
+      - asignado_a_id
+    CambioEstado:
+      type: object
+      properties:
+        estado:
+          $ref: '#/components/schemas/EstadoEnum'
+        motivo_cancelacion:
+          type: string
+          maxLength: 255
+      required:
+      - estado
+    EstadoEnum:
+      enum:
+      - nuevo
+      - asignado
+      - en_proceso
+      - resuelto
+      - cerrado
+      - reabierto
+      - cancelado
+      type: string
+      description: |-
+        * `nuevo` - Nuevo
+        * `asignado` - Asignado
+        * `en_proceso` - En proceso
+        * `resuelto` - Resuelto
+        * `cerrado` - Cerrado
+        * `reabierto` - Reabierto
+        * `cancelado` - Cancelado
+    PatchedPeticion:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        tipo:
+          $ref: '#/components/schemas/TipoEnum'
+        servicio:
+          type: integer
+        titulo:
+          type: string
+          maxLength: 150
+        descripcion:
+          type: string
+        estado:
+          allOf:
+          - $ref: '#/components/schemas/EstadoEnum'
+          readOnly: true
+        solicitante_id:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
+        asignado_a_id:
+          type: integer
+          readOnly: true
+          nullable: true
+        evento_id:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
+          nullable: true
+        motivo_cancelacion:
+          type: string
+          readOnly: true
+        creada:
+          type: string
+          format: date-time
+          readOnly: true
+        actualizada:
+          type: string
+          format: date-time
+          readOnly: true
+        cerrada_en:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+    Peticion:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        tipo:
+          $ref: '#/components/schemas/TipoEnum'
+        servicio:
+          type: integer
+        titulo:
+          type: string
+          maxLength: 150
+        descripcion:
+          type: string
+        estado:
+          allOf:
+          - $ref: '#/components/schemas/EstadoEnum'
+          readOnly: true
+        solicitante_id:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
+        asignado_a_id:
+          type: integer
+          readOnly: true
+          nullable: true
+        evento_id:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
+          nullable: true
+        motivo_cancelacion:
+          type: string
+          readOnly: true
+        creada:
+          type: string
+          format: date-time
+          readOnly: true
+        actualizada:
+          type: string
+          format: date-time
+          readOnly: true
+        cerrada_en:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+      required:
+      - actualizada
+      - asignado_a_id
+      - cerrada_en
+      - creada
+      - estado
+      - id
+      - motivo_cancelacion
+      - servicio
+      - solicitante_id
+      - titulo
+    ServicioSolicitable:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        nombre:
+          type: string
+          maxLength: 120
+        descripcion:
+          type: string
+        activo:
+          type: boolean
+      required:
+      - id
+      - nombre
+    TipoEnum:
+      enum:
+      - servicio
+      - cambio
+      type: string
+      description: |-
+        * `servicio` - Servicio
+        * `cambio` - Cambio
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: sessionid

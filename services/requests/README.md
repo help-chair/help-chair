@@ -62,3 +62,38 @@ cp .env.example .env
 
 ### Monorepo rules
 Work **only inside this folder**. If you must change another one, open a separate PR or coordinate with its owners. Guide: [`CONTRIBUTING.en.md`](../../CONTRIBUTING.en.md).
+
+
+## Servicio de Peticiones
+
+Gestiona las peticiones de servicio de la mesa de ayuda: catálogo de servicios
+solicitables y ciclo de vida de cada petición.
+
+### Modelos
+
+- `ServicioSolicitable`: catálogo de servicios que se pueden pedir.
+- `Peticion`: estados `nuevo → asignado → en_proceso → resuelto → cerrado`,
+  más `reabierto` y `cancelado`. Las transiciones válidas están en
+  `Peticion.TRANSICIONES`.
+- Los IDs de usuario y de evento (`solicitante_id`, `asignado_a_id`,
+  `evento_id`) son enteros, no llaves foráneas, porque viven en otros servicios.
+
+### Endpoints
+
+- `GET/POST /api/peticiones/`, `GET/PUT/PATCH/DELETE /api/peticiones/{id}/`
+- `GET /api/servicios/`
+- `GET /api/schema/` y `GET /api/docs/` (OpenAPI y Swagger)
+- `GET /health/live` y `GET /health/ready`
+
+El contrato publicado está en `contracts/requests/openapi.yaml`.
+
+### Correrlo en local
+
+1. Levantar la base: `podman-compose -f ../../platform/deploy/local/compose.yaml up -d requests-db`
+2. Copiar `.env.example` a `.env` y definir `SECRET_KEY` y
+   `DATABASE_URL=postgres://requests:requests@localhost:5443/requests`
+3. `pip install -r requirements.txt -r requirements-dev.txt`
+4. `python manage.py migrate`
+5. `python manage.py runserver 8003`
+
+Pruebas y estilo: `pytest` y `ruff check .`

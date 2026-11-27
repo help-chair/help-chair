@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # helm lint + helm template de cada ambiente (y kubeconform si está instalado).
+# REQUIRE_KUBECONFORM=true (lo pone Jenkins) hace fallar el script si falta kubeconform.
 # Uso:  ./platform/deploy/helm/check.sh        o        make helm-check
 set -euo pipefail
 
@@ -27,6 +28,9 @@ done
 # 3) esquema de Kubernetes (opcional)
 if command -v kubeconform >/dev/null; then
   kubeconform -strict -summary -kubernetes-version "${K8S_VERSION:-1.35.0}" "$OUT"/*.yaml
+elif [[ "${REQUIRE_KUBECONFORM:-}" == "true" ]]; then
+  echo "ERROR: kubeconform no está instalado y REQUIRE_KUBECONFORM=true" >&2
+  exit 1
 else
   echo "(kubeconform no está instalado: se omite la validación contra el esquema de Kubernetes)"
 fi

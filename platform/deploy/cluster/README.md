@@ -4,6 +4,48 @@ Runbook del clúster donde se despliega el ambiente de **testing** (fase 3) y se
 
 > **Estado:** los scripts están revisados con ShellCheck y ensayados con `DRY_RUN=1`; el manifiesto de RBAC está validado contra el esquema de Kubernetes. **No se ejecutaron contra una cuenta de Google Cloud**: eso lo hace Plataforma al crear la VM (pasos de la sección 4). Registra en el PR el resultado de la sección 6.
 
+## 0. Quién ejecuta qué, y dónde
+
+**Todo se ejecuta desde tu computadora**, dentro de tu clon de `help-chair` (con `gcloud` y `kubectl` instalados y `gcloud auth login` hecho). **Solo un script corre dentro de la VM** (`10-install-k3s.sh`) y tú lo envías con `gcloud`: **no hace falta clonar el repositorio en la VM**. Jenkins no ejecuta ninguno de estos scripts: solo valida el chart y el compose.
+
+```
+TU COMPUTADORA (clon del repo + gcloud + kubectl)                  VM DE GOOGLE CLOUD (hc-testing)
+─────────────────────────────────────────────────                  ─────────────────────────────────
+00-gcp-create-vm.sh ──── gcloud ───────────────────────────────▶   (se CREA la VM, su IP y el firewall)
+gcloud compute scp 10-install-k3s.sh ──────────────────────────▶   ~/10-install-k3s.sh
+gcloud compute ssh ... 'bash 10-install-k3s.sh' ───────────────▶   EJECUTA 10-install-k3s.sh → instala k3s
+11-fetch-admin-kubeconfig.sh ◀──────────────────────────────────   /etc/rancher/k3s/k3s.yaml
+gcloud compute start-iap-tunnel ◀═══════ túnel ═══════════════▶   API de Kubernetes (puerto 6443)
+20, 30, 31 y 40 ──── kubectl, por el túnel ────────────────────▶   el clúster
+make testing-down / testing-up ──── gcloud ────────────────────▶   se APAGA / ENCIENDE la VM
+```
+
+| Script | Dónde corre | Quién | Cuándo | Qué hace |
+|---|---|---|---|---|
+| `00-gcp-create-vm.sh` | Tu computadora | Plataforma | **Una vez, antes de que exista la VM**: él la crea | Reserva la IP estática, abre el firewall (HTTP, HTTPS y el túnel IAP) y crea la VM con Ubuntu 24.04 |
+| `10-install-k3s.sh` | **Dentro de la VM** (enviado con `scp`) | Plataforma | Una vez, justo después del 00 | Instala k3s con los Secret cifrados y espera a que el nodo esté Ready |
+| `11-fetch-admin-kubeconfig.sh` | Tu computadora | Plataforma | Una vez (y si cambia la IP) | Baja el kubeconfig de administrador a `kubeconfig-admin.yaml` |
+| `20-install-addons.sh` | Tu computadora (kubeconfig admin + túnel abierto) | Plataforma | Una vez | Verifica el ingress (Traefik) y metrics-server |
+| `30-rbac-readonly.sh` | Tu computadora (ídem) | Plataforma | Una vez, y al sumar un equipo | Crea una cuenta de solo lectura por equipo |
+| `31-make-kubeconfig.sh <equipo>` | Tu computadora (ídem) | Plataforma | Una vez por equipo; renovar cada 30 días | Genera `kubeconfig-<equipo>.yaml` con un token que caduca |
+| `40-verify-networkpolicy.sh` | Tu computadora (ídem) | Plataforma | Una vez; repetir si cambian k3s o el CNI | Prueba que las `NetworkPolicy` se aplican |
+| `50-cluster-down.sh` / `51-cluster-up.sh` | Tu computadora | Plataforma | Cada día (`make testing-down` / `testing-up`) | Apaga y enciende la VM |
+
+### Cómo funciona cada pieza por dentro
+
+- **`lib.sh`** no se ejecuta solo: los demás lo cargan. Define `run` (que ejecuta un comando, o solo lo imprime si `DRY_RUN=1`), `need` (comprueba que exista `gcloud` o `kubectl`) y los valores por defecto de la VM (`hc-testing`, zona `us-central1-a`).
+- **`00`** es **idempotente**: antes de crear la IP, el firewall o la VM, pregunta con `describe` si ya existen, así que puedes repetirlo sin duplicar nada. Con `DRY_RUN=1` te muestra los comandos de `gcloud` sin ejecutarlos: **empieza siempre con un ensayo**.
+- **`10`** descarga el instalador oficial de k3s y le pasa las opciones (`--tls-san` con la IP, `--secrets-encryption`). No desactiva el controlador de `NetworkPolicy` ni metrics-server, que k3s trae.
+- **`11`** copia por SSH el archivo `k3s.yaml` de la VM y cambia `127.0.0.1` por la dirección con la que llegarás a la API.
+- **`30` y `31`** usan el rol `view` que ya trae Kubernetes: `30` crea las cuentas y `31` pide a Kubernetes un token con caducidad y arma el kubeconfig del equipo.
+- **`40`** crea dos namespaces de prueba, un servidor en uno, aplica una política y comprueba que el otro namespace queda bloqueado; limpia todo al terminar.
+
+### Primera vez: lista de verificación
+
+1. `gcloud auth login` y un proyecto con el crédito activo.
+2. `DRY_RUN=1 PROJECT_ID=<proyecto> ./00-gcp-create-vm.sh` y revisa lo que imprime.
+3. Ejecuta el 00 real, luego el 10 dentro de la VM, y sigue con la sección 4.
+
 ## 1. Decisión: una VM con k3s, no GKE
 
 Es la propuesta del ADR-87 (D-19). Se confirma con estas razones:

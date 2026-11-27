@@ -11,7 +11,7 @@ CLUSTER_DIR  := platform/deploy/cluster/scripts
 export PODMAN_COMPOSE_WARNING_LOGS ?= false
 
 .PHONY: help up down logs ps build reset health setup-all test-all lint-all hooks \
-        kube-build kube-up kube-down kube-reset helm-check testing-up testing-down
+        kube-build kube-up kube-down kube-reset helm-check compose-check deploy-check testing-up testing-down
 
 help: ## Muestra esta ayuda
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-12s %s\n", $$1, $$2}'
@@ -75,6 +75,11 @@ kube-reset: ## Plan B: detiene los pods Y borra sus datos (--force)
 	@for f in $(KUBE_DIR)/*.yaml; do podman kube down --force $$f || true; done
 
 ##@ Helm y clúster de testing (platform/deploy/helm, platform/deploy/cluster)
+compose-check: ## Valida el compose y los manifiestos de kube play (y que estén al día)
+	./platform/deploy/local/check.sh
+
+deploy-check: compose-check helm-check ## Todo lo que valida el CI de platform/deploy
+
 helm-check: ## helm lint + helm template de cada ambiente (y kubeconform si está instalado)
 	./platform/deploy/helm/check.sh
 

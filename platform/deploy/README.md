@@ -34,8 +34,34 @@
 |---|---|
 | `make up` · `down` · `logs` · `reset` · `health` | Entorno local |
 | `make kube-build` · `kube-up` · `kube-down` · `kube-reset` | Plan B del entorno local |
+| `make compose-check` | Valida el compose, los manifiestos de kube play y que estén al día |
 | `make helm-check` | `helm lint` + `helm template` de dev, testing y production (y kubeconform) |
+| `make deploy-check` | Las dos anteriores: lo mismo que ejecuta Jenkins |
 | `make testing-down` · `testing-up` | Apaga y enciende la VM de testing |
+
+### CI en Jenkins
+
+`platform/deploy/Jenkinsfile` sigue la lógica de `platform/templates/Jenkinsfile.template` (checkout explícito, filtro por carpeta, primer build y `FORCE_CI`; ver `platform/templates/README-jenkins.md`). Etapas: **Herramientas** (falla pronto si falta algo) → **Scripts del clúster** (ShellCheck) → **Compose y plan B** (`make compose-check`) → **Helm** (`make helm-check`). Se ejecuta cuando cambia `platform/deploy/**` o el `Makefile` de la raíz.
+
+| Configuración del job multibranch | Valor |
+|---|---|
+| Origen | `help-chair/help-chair` (el mismo del resto de los jobs) |
+| Script Path | `platform/deploy/Jenkinsfile` |
+| Parámetro | `FORCE_CI` (por defecto `false`) |
+
+**Herramientas que debe tener el agente** (además de Git, Make, `uv` y Python 3.12 de la plantilla): `helm` (4.x), `kubeconform` y `shellcheck`. En CI **no se omite ninguna validación**: con `REQUIRE_KUBECONFORM=true`, si falta `kubeconform` el build falla. En el laboratorio descrito en `README-jenkins.md` hay Git, Make, uv, Python y Podman, pero **no** `helm`: Plataforma debe instalarlos en el agente (binarios oficiales o paquetes) antes del primer build.
+
+Validar la sintaxis del archivo con el linter de Jenkins (token API de Jenkins, igual que en la guía de la plantilla):
+
+```bash
+read -r -p 'URL de Jenkins: ' JENKINS_URL
+read -r -p 'Usuario de Jenkins: ' JENKINS_USER
+curl --fail-with-body --user "$JENKINS_USER" \
+  --form 'jenkinsfile=<platform/deploy/Jenkinsfile' \
+  "${JENKINS_URL%/}/pipeline-model-converter/validate"
+```
+
+Debe responder `Jenkinsfile successfully validated.`. Lo que sí se comprobó localmente: las llaves del archivo, que contiene las mismas opciones que la plantilla, y que los cuatro comandos de las etapas pasan en un entorno con esas herramientas. **No** se ejecutó en un Jenkins real.
 
 ### Decisiones aplicadas
 - Broker NATS con JetStream, GHCR, k3s en una VM de Google Cloud: ADR-87 / D-19 (propuesta pendiente de aprobación).

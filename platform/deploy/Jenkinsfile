@@ -1,0 +1,85 @@
+// CI de platform/deploy: compose, manifiestos de kube play, chart de Helm y scripts del clúster.
+// Misma lógica que platform/templates/Jenkinsfile.template (checkout explícito, filtro por carpeta,
+// excepción del primer build y FORCE_CI). Guía: platform/deploy/README.md, sección "CI en Jenkins".
+pipeline {
+  // Plataforma debe asignar nodos Linux con: git, make, python3, uv, helm, kubeconform y shellcheck.
+  agent any
+
+  options {
+    skipDefaultCheckout(true)
+    disableConcurrentBuilds()
+    timeout(time: 30, unit: 'MINUTES')
+    buildDiscarder(logRotator(numToKeepStr: '15'))
+  }
+
+  parameters {
+    booleanParam(
+      name: 'FORCE_CI',
+      defaultValue: false,
+      description: 'Ejecuta CI aunque no haya cambios en platform/deploy.'
+    )
+  }
+
+  environment {
+    // En CI no se omite ninguna validación: si falta kubeconform, el build falla.
+    REQUIRE_KUBECONFORM = 'true'
+    // Versión del esquema de Kubernetes contra la que se validan los manifiestos.
+    K8S_VERSION = '1.35.0'
+  }
+
+  stages {
+    stage('Checkout') {
+      steps {
+        checkout scm
+      }
+    }
+
+    stage('CI de platform/deploy') {
+      when {
+        anyOf {
+          changeset pattern: 'platform/deploy/**', comparator: 'GLOB', caseSensitive: true
+          // Los atajos make de deploy viven en el Makefile de la raíz.
+          changeset pattern: 'Makefile', comparator: 'GLOB', caseSensitive: true
+          // El primer build del job puede no tener changelog.
+          expression { currentBuild.number == 1 }
+          expression { params.FORCE_CI == true }
+        }
+      }
+
+      stages {
+        stage('Herramientas') {
+          steps {
+            // Falla pronto y con un mensaje claro si el agente no tiene lo necesario.
+            sh '''
+              git --version
+              make --version | head -1
+              python3 --version
+              uv --version
+              helm version --short
+              kubeconform -v
+              shellcheck --version | sed -n 2p
+            '''
+          }
+        }
+
+        stage('Scripts del clúster') {
+          steps {
+            sh 'shellcheck -x -P SCRIPTDIR platform/deploy/cluster/scripts/*.sh'
+          }
+        }
+
+        stage('Compose y plan B') {
+          steps {
+            sh 'make compose-check'
+          }
+        }
+
+        stage('Helm') {
+          steps {
+            sh 'make helm-check'
+          }
+        }
+      }
+    }
+  }
+}

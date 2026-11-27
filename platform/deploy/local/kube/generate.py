@@ -3,10 +3,14 @@
 
 Uso (desde cualquier carpeta):  python3 platform/deploy/local/kube/generate.py
 Escribe un .yaml por servicio en esta misma carpeta. No necesita dependencias externas.
+
+  --check   no escribe nada: sale con código 1 si algún manifiesto no coincide con lo que se generaría
+            (alguien editó un .yaml a mano o cambió las tablas sin regenerar). Lo usa el CI.
 Si cambias puertos, límites o imágenes, edita las tablas de abajo y vuelve a generar.
 """
 
 import json
+import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -165,11 +169,8 @@ spec:
 """
 
 
-def main():
-    for spec in SERVICES:
-        (HERE / f"{spec[0]}.yaml").write_text(service_manifest(*spec), encoding="utf-8")
-    (HERE / "gateway-db.yaml").write_text(
-        f"""{HEADER}apiVersion: v1
+def gateway_db_manifest():
+    return f"""{HEADER}apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: gateway-data
@@ -214,45 +215,62 @@ spec:
     - name: data
       persistentVolumeClaim:
         claimName: gateway-data
-""",
-        encoding="utf-8",
+"""
+
+
+def render_all():
+    """Devuelve {nombre_de_archivo: contenido} de todos los manifiestos."""
+    files = {f"{spec[0]}.yaml": service_manifest(*spec) for spec in SERVICES}
+    files["gateway-db.yaml"] = gateway_db_manifest()
+    files["broker.yaml"] = simple_pod(
+        "broker",
+        "docker.io/library/nats:2-alpine",
+        '["-js", "-m", "8222"]',
+        [(4222, 4222), (8222, 8222)],
+        "128Mi",
+        probe='["wget", "--spider", "-q", "http://127.0.0.1:8222/healthz"]',
     )
-    (HERE / "broker.yaml").write_text(
-        simple_pod(
-            "broker",
-            "docker.io/library/nats:2-alpine",
-            '["-js", "-m", "8222"]',
-            [(4222, 4222), (8222, 8222)],
-            "128Mi",
-            probe='["wget", "--spider", "-q", "http://127.0.0.1:8222/healthz"]',
-        ),
-        encoding="utf-8",
+    files["mailpit.yaml"] = simple_pod(
+        "mailpit",
+        "docker.io/axllent/mailpit:latest",
+        None,
+        [(8025, 8025), (1025, 1025)],
+        "64Mi",
     )
-    (HERE / "mailpit.yaml").write_text(
-        simple_pod(
-            "mailpit",
-            "docker.io/axllent/mailpit:latest",
-            None,
-            [(8025, 8025), (1025, 1025)],
-            "64Mi",
-        ),
-        encoding="utf-8",
+    files["frontend.yaml"] = simple_pod(
+        "frontend",
+        "ghcr.io/help-chair/hc-frontend:dev",
+        None,
+        [(8080, 8080)],
+        "64Mi",
+        env={"BASE_DOMAIN": "localhost"},
+        probe='["wget", "--spider", "-q", "http://127.0.0.1:8080/health/live"]',
+    ).replace(
+        "      image: ghcr.io/help-chair/hc-frontend:dev",
+        "      image: ghcr.io/help-chair/hc-frontend:dev\n      imagePullPolicy: Never",
     )
-    (HERE / "frontend.yaml").write_text(
-        simple_pod(
-            "frontend",
-            "ghcr.io/help-chair/hc-frontend:dev",
-            None,
-            [(8080, 8080)],
-            "64Mi",
-            env={"BASE_DOMAIN": "localhost"},
-            probe='["wget", "--spider", "-q", "http://127.0.0.1:8080/health/live"]',
-        ).replace(
-            "      image: ghcr.io/help-chair/hc-frontend:dev",
-            "      image: ghcr.io/help-chair/hc-frontend:dev\n      imagePullPolicy: Never",
-        ),
-        encoding="utf-8",
-    )
+    return files
+
+
+def main():
+    files = render_all()
+    if "--check" in sys.argv[1:]:
+        bad = [
+            n
+            for n, c in files.items()
+            if not (HERE / n).exists() or (HERE / n).read_text(encoding="utf-8") != c
+        ]
+        extra = [p.name for p in HERE.glob("*.yaml") if p.name not in files]
+        if bad or extra:
+            print(
+                "Manifiestos desactualizados o editados a mano:", ", ".join(bad + extra)
+            )
+            print("Regenera con: python3 platform/deploy/local/kube/generate.py")
+            sys.exit(1)
+        print(f"OK: {len(files)} manifiestos coinciden con generate.py")
+        return
+    for name, content in files.items():
+        (HERE / name).write_text(content, encoding="utf-8")
     print("manifiestos escritos en", HERE)
 
 

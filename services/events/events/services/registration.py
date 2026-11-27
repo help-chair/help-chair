@@ -21,11 +21,10 @@ from .deduplication import (
     find_open_event_by_fingerprint,
     similar_event_count,
 )
-
-# from .dispatch import schedule_dispatch
 from .fingerprint import compute_fingerprint
 from .lifecycle import auto_close_informational, record_history
 from .priority import priority_context, resolve_sla
+from .routing import RULE_TO_MODEL_TYPE, dispatch_security_event, security_rule_decision
 
 
 def _add_occurrence(
@@ -93,7 +92,9 @@ def _add_occurrence(
 
 
 @transaction.atomic
-def register_event(validated_data: dict, actor_ref: str = "") -> tuple[Event, bool]:
+def register_event(
+    validated_data: dict, actor_ref: str = "", *, security_exception: bool = False
+) -> tuple[Event, bool]:
     """Registra un evento. Devuelve (evento, creado). creado=False si fue un duplicado."""
     now = timezone.now()
     event_dt = validated_data.get("occurred_at") or now
@@ -121,6 +122,15 @@ def register_event(validated_data: dict, actor_ref: str = "") -> tuple[Event, bo
         declared=validated_data.get("event_type"),
         payload=clean_payload,
     )
+    security_decision = security_rule_decision(
+        origin=validated_data["origin"],
+        event_type=event_type,
+        category=category,
+        action_required=validated_data.get("action_required", True),
+        security_exception=security_exception,
+    )
+    if security_decision is not None:
+        event_type = RULE_TO_MODEL_TYPE[security_decision.event_type]
     fingerprint = compute_fingerprint(
         event_type=event_type,
         origin=validated_data["origin"],
@@ -131,7 +141,7 @@ def register_event(validated_data: dict, actor_ref: str = "") -> tuple[Event, bo
     )
 
     def merge(open_event, kind, similarity=None):
-        return _add_occurrence(
+        event = _add_occurrence(
             open_event,
             event_dt=event_dt,
             payload=clean_payload,
@@ -140,6 +150,8 @@ def register_event(validated_data: dict, actor_ref: str = "") -> tuple[Event, bo
             similarity=similarity,
             actor_ref=actor_ref,
         )
+        dispatch_security_event(event, security_exception=security_exception)
+        return event
 
     # Etapa 1: misma huella en un evento abierto. Etapa 2 (opcional): similitud.
     open_event = find_open_event_by_fingerprint(fingerprint)
@@ -240,5 +252,5 @@ def register_event(validated_data: dict, actor_ref: str = "") -> tuple[Event, bo
     event = auto_close_informational(event)  # regla 1: informativo de sistema sin acción
     count = similar_event_count(event)
     watch_warning(event, previous_count=count - 1, current_count=count)  # regla 3
-    # schedule_dispatch(event.pk)  # reglas 4 a 9: no hace nada si el evento ya se cerró (R1)
+    dispatch_security_event(event, security_exception=security_exception)
     return event, True

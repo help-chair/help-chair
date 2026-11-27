@@ -48,6 +48,7 @@ class Event:
     kb_solution_author: str | None = None
     repetitions: int = 0
     threshold: int = 3
+    security_exception: bool = False
 
 
 @dataclass(frozen=True)
@@ -92,7 +93,7 @@ RULES: dict[int, Rule] = {
         ),
         Rule(
             4,
-            lambda e: e.category == Category.SECURITY,
+            lambda e: e.category == Category.SECURITY and e.event_type != EventType.INFORMATIVE,
             Destination.ACCESS,
             EventType.WARNING,
         ),
@@ -137,5 +138,8 @@ def evaluate(event: Event) -> Decision:
     for number in RULE_ORDER:
         rule = RULES[number]
         if rule.matches(event):
-            return Decision(rule.number, rule.destination, rule.event_type)
+            event_type = rule.event_type
+            if number == 4 and event.security_exception and event.event_type == EventType.EXCEPTION:
+                event_type = EventType.EXCEPTION
+            return Decision(rule.number, rule.destination, event_type)
     raise AssertionError("La regla 9 coincide siempre")

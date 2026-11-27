@@ -1,3 +1,4 @@
+from .access import AccessLoginFailureGroup, ProcessedAccessMessage
 from .base import AuditModel
 from .catalog import (
     BusinessService,
@@ -33,6 +34,7 @@ from .outbox import OutboxMessage
 
 __all__ = [
     "ALLOWED_TRANSITIONS",
+    "AccessLoginFailureGroup",
     "TERMINAL_STATES",
     "ActorType",
     "AuditModel",
@@ -51,6 +53,7 @@ __all__ = [
     "OutboxMessage",
     "OutboxStatus",
     "Priority",
+    "ProcessedAccessMessage",
     "PriorityMatrix",
     "PriorityModifier",
     "ServiceImportance",

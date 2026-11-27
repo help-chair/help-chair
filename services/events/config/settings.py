@@ -153,6 +153,15 @@ OUTBOX_TRANSPORT = env("OUTBOX_TRANSPORT", default="jetstream")
 OUTBOX_HTTP_ROUTES = env("OUTBOX_HTTP_ROUTES", default="")
 OUTBOX_HTTP_TOKEN = env("OUTBOX_HTTP_TOKEN", default="")
 
+# --- Consumidor de eventos de Accesos ---
+LOGIN_FAILED_THRESHOLD = env.int("LOGIN_FAILED_THRESHOLD", default=5)
+LOGIN_FAILED_WINDOW_SECONDS = env.int("LOGIN_FAILED_WINDOW_SECONDS", default=300)
+ACCESS_EVENTS_STREAM = env("ACCESS_EVENTS_STREAM", default="ACCESS")
+ACCESS_EVENTS_SUBJECT = env("ACCESS_EVENTS_SUBJECT", default="access.>")
+ACCESS_EVENTS_DURABLE = env("ACCESS_EVENTS_DURABLE", default="events-access-v1")
+ACCESS_EVENTS_BATCH_SIZE = env.int("ACCESS_EVENTS_BATCH_SIZE", default=20)
+ACCESS_EVENTS_FETCH_TIMEOUT_SECONDS = env.float("ACCESS_EVENTS_FETCH_TIMEOUT_SECONDS", default=5.0)
+
 # --- Deduplicación ---
 # Etapa 1 (siempre): misma huella normalizada. Etapa 2 (opcional): similitud Jaro-Winkler.
 EVENT_FUZZY_ENABLED = env.bool("EVENT_FUZZY_ENABLED", default=False)

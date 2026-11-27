@@ -24,7 +24,7 @@
 | 1 | Evento de sistema | Informativo | Solo registro | Un evento informativo no necesita gestión, solo queda como bitácora y se cierra solo, sin intervención. |
 | 2 | Lo dispara un usuario y hay solución en la KB | Informativo | El autor de dicha solución | Es autoservicio con la base de conocimiento; se le entrega al usuario la solución ya redactada. Si la encuesta dice "no resolvió", el evento se redirige al autor de la solución. |
 | 3 | Advertencia bajo el umbral de recurrencia | Advertencia | Eventos | Advertencia aislada o poco frecuente: se registra y suma a un contador. Si supera el umbral (N veces en T días), se reevalúa y pasa a Problemas (regla 7). |
-| 4 | Seguridad o credenciales | Advertencia | Accesos / Seguridad | Se verifica directamente con Accesos, que valida la solicitud y toma la acción de seguridad pertinente. |
+| 4 | Seguridad o credenciales no informativas | Advertencia (eventos de seguridad de Accesos marcados como excepción conservan `EXCEPTION`) | Accesos / Seguridad | Se verifica directamente con Accesos, que valida la solicitud y toma la acción de seguridad pertinente. |
 | 5 | Solicitud estándar del catálogo | Informativo | Peticiones | Requisito de un departamento ya contemplado en el catálogo de servicios. |
 | 6 | Falla, degradación o interrupción | Excepción | Incidencias | Restauración del servicio ante una falla puntual, sin buscar todavía la causa de fondo. |
 | 7 | Patrón repetido | Excepción | Problemas | Se registra cuántas veces se repitió el patrón para investigar la causa raíz y documentar posibles soluciones o un **Error conocido**. |
@@ -32,6 +32,8 @@
 | 9 | Ninguna de las anteriores coincide | Excepción | Incidencias | El evento no pudo encontrar una relación; pasa a Incidencias para que se revise y clasifique (**triage manual**). |
 
 - La columna **Tipo** es la clasificación ITIL que **la regla asigna** al evento (Informativo, Advertencia o Excepción); no es una condición de entrada y puede diferir del tipo con el que llegó. Ejemplos: un evento de seguridad que llega como Excepción sale como Advertencia (regla 4); una advertencia que alcanza el umbral sale como Excepción (regla 7).
+- Excepción específica de R4: los eventos contractuales `access.cuenta.bloqueada` y `access.password.cambiada` con `forzado=true` conservan `EXCEPTION` al enrutarse a Accesos. El resto de los eventos de seguridad mantiene la clasificación definida por R4. La detección literal de logins forzados o permisos indebidos queda pendiente de que Accesos los publique en el contrato.
+- Los eventos informativos de seguridad (como los logins exitosos y los fallidos bajo el umbral) no pasan por R4, para conservar su clasificación informativa.
 - Las reglas 1, 2 y 3 se resuelven dentro de Eventos o con la KB; las demás enrutan a otro servicio.
 
 ### 3. Orden de evaluación
@@ -42,7 +44,7 @@
 
 | Posición | Regla | Justificación |
 |---|---|---|
-| 1 | 4 | Seguridad siempre primero, aunque haya solución en la KB o el evento se repita. |
+| 1 | 4 | La seguridad no informativa siempre va primero, aunque haya solución en la KB o el evento se repita. |
 | 2 | 2 | El autoservicio con KB va antes de abrir trabajo en otro servicio. |
 | 3 | 7 | Los patrones repetidos van antes que fallas o advertencias individuales. |
 | 4 | 8 | Un cambio de infraestructura es más específico que una solicitud estándar. |
@@ -73,7 +75,7 @@
 | 1 | `origen = sistema`, `tipo = informativo`, `requiere_accion = false` | `registro` | `informativo` |
 | 2 | `origen = usuario`, `autor_solucion_kb` no vacío | `autor_solucion` | `informativo` |
 | 3 | `tipo = advertencia`, `repeticiones < umbral` | `eventos` | `advertencia` |
-| 4 | `categoria = seguridad` | `accesos` | `advertencia` |
+| 4 | `categoria = seguridad`, `tipo != informativo` | `accesos` | `advertencia` (salvo la excepción contractual de seguridad de Accesos) |
 | 5 | `categoria = solicitud_catalogo` | `peticiones` | `informativo` |
 | 6 | `categoria = falla` | `incidencias` | `excepcion` |
 | 7 | `repeticiones >= umbral` | `problemas` | `excepcion` |
@@ -144,7 +146,7 @@ make test
 | 1 | System event | Informational | Log only | An informational event needs no management; it is kept as a log entry and closes itself, with no intervention. |
 | 2 | Triggered by a user and a KB solution exists | Informational | The author of that solution | Self-service through the knowledge base; the user receives the already written solution. If the survey says "not resolved", the event is redirected to the solution's author. |
 | 3 | Warning below the recurrence threshold | Warning | Events | Isolated or infrequent warning: it is logged and added to a counter. If it exceeds the threshold (N times in T days), it is re-evaluated and moves to Problems (rule 7). |
-| 4 | Security or credentials | Warning | Access / Security | Verified directly with Access, which validates the request and takes the appropriate security action. |
+| 4 | Non-informational security or credentials | Warning (contractual Access security exceptions retain `EXCEPTION`) | Access / Security | Verified directly with Access, which validates the request and takes the appropriate security action. |
 | 5 | Standard catalog request | Informational | Requests | A department requirement already covered by the service catalog. |
 | 6 | Failure, degradation or outage | Exception | Incidents | Service restoration after a one-off failure, without looking for the underlying cause yet. |
 | 7 | Repeated pattern | Exception | Problems | The number of repetitions is recorded to investigate the root cause and document possible solutions or a **Known Error**. |
@@ -152,6 +154,8 @@ make test
 | 9 | None of the above matches | Exception | Incidents | The event could not be matched; it goes to Incidents for review and classification (**manual triage**). |
 
 - The **Type** column is the ITIL classification that **the rule assigns** to the event (Informational, Warning or Exception); it is not an input condition and may differ from the type the event arrived with. Examples: a security event arriving as Exception leaves as Warning (rule 4); a warning that reaches the threshold leaves as Exception (rule 7).
+- R4 exception: contractual `access.cuenta.bloqueada` and `access.password.cambiada` messages with `forzado=true` retain `EXCEPTION` when routed to Access. Other security events keep R4's existing classification. Literal forced-login and improper-permission detection waits for Access to publish those event types in its contract.
+- Informational security events (such as successful logins and failed logins below the threshold) do not pass through R4, preserving their informational classification.
 - Rules 1, 2 and 3 are resolved inside Events or with the KB; the others route to another service.
 
 ### 3. Evaluation order
@@ -162,7 +166,7 @@ make test
 
 | Position | Rule | Rationale |
 |---|---|---|
-| 1 | 4 | Security always first, even if a KB solution exists or the event repeats. |
+| 1 | 4 | Non-informational security always comes first, even if a KB solution exists or the event repeats. |
 | 2 | 2 | KB self-service comes before opening work in another service. |
 | 3 | 7 | Repeated patterns come before individual failures or warnings. |
 | 4 | 8 | An infrastructure change is more specific than a standard request. |
@@ -193,7 +197,7 @@ make test
 | 1 | `origen = sistema`, `tipo = informativo`, `requiere_accion = false` | `registro` | `informativo` |
 | 2 | `origen = usuario`, `autor_solucion_kb` not empty | `autor_solucion` | `informativo` |
 | 3 | `tipo = advertencia`, `repeticiones < umbral` | `eventos` | `advertencia` |
-| 4 | `categoria = seguridad` | `accesos` | `advertencia` |
+| 4 | `categoria = seguridad`, `tipo != informativo` | `accesos` | `advertencia` (except contractual Access security exceptions) |
 | 5 | `categoria = solicitud_catalogo` | `peticiones` | `informativo` |
 | 6 | `categoria = falla` | `incidencias` | `excepcion` |
 | 7 | `repeticiones >= umbral` | `problemas` | `excepcion` |

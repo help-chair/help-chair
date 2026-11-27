@@ -16,6 +16,10 @@ OPERATION_IDS = [
     "listProblemaIncidentes",
     "linkProblemaIncidente",
     "unlinkProblemaIncidente",
+    "listErroresConocidos",
+    "createErrorConocido",
+    "getErrorConocido",
+    "updateErrorConocido",
 ]
 # 401 se documentará cuando se valide el JWT de Accesos (Fase 3).
 PENDING_CODES = {"401"}
@@ -70,3 +74,41 @@ def test_list_is_still_paginated(runtime):
     reference = success["content"]["application/json"]["schema"]["$ref"]
     paginated = runtime["components"]["schemas"][reference.rsplit("/", 1)[-1]]
     assert {"count", "next", "previous", "results"} <= set(paginated["properties"])
+
+
+def test_known_error_list_is_paginated_with_the_contract_filters(runtime):
+    operation = _operations(runtime)["listErroresConocidos"]
+    parameters = {p["name"]: p["schema"] for p in operation["parameters"]}
+    assert parameters["activo"]["type"] == "boolean"
+    assert parameters["q"]["type"] == "string"
+    assert {"page", "page_size"} <= set(parameters)
+    success = operation["responses"]["200"]
+    reference = success["content"]["application/json"]["schema"]["$ref"]
+    paginated = runtime["components"]["schemas"][reference.rsplit("/", 1)[-1]]
+    assert {"count", "next", "previous", "results"} <= set(paginated["properties"])
+
+
+def _component(schema, reference):
+    return schema["components"]["schemas"][reference["$ref"].rsplit("/", 1)[-1]]
+
+
+def _request_schema(schema, operation_id):
+    body = _operations(schema)[operation_id]["requestBody"]
+    return _component(schema, body["content"]["application/json"]["schema"])
+
+
+# Se compara por operación y no por nombre: drf-spectacular antepone "Patched" al cuerpo de PATCH.
+@pytest.mark.parametrize("operation_id", ["createErrorConocido", "updateErrorConocido"])
+def test_known_error_request_bodies_match_the_contract(runtime, contract, operation_id):
+    declared = _request_schema(runtime, operation_id)
+    expected = _request_schema(contract, operation_id)
+    assert set(declared["properties"]) == set(expected["properties"])
+    assert set(declared.get("required", [])) == set(expected.get("required", []))
+
+
+def test_known_error_response_matches_the_contract(runtime, contract):
+    success = _operations(runtime)["getErrorConocido"]["responses"]["200"]
+    declared = _component(runtime, success["content"]["application/json"]["schema"])
+    expected = contract["components"]["schemas"]["ErrorConocido"]
+    assert set(declared["properties"]) == set(expected["properties"])
+    assert set(declared["required"]) == set(expected["required"])

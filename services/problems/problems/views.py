@@ -15,11 +15,14 @@ from rest_framework.exceptions import NotFound
 from rest_framework.response import Response
 
 from core.errors import Conflict
-from core.filters import filter_by_choices
+from core.filters import filter_by_boolean, filter_by_choices, search_text
 from core.schemas import INVALID_DATA, NOT_FOUND, PAGE_OUT_OF_RANGE, ErrorSerializer
-from problems.models import Problem, ProblemIncident
+from problems.models import KnownError, Problem, ProblemIncident
 from problems.serializers import (
     IncidentLinkSerializer,
+    KnownErrorCreateSerializer,
+    KnownErrorReadSerializer,
+    KnownErrorUpdateSerializer,
     ProblemCreateSerializer,
     ProblemIncidentReadSerializer,
     ProblemReadSerializer,
@@ -215,3 +218,77 @@ class ProblemViewSet(
         if not deleted:
             raise NotFound(f"{incident_id} no está vinculado a PRB-{problem.pk}.")
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+# --- Errores conocidos (#273) --------------------------------------------------------------------
+
+# Parámetro del contrato -> campo del modelo.
+KNOWN_ERROR_BOOLEAN_FILTERS = {"activo": "is_active"}
+# Campos en los que busca ``q`` (título, descripción, causa raíz y workaround).
+KNOWN_ERROR_SEARCH_FIELDS = ("title", "description", "root_cause", "workaround")
+
+
+# 401 se declarará cuando se valide el JWT de Accesos (Fase 3).
+@extend_schema_view(
+    list=extend_schema(
+        operation_id="listErroresConocidos",
+        parameters=[
+            OpenApiParameter("activo", OpenApiTypes.BOOL),
+            OpenApiParameter(
+                "q",
+                OpenApiTypes.STR,
+                description="Búsqueda por texto en título, descripción, causa raíz y workaround",
+            ),
+        ],
+        responses={200: KnownErrorReadSerializer, 400: INVALID_DATA, 404: PAGE_OUT_OF_RANGE},
+    ),
+    create=extend_schema(
+        operation_id="createErrorConocido",
+        request=KnownErrorCreateSerializer,
+        responses={
+            201: KnownErrorReadSerializer,
+            400: OpenApiResponse(
+                ErrorSerializer, description="Datos inválidos o `problema_id` inexistente"
+            ),
+        },
+    ),
+    retrieve=extend_schema(
+        operation_id="getErrorConocido",
+        responses={200: KnownErrorReadSerializer, 404: NOT_FOUND},
+    ),
+    partial_update=extend_schema(
+        operation_id="updateErrorConocido",
+        request=KnownErrorUpdateSerializer,
+        responses={200: KnownErrorReadSerializer, 400: INVALID_DATA, 404: NOT_FOUND},
+    ),
+)
+class KnownErrorViewSet(
+    mixins.ListModelMixin,
+    mixins.RetrieveModelMixin,
+    viewsets.GenericViewSet,
+):
+    """Sin PUT ni DELETE: el router no los enruta y DRF responde 405."""
+
+    queryset = KnownError.objects.all()
+    serializer_class = KnownErrorReadSerializer
+
+    def get_queryset(self):
+        queryset = KnownError.objects.order_by("-created_at", "-id")
+        if self.action == "list":
+            params = self.request.query_params
+            queryset = filter_by_boolean(queryset, params, KNOWN_ERROR_BOOLEAN_FILTERS)
+            queryset = search_text(queryset, params, KNOWN_ERROR_SEARCH_FIELDS)
+        return queryset
+
+    def create(self, request, *args, **kwargs):
+        serializer = KnownErrorCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        known_error = serializer.save()
+        return Response(KnownErrorReadSerializer(known_error).data, status=status.HTTP_201_CREATED)
+
+    def partial_update(self, request, *args, **kwargs):
+        known_error = self.get_object()
+        serializer = KnownErrorUpdateSerializer(known_error, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        known_error = serializer.save()
+        return Response(KnownErrorReadSerializer(known_error).data)

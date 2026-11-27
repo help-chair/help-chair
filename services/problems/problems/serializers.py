@@ -6,6 +6,9 @@
 - ``StateChangeSerializer``: ``CambioEstado``; aplica las reglas de ``problems.states``.
 - ``ProblemIncidentReadSerializer``: lectura (``ProblemaIncidente``).
 - ``IncidentLinkSerializer``: ``VincularIncidente``; solo valida ``incidente_id``.
+- ``KnownErrorReadSerializer``: lectura (``ErrorConocido``).
+- ``KnownErrorCreateSerializer``: ``ErrorConocidoCrear``; ``problema_id`` inexistente es 400.
+- ``KnownErrorUpdateSerializer``: ``ErrorConocidoActualizar``; ignora los de solo lectura.
 
 ``component_name`` conserva en el esquema runtime los nombres de componente del contrato, y
 ``source=`` mapea cada nombre del JSON (español, del contrato) al campo del modelo (inglés).
@@ -20,7 +23,7 @@ from rest_framework.settings import api_settings
 
 from core.errors import Conflict
 from problems import states
-from problems.models import Problem, ProblemIncident
+from problems.models import KnownError, Problem, ProblemIncident
 
 # Nombre en el JSON del contrato -> campo del modelo. El contrato no cambia: solo el código.
 PROBLEM_JSON_FIELDS = {
@@ -150,3 +153,73 @@ class IncidentLinkSerializer(serializers.Serializer):
     """El ID se guarda tal cual: no se consulta ni valida contra el servicio de Incidencias."""
 
     incidente_id = serializers.CharField(source="incident_id", min_length=1, max_length=64)
+
+
+# --- Errores conocidos (#273) --------------------------------------------------------------------
+
+KNOWN_ERROR_JSON_FIELDS = {
+    "titulo": "title",
+    "descripcion": "description",
+    "causa_raiz": "root_cause",
+    "workaround": "workaround",
+    "articulo_kb_id": "kb_article_id",
+    "activo": "is_active",
+}
+KNOWN_ERROR_SOURCES = {
+    name: {"source": source} for name, source in KNOWN_ERROR_JSON_FIELDS.items() if name != source
+}
+
+
+@extend_schema_serializer(component_name="ErrorConocido")
+class KnownErrorReadSerializer(serializers.ModelSerializer):
+    """Solo lectura; ``articulo_kb_id`` es texto: no se consulta el servicio de Knowledge."""
+
+    problema_id = serializers.IntegerField(source="problem_id", read_only=True)
+
+    class Meta:
+        model = KnownError
+        fields = ("id", "problema_id", *KNOWN_ERROR_JSON_FIELDS, "creado_en", "actualizado_en")
+        read_only_fields = fields
+        extra_kwargs = {
+            **KNOWN_ERROR_SOURCES,
+            "creado_en": {"source": "created_at"},
+            "actualizado_en": {"source": "updated_at"},
+        }
+
+
+@extend_schema_serializer(component_name="ErrorConocidoCrear")
+class KnownErrorCreateSerializer(serializers.ModelSerializer):
+    # El contrato pide 400 (no 404) si el problema no existe: es un dato inválido del cuerpo.
+    problema_id = serializers.PrimaryKeyRelatedField(
+        source="problem",
+        queryset=Problem.objects.all(),
+        error_messages={
+            "does_not_exist": "No existe el problema {pk_value}.",
+            "incorrect_type": "Debe ser el ID numérico de un problema.",
+        },
+    )
+
+    class Meta:
+        model = KnownError
+        fields = ("problema_id", *KNOWN_ERROR_JSON_FIELDS)
+        extra_kwargs = KNOWN_ERROR_SOURCES
+
+
+@extend_schema_serializer(component_name="ErrorConocidoActualizar")
+class KnownErrorUpdateSerializer(serializers.ModelSerializer):
+    """Los campos de solo lectura (``problema_id``, ``id``, fechas) se ignoran, como en DRF.
+
+    Si el cuerpo no trae ningún campo modificable es un 400 (``minProperties: 1``).
+    """
+
+    class Meta:
+        model = KnownError
+        fields = tuple(KNOWN_ERROR_JSON_FIELDS)
+        extra_kwargs = KNOWN_ERROR_SOURCES
+
+    def to_internal_value(self, data):
+        if isinstance(data, Mapping) and not any(field in self.fields for field in data):
+            raise serializers.ValidationError(
+                {api_settings.NON_FIELD_ERRORS_KEY: "Envía al menos un campo modificable."}
+            )
+        return super().to_internal_value(data)

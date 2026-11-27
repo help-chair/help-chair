@@ -1,9 +1,10 @@
 from rest_framework.routers import SimpleRouter
 
-from problems.views import ProblemViewSet
+from problems.views import KnownErrorViewSet, ProblemViewSet
 
 router = SimpleRouter()
-# "problemas" es la ruta del contrato; el basename solo nombra las URL internamente.
+# "problemas" y "errores-conocidos" son rutas del contrato; el basename solo nombra las URL.
 router.register("problemas", ProblemViewSet, basename="problem")
+router.register("errores-conocidos", KnownErrorViewSet, basename="known-error")
 
 urlpatterns = router.urls

@@ -3,61 +3,70 @@ import uuid
 import pytest
 from django.urls import reverse
 
-from articles.models import Articulo, Categoria
+from articles.models import Article, Category
 
 pytestmark = pytest.mark.django_db
 
 
-def test_admin_guarda_borrador_sin_usar_staff_como_autor(admin_client):
-    respuesta = admin_client.post(
-        reverse("admin:articles_articulo_add"),
-        {"titulo": "", "contenido": "", "estado": "borrador", "visibilidad": "soporte"},
+def test_admin_saves_draft_without_using_staff_as_author(admin_client):
+    response = admin_client.post(
+        reverse("admin:articles_article_add"),
+        {"title": "", "content": "", "status": "borrador", "visibility": "soporte"},
     )
-    assert respuesta.status_code == 302
-    articulo = Articulo.objects.get()
-    assert articulo.autor_id is None
-    borrar = reverse("admin:articles_articulo_delete", args=[articulo.pk])
-    assert admin_client.get(borrar).status_code == 403
+    assert response.status_code == 302
+    article = Article.objects.get()
+    assert article.author_id is None
+    delete_url = reverse("admin:articles_article_delete", args=[article.pk])
+    assert admin_client.get(delete_url).status_code == 403
 
 
-def test_admin_muestra_errores_sin_guardar_publicado_incompleto(admin_client):
-    articulo = Articulo.objects.create()
-    respuesta = admin_client.post(
-        reverse("admin:articles_articulo_change", args=[articulo.pk]),
-        {"titulo": " \t", "contenido": "", "estado": "publicado", "visibilidad": "empresa"},
+def test_admin_shows_errors_without_saving_incomplete_published(admin_client):
+    article = Article.objects.create()
+    response = admin_client.post(
+        reverse("admin:articles_article_change", args=[article.pk]),
+        {"title": " \t", "content": "", "status": "publicado", "visibility": "empresa"},
     )
-    assert respuesta.status_code == 200
-    assert "titulo" in respuesta.context["adminform"].form.errors
-    articulo.refresh_from_db()
-    assert articulo.estado == "borrador"
+    assert response.status_code == 200
+    assert "title" in response.context["adminform"].form.errors
+    article.refresh_from_db()
+    assert article.status == "borrador"
 
 
-def test_admin_exige_borrador_inicial_y_gestiona_fechas_y_autor(admin_client):
-    categoria = Categoria.objects.create(codigo="red", nombre="Red")
-    autor = uuid.uuid4()
-    datos = {
-        "titulo": "Ejemplo",
-        "contenido": "Datos sintéticos",
-        "categoria": categoria.pk,
-        "autor_id": str(autor),
-        "estado": "publicado",
-        "visibilidad": "empresa",
+def test_admin_requires_initial_draft_and_manages_dates_and_author(admin_client):
+    category = Category.objects.create(code="red", name="Red")
+    author = uuid.uuid4()
+    data = {
+        "title": "Ejemplo",
+        "content": "Datos sintéticos",
+        "category": category.pk,
+        "author_id": str(author),
+        "status": "publicado",
+        "visibility": "empresa",
     }
-    alta = reverse("admin:articles_articulo_add")
-    assert "estado" in admin_client.post(alta, datos).context["adminform"].form.errors
-    assert not Articulo.objects.exists()
-    datos["estado"] = "borrador"
-    assert admin_client.post(alta, datos).status_code == 302
-    articulo = Articulo.objects.get()
-    editar = reverse("admin:articles_articulo_change", args=[articulo.pk])
-    datos.update(estado="publicado", autor_id=str(uuid.uuid4()), publicado_en_0="1900-01-01")
-    assert admin_client.post(editar, datos).status_code == 302
-    articulo.refresh_from_db()
-    assert articulo.autor_id == autor  # El POST no puede sustituir el autor ya fijado.
-    assert articulo.publicado_en >= articulo.creado_en
-    fecha = articulo.publicado_en
-    datos["estado"] = "archivado"
-    assert admin_client.post(editar, datos).status_code == 302
-    articulo.refresh_from_db()
-    assert articulo.publicado_en == fecha
-    assert articulo.archivado_en >= fecha
+    add_url = reverse("admin:articles_article_add")
+    assert "status" in admin_client.post(add_url, data).context["adminform"].form.errors
+    assert not Article.objects.exists()
+    data["status"] = "borrador"
+    assert admin_client.post(add_url, data).status_code == 302
+    article = Article.objects.get()
+    change_url = reverse("admin:articles_article_change", args=[article.pk])
+    data.update(status="publicado", author_id=str(uuid.uuid4()), published_at_0="1900-01-01")
+    assert admin_client.post(change_url, data).status_code == 302
+    article.refresh_from_db()
+    assert article.author_id == author  # El POST no puede sustituir el autor ya fijado.
+    assert article.published_at >= article.created_at
+    date = article.published_at
+    data["status"] = "archivado"
+    assert admin_client.post(change_url, data).status_code == 302
+    article.refresh_from_db()
+    assert article.published_at == date
+    assert article.archived_at >= date
+
+
+def test_admin_labels_stay_in_spanish(admin_client):
+    response = admin_client.get(reverse("admin:articles_article_add"))
+    form = response.context["adminform"].form
+    assert form.fields["category"].label == "Categoría"
+    assert form.fields["status"].label == "Estado"
+    assert Category._meta.verbose_name_plural == "categorías"
+    assert Article._meta.verbose_name_plural == "artículos"

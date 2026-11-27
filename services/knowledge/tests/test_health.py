@@ -18,7 +18,7 @@ def test_ready_ok(client):
     assert response.json()["database"] == "up"
 
 
-def test_ready_devuelve_503_si_la_bd_falla(client, monkeypatch, caplog):
+def test_ready_returns_503_when_the_database_fails(client, monkeypatch, caplog):
     private_value = secrets.token_urlsafe(40)
 
     def boom():

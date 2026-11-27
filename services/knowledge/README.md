@@ -27,6 +27,13 @@ Rutas actuales: GET `/health/live`, `/health/ready`, `/api/schema/` y
 `/api/docs/`. El esquema generado documenta el runtime, no implementa el
 contrato previsto de artículos/búsqueda.
 
+Nomenclatura: el código usa identificadores en inglés (`Category`, `Article`,
+`Article.Status`, `Article.Visibility`, `code`, `title`, `status`...) desde la migración
+`0002_english_identifiers`, que solo renombra tablas, columnas, CHECK e índice sin tocar
+datos. `verbose_name`, etiquetas y mensajes siguen en español; los valores guardados
+(`borrador`, `empresa`...) y los nombres públicos del contrato no cambian. La tabla de
+renombres está en [el esquema](docs/article-schema.md#identificadores-en-inglés-migración-0002).
+
 ### Configuración del proceso
 
 El sistema, contenedor o CI suministra el entorno antes de iniciar el proceso.
@@ -192,6 +199,12 @@ overwrites. Its result describes only the runtime, separately from business desi
 Current GET routes: `/health/live`, `/health/ready`, `/api/schema/` and
 `/api/docs/`. The generated schema describes runtime routes, not an
 implementation of the planned article/search contract.
+
+Naming: code identifiers are in English (`Category`, `Article`, `Article.Status`,
+`Article.Visibility`, `code`, `title`, `status`...) since migration
+`0002_english_identifiers`, which only renames tables, columns, CHECK constraints and the
+index without touching data. `verbose_name`, labels and messages stay in Spanish; stored
+values (`borrador`, `empresa`...) and the contract's public names are unchanged.
 
 ### Process configuration
 

@@ -1,4 +1,8 @@
-"""Esquema inicial de KB. Las identidades de Accesos son referencias, no FK."""
+"""Esquema de KB. Las identidades de Accesos son referencias, no FK.
+
+Los identificadores de código están en inglés; ``verbose_name``, choices y mensajes siguen en
+español. Los valores guardados (``"borrador"``, ``"empresa"``...) son los del contrato.
+"""
 
 import re
 import uuid
@@ -11,120 +15,132 @@ from django.db.models import F, Q
 from django.utils import timezone
 
 
-class Categoria(models.Model):
-    codigo = models.CharField(
+class Category(models.Model):
+    code = models.CharField(
+        "código",
         max_length=50,
         primary_key=True,
         validators=[RegexValidator(r"\A[a-z][a-z0-9_]{0,49}\Z", "Usa un código en minúsculas.")],
     )
-    nombre = models.CharField(
-        max_length=100, validators=[RegexValidator(r"\S", "Escribe un nombre no vacío.")]
+    name = models.CharField(
+        "nombre",
+        max_length=100,
+        validators=[RegexValidator(r"\S", "Escribe un nombre no vacío.")],
     )
-    activa = models.BooleanField(default=True)
-    creado_en = models.DateTimeField(default=timezone.now, editable=False)
-    actualizado_en = models.DateTimeField(auto_now=True)
+    is_active = models.BooleanField("activa", default=True)
+    created_at = models.DateTimeField("creado en", default=timezone.now, editable=False)
+    updated_at = models.DateTimeField("actualizado en", auto_now=True)
 
     class Meta:
-        ordering = ["nombre", "codigo"]
+        verbose_name = "categoría"
+        verbose_name_plural = "categorías"
+        ordering = ["name", "code"]
         constraints = [
             models.CheckConstraint(
-                condition=Q(codigo__regex=r"^[a-z][a-z0-9_]{0,49}$"),
-                name="kb_categoria_codigo_valido",
+                condition=Q(code__regex=r"^[a-z][a-z0-9_]{0,49}$"),
+                name="kb_category_code_valid",
                 violation_error_message="El código debe usar minúsculas, números o guion bajo.",
             ),
             models.CheckConstraint(
-                condition=Q(nombre__regex=r"[^\s]"),
-                name="kb_categoria_nombre_no_blanco",
+                condition=Q(name__regex=r"[^\s]"),
+                name="kb_category_name_not_blank",
                 violation_error_message="La categoría necesita un nombre no vacío.",
             ),
             models.CheckConstraint(
-                condition=Q(actualizado_en__gte=F("creado_en")),
-                name="kb_categoria_fechas_validas",
+                condition=Q(updated_at__gte=F("created_at")),
+                name="kb_category_dates_valid",
                 violation_error_message="La actualización no puede preceder a la creación.",
             ),
         ]
 
     def __str__(self):
-        return self.nombre
+        return self.name
 
 
-class Articulo(models.Model):
-    class Estado(models.TextChoices):
-        BORRADOR = "borrador", "Borrador"
-        PUBLICADO = "publicado", "Publicado"
-        ARCHIVADO = "archivado", "Archivado"
+class Article(models.Model):
+    class Status(models.TextChoices):
+        DRAFT = "borrador", "Borrador"
+        PUBLISHED = "publicado", "Publicado"
+        ARCHIVED = "archivado", "Archivado"
 
-    class Visibilidad(models.TextChoices):
-        EMPRESA = "empresa", "Usuarios de la empresa"
-        SOPORTE = "soporte", "Solo soporte"
+    class Visibility(models.TextChoices):
+        COMPANY = "empresa", "Usuarios de la empresa"
+        SUPPORT = "soporte", "Solo soporte"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    titulo = models.CharField("título", max_length=200, blank=True, default="")
-    contenido = models.TextField(blank=True, default="")
-    categoria = models.ForeignKey(
-        Categoria, on_delete=models.PROTECT, null=True, blank=True, related_name="articulos"
+    title = models.CharField("título", max_length=200, blank=True, default="")
+    content = models.TextField("contenido", blank=True, default="")
+    category = models.ForeignKey(
+        Category,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="articles",
+        verbose_name="categoría",
     )
-    estado = models.CharField(max_length=12, choices=Estado.choices, default=Estado.BORRADOR)
-    visibilidad = models.CharField(
-        max_length=16, choices=Visibilidad.choices, default=Visibilidad.SOPORTE
+    status = models.CharField("estado", max_length=12, choices=Status.choices, default=Status.DRAFT)
+    visibility = models.CharField(
+        "visibilidad", max_length=16, choices=Visibility.choices, default=Visibility.SUPPORT
     )
-    autor_id = models.UUIDField(
+    author_id = models.UUIDField(
+        "ID del autor",
         null=True,
         blank=True,
         help_text="UUID externo de Accesos; no es el ID del usuario staff de este admin.",
     )
-    creado_en = models.DateTimeField(default=timezone.now, editable=False)
-    actualizado_en = models.DateTimeField(auto_now=True)
-    publicado_en = models.DateTimeField(null=True, blank=True)
-    archivado_en = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField("creado en", default=timezone.now, editable=False)
+    updated_at = models.DateTimeField("actualizado en", auto_now=True)
+    published_at = models.DateTimeField("publicado en", null=True, blank=True)
+    archived_at = models.DateTimeField("archivado en", null=True, blank=True)
 
     class Meta:
         verbose_name = "artículo"
-        ordering = ["-actualizado_en", "id"]
+        verbose_name_plural = "artículos"
+        ordering = ["-updated_at", "id"]
         indexes = [
             models.Index(
-                fields=["estado", "visibilidad", "-actualizado_en", "id"],
-                name="kb_articulo_consulta_idx",
+                fields=["status", "visibility", "-updated_at", "id"],
+                name="kb_article_query_idx",
             )
         ]
         constraints = [
             models.CheckConstraint(
-                condition=Q(estado__in=["borrador", "publicado", "archivado"]),
-                name="kb_articulo_estado_valido",
+                condition=Q(status__in=["borrador", "publicado", "archivado"]),
+                name="kb_article_status_valid",
                 violation_error_message="El estado no está permitido.",
             ),
             models.CheckConstraint(
-                condition=Q(visibilidad__in=["empresa", "soporte"]),
-                name="kb_articulo_visibilidad_valida",
+                condition=Q(visibility__in=["empresa", "soporte"]),
+                name="kb_article_visibility_valid",
                 violation_error_message="La visibilidad no está permitida.",
             ),
             models.CheckConstraint(
-                condition=~Q(estado="publicado")
+                condition=~Q(status="publicado")
                 | (
-                    Q(titulo__regex=r"[^\s]", contenido__regex=r"[^\s]")
-                    & Q(categoria__isnull=False, autor_id__isnull=False, publicado_en__isnull=False)
+                    Q(title__regex=r"[^\s]", content__regex=r"[^\s]")
+                    & Q(category__isnull=False, author_id__isnull=False, published_at__isnull=False)
                 ),
-                name="kb_articulo_publicacion_completa",
+                name="kb_article_publication_complete",
                 violation_error_message=(
                     "Para publicar completa título, contenido, categoría, autor y fecha."
                 ),
             ),
             models.CheckConstraint(
-                condition=(Q(estado="archivado", archivado_en__isnull=False))
-                | (~Q(estado="archivado") & Q(archivado_en__isnull=True)),
-                name="kb_articulo_archivo_consistente",
+                condition=(Q(status="archivado", archived_at__isnull=False))
+                | (~Q(status="archivado") & Q(archived_at__isnull=True)),
+                name="kb_article_archive_consistent",
                 violation_error_message="La fecha de archivo corresponde solo al estado archivado.",
             ),
             models.CheckConstraint(
-                condition=Q(actualizado_en__gte=F("creado_en"))
-                & (Q(publicado_en__isnull=True) | Q(publicado_en__gte=F("creado_en")))
-                & (Q(archivado_en__isnull=True) | Q(archivado_en__gte=F("creado_en")))
+                condition=Q(updated_at__gte=F("created_at"))
+                & (Q(published_at__isnull=True) | Q(published_at__gte=F("created_at")))
+                & (Q(archived_at__isnull=True) | Q(archived_at__gte=F("created_at")))
                 & (
-                    Q(archivado_en__isnull=True)
-                    | Q(publicado_en__isnull=True)
-                    | Q(archivado_en__gte=F("publicado_en"))
+                    Q(archived_at__isnull=True)
+                    | Q(published_at__isnull=True)
+                    | Q(archived_at__gte=F("published_at"))
                 ),
-                name="kb_articulo_fechas_validas",
+                name="kb_article_dates_valid",
                 violation_error_message=(
                     "Revisa el orden de las fechas de creación, publicación y archivo."
                 ),
@@ -132,32 +148,32 @@ class Articulo(models.Model):
         ]
 
     def __str__(self):
-        return self.titulo or f"Borrador {self.pk}"
+        return self.title or f"Borrador {self.pk}"
 
     def clean(self):
         super().clean()
-        errores = {}
-        if self.estado == self.Estado.PUBLICADO:
-            for campo in ("titulo", "contenido", "categoria_id", "autor_id", "publicado_en"):
-                valor = getattr(self, campo)
-                if not valor or (isinstance(valor, str) and not re.search(r"\S", valor)):
-                    errores["categoria" if campo == "categoria_id" else campo] = (
+        errors = {}
+        if self.status == self.Status.PUBLISHED:
+            for field in ("title", "content", "category_id", "author_id", "published_at"):
+                value = getattr(self, field)
+                if not value or (isinstance(value, str) and not re.search(r"\S", value)):
+                    errors["category" if field == "category_id" else field] = (
                         "Este dato es obligatorio para publicar."
                     )
             if (
-                self.categoria_id
-                and Categoria.objects.filter(pk=self.categoria_id, activa=False).exists()
+                self.category_id
+                and Category.objects.filter(pk=self.category_id, is_active=False).exists()
             ):
-                errores["categoria"] = "Elige una categoría activa para publicar."
-        if (self.estado == self.Estado.ARCHIVADO) != (self.archivado_en is not None):
-            errores["archivado_en"] = "Indica la fecha solo para un artículo archivado."
-        for anterior, posterior in (
-            ("creado_en", "publicado_en"),
-            ("creado_en", "archivado_en"),
-            ("publicado_en", "archivado_en"),
+                errors["category"] = "Elige una categoría activa para publicar."
+        if (self.status == self.Status.ARCHIVED) != (self.archived_at is not None):
+            errors["archived_at"] = "Indica la fecha solo para un artículo archivado."
+        for earlier, later in (
+            ("created_at", "published_at"),
+            ("created_at", "archived_at"),
+            ("published_at", "archived_at"),
         ):
-            inicio, fin = getattr(self, anterior), getattr(self, posterior)
-            if isinstance(inicio, datetime) and isinstance(fin, datetime) and fin < inicio:
-                errores[posterior] = "Esta fecha no puede preceder a la anterior."
-        if errores:
-            raise ValidationError(errores)
+            start, end = getattr(self, earlier), getattr(self, later)
+            if isinstance(start, datetime) and isinstance(end, datetime) and end < start:
+                errors[later] = "Esta fecha no puede preceder a la anterior."
+        if errors:
+            raise ValidationError(errors)

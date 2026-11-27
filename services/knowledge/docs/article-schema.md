@@ -85,7 +85,8 @@ al editarlo y elegir publicado/archivado el formulario asigna las fechas del
 servidor. Estas fechas son de solo lectura, no valores enviados por el cliente.
 No permite eliminar artículos, porque otros servicios podrían referenciarlos;
 se conserva UUID/contenido/última publicación al archivarlos. No se implementa
-todavía una máquina de transiciones, revisión, historial editorial o CRUD REST.
+todavía una máquina de transiciones, revisión ni historial editorial. El CRUD REST de
+artículos (#274) crea y edita solo borradores: ver el README del servicio.
 
 ## Identificadores en inglés (migración 0002)
 
@@ -159,7 +160,9 @@ al mismo artículo. No se añade error_conocido_id inverso ni copia de identidad
 La validación contractual ya registrada comprueba cuatro proyecciones de fixture;
 ni esa validación ni Prism demuestran reglas de BD, JWT, ranking o integración.
 
-Las cinco operaciones de negocio del PR #230 son previstas. Las rutas health
+De las cinco operaciones de negocio del PR #230, #274 implementa listar (sin `q`), crear,
+consultar y editar borradores; la búsqueda `q` y `consultarSoluciones` siguen previstas para
+#275, y los permisos dependen del JWT de Accesos (D-29). Las rutas health
 sí existen, pero SELECT 1 no demuestra migraciones aplicadas. Conservar las
 decisiones abiertas de permisos, prefijo, errores, paginación y aplicabilidad;
 no convertir este contraste en un acuerdo aprobado.

@@ -12,9 +12,9 @@ El [esquema y sus límites](docs/article-schema.md) incluyen migración y admin.
 La [matriz de evidencia y conciliación](docs/foundations-evidence.md) distingue
 pruebas locales, cobertura KB de #111/#135/#136 y revisiones pendientes.
 El [contrato v0 propuesto de #230](https://github.com/help-chair/help-chair/blob/8666c03416c7862e470efaf5c7a273ec32c30087/contracts/knowledge/openapi.yaml)
-ya está integrado en develop por #230; sus operaciones de negocio siguen sin implementarse.
-Las referencias de Accesos son externas; no se consultan otras bases de datos.
-El CRUD REST, búsqueda y permisos de negocio corresponden a incrementos posteriores.
+ya está integrado en develop por #230. El CRUD de artículos (#274) está implementado; la
+búsqueda `q` y `/soluciones/` llegan en #275 y los permisos de negocio dependen del JWT de
+Accesos (D-29). Las referencias de Accesos son externas; no se consultan otras bases de datos.
 Clientes previstos: Eventos, Incidencias, Problemas y Service Desk. KB no
 registra problemas o errores conocidos ni decide la aplicabilidad de una
 solución. Accesos emite identidades; la API futura deberá validar su contexto.
@@ -23,9 +23,60 @@ el diseño v0 revisado en #112/#134. `make openapi` exige OPENAPI_OUTPUT con una
 explícita fuera de `contracts/`; rechaza el destino canónico. El resultado describe
 solo el runtime y se mantiene separado del contrato de negocio previsto.
 
-Rutas actuales: GET `/health/live`, `/health/ready`, `/api/schema/` y
-`/api/docs/`. El esquema generado documenta el runtime, no implementa el
-contrato previsto de artículos/búsqueda.
+Rutas actuales:
+
+| Método y ruta | operationId | Estado |
+|---|---|---|
+| GET `/api/knowledge/v1/articulos/` | `listarArticulos` | #274 (sin `q`, que llega en #275) |
+| POST `/api/knowledge/v1/articulos/` | `crearArticulo` | #274 |
+| GET `/api/knowledge/v1/articulos/{id}/` | `consultarArticulo` | #274 |
+| PATCH `/api/knowledge/v1/articulos/{id}/` | `actualizarArticulo` | #274 |
+| GET `/api/knowledge/v1/soluciones/` | `consultarSoluciones` | Pendiente (#275) |
+| GET `/health/live`, `/health/ready` | `saludProceso`, `saludBaseDatos` | Existente |
+| GET `/api/schema/`, `/api/docs/` | — | Esquema runtime y Swagger UI |
+
+El esquema generado documenta el runtime; el contrato de `contracts/knowledge/` sigue siendo
+la referencia y las pruebas comparan ambos.
+
+### API de artículos (#274)
+
+- **Alta (POST):** todo artículo nace en `borrador`, con `visibilidad=soporte` si no se indica.
+  Acepta solo `titulo` (≤200), `contenido` (Markdown, se guarda tal cual), `categoria`
+  (código o `null`) y `visibilidad`; un cuerpo vacío crea un borrador incompleto. Cualquier otro
+  campo es un 400, incluidos los que gestiona el servidor (`id`, `estado`, `autor_id` y fechas).
+  Responde 201 con el artículo y la cabecera `Location` relativa.
+- **Consulta (GET por id):** el id es el UUID canónico; un id que no sea UUID es un 400 y uno
+  inexistente o no accesible es un 404, sin revelar si existe.
+- **Edición (PATCH):** solo sobre borradores; un publicado o archivado responde 409
+  `estado_no_editable` (se comprueba antes que el cuerpo). Edita los mismos campos que el alta;
+  lo omitido se conserva, `categoria: null` quita la categoría y un cuerpo vacío es un 400.
+  Publicar, retirar y archivar no se hacen por PATCH. La fila se bloquea durante la edición.
+- **Listado (GET):** orden `actualizado_en` descendente e `id` ascendente; `page` (desde 1) y
+  `page_size` (20 por defecto, máximo 100; un valor mayor se recorta). Página fuera de rango:
+  404, salvo la primera página vacía (200). Filtros: `estado` (borrador, publicado, archivado)
+  y `categoria` por código local; un código con formato válido pero desconocido devuelve lista
+  vacía y uno con formato inválido es un 400.
+- **Búsqueda `q`:** el contrato la define en el listado, pero llega con la búsqueda full-text
+  en **#275**. Hasta entonces, enviar `q` responde 400 (`campos.q`) en lugar de devolver la
+  lista sin filtrar, que parecería un resultado de búsqueda. `/soluciones/` también es #275.
+- **Errores:** siempre `{codigo, detalle, campos?}` (`core/errors.py`): `datos_invalidos` (400),
+  `no_encontrado` (404), `estado_no_editable` (409), `servicio_no_disponible` (503 si la BD
+  no responde; nunca una lista vacía) y, para estados que el contrato no define, los códigos de
+  Problemas (`metodo_no_permitido`, `tipo_no_soportado`...). Solo se acepta y devuelve JSON.
+- **Autorización (pendiente de D-29):** vive únicamente en `articles/access.py`
+  (`ArticlePermission`, `visible_articles`, `author_id_for`). Hasta validar el JWT de Accesos
+  no hay autenticación (ni la sesión del admin ni Basic Auth cuentan en la API), toda solicitud
+  se trata como soporte autorizado y `autor_id` queda en `null`. Cuando llegue el JWT solo
+  cambia ese módulo: la vista ya aplica la audiencia antes de los filtros (ningún filtro la
+  amplía) y responde 404 a lo no visible. 401 y 403 aún no se declaran en el esquema runtime.
+- **Código:** `articles/serializers.py` mapea los nombres del contrato a los campos en inglés
+  con `source=`; `articles/views.py` y `articles/urls.py` definen las rutas; `core/` contiene
+  errores, paginación, filtros y piezas de esquema (adaptados de Problems, sin importarlos).
+- **Pruebas:** `tests/test_api_articles_{list,create,detail,access}.py` por endpoint y
+  `tests/test_runtime_schema.py` (operationId, rutas, códigos, parámetros y campos frente al
+  contrato). Las respuestas se validan contra los esquemas del contrato y los cuatro ejemplos
+  de lectura se comparan con la fixture canónica. `tests/factories.py` define
+  `CategoryFactory` y `ArticleFactory`.
 
 Nomenclatura: el código usa identificadores en inglés (`Category`, `Article`,
 `Article.Status`, `Article.Visibility`, `code`, `title`, `status`...) desde la migración
@@ -185,9 +236,9 @@ The [schema and limitations](docs/article-schema.md) cover migration and admin.
 The [evidence and reconciliation](docs/foundations-evidence.md) separates local
 verification, the Knowledge portion of #111/#135/#136 and pending reviews.
 The [proposed contract in #230](https://github.com/help-chair/help-chair/blob/8666c03416c7862e470efaf5c7a273ec32c30087/contracts/knowledge/openapi.yaml)
-is integrated in develop through #230; its business operations remain unimplemented.
+is integrated in develop through #230. Article CRUD (#274) is implemented; `q` search and
+`/soluciones/` arrive in #275, and business authorization depends on the Access JWT (D-29).
 Access identities remain external references; no other service database is read.
-REST CRUD, search and business authorization belong to subsequent increments.
 Planned clients are Events, Incidents, Problems and Service Desk. KB does not
 record problems/known errors or decide applicability. Access issues identities;
 the future business API must validate their context.
@@ -196,9 +247,20 @@ exporting the currently implemented routes does not replace it. `make openapi`
 requires an explicit OPENAPI_OUTPUT path outside `contracts/` and rejects contract
 overwrites. Its result describes only the runtime, separately from business design.
 
-Current GET routes: `/health/live`, `/health/ready`, `/api/schema/` and
-`/api/docs/`. The generated schema describes runtime routes, not an
-implementation of the planned article/search contract.
+Current routes: GET/POST `/api/knowledge/v1/articulos/` and GET/PATCH
+`/api/knowledge/v1/articulos/{id}/` (#274), plus `/health/live`, `/health/ready`,
+`/api/schema/` and `/api/docs/`. `/soluciones/` and the list's `q` search arrive in #275.
+
+Article API (#274): new articles are always drafts (`soporte` audience by default); request
+bodies accept only `titulo`, `contenido`, `categoria` and `visibilidad`, and any other field is
+a 400. PATCH edits drafts only (409 `estado_no_editable` otherwise); an empty body is a 400 and
+`categoria: null` clears the category. A non-UUID id is a 400, a missing or inaccessible one a
+404. The list is ordered by `actualizado_en` desc and `id` asc, paginated with `page`/`page_size`
+(20 by default, max 100), and filtered by `estado` and `categoria` code (an unknown code returns
+an empty list). Sending `q` returns 400 until #275. Errors always use `{codigo, detalle,
+campos?}`; an unreachable database is a 503. Authorization lives only in `articles/access.py`:
+until the Access JWT is validated (D-29) there is no authentication, every request is treated as
+authorized support staff and `autor_id` stays `null`.
 
 Naming: code identifiers are in English (`Category`, `Article`, `Article.Status`,
 `Article.Visibility`, `code`, `title`, `status`...) since migration

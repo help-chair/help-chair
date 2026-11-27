@@ -46,7 +46,7 @@ def test_operation_matches_the_contract(generated, contract, path, method):
     operation_id, codes = OPERATIONS[(path, method)]
 
     assert contract["paths"][path][method]["operationId"] == operation_id
-    implemented = generated["paths"][API_PREFIX + path][method]
+    implemented = generated["paths"][path][method]
     assert implemented["operationId"] == operation_id
     assert codes <= set(implemented["responses"])
 

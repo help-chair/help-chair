@@ -72,9 +72,14 @@ def test_openapi_declares_events_v1(openapi):
     ]
 
     paths = openapi["paths"]
-    assert set(paths) == {"/events", "/events/{id}"}
+    assert set(paths) == {
+        "/events",
+        "/events/{id}",
+        "/events/{id}/transitions",
+        "/events/{id}/history",
+    }
     assert {"get", "post"} <= set(paths["/events"])
-    assert {"get"} == set(paths["/events/{id}"])
+    assert {"get", "patch"} == set(paths["/events/{id}"])
 
 
 def test_openapi_declares_gateway_security(openapi):

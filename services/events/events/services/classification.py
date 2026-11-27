@@ -93,17 +93,18 @@ class WatchResult:
     recurrence: Recurrence
 
 
-def watch_warning(event, *, previous_count=0) -> WatchResult | None:
+def watch_warning(event, *, previous_count=0, current_count=None) -> WatchResult | None:
     """Regla 3: advertencia bajo el umbral -> vigilancia; alerta al alcanzar el umbral.
 
     `previous_count` es el contador antes de esta ocurrencia; así la alerta se emite una
-    sola vez, cuando el contador cruza el umbral. Aquí no se enruta (eso es la regla 7,
-    fase 3): solo se registra la alerta en el historial y en el log.
+    sola vez, cuando el contador cruza el umbral. `current_count` es el n_eventos_similares de
+    la ventana T (si no se indica, se usa `event.occurrence_count`). Aquí no se enruta (eso es
+    la regla 7, fase 3): solo se registra la alerta en el historial y en el log.
     """
     if event.event_type != EventType.WARNING:
         return None
     recurrence = resolve_recurrence(event)
-    count = event.occurrence_count
+    count = event.occurrence_count if current_count is None else current_count
     exceeded = count >= recurrence.threshold_count
     alert = previous_count < recurrence.threshold_count <= count
     if alert:

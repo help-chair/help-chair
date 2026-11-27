@@ -18,6 +18,7 @@ from .choices import (
     EventState,
     EventType,
     Impact,
+    MatchKind,
     ModifierField,
     OutboxStatus,
     Priority,
@@ -26,7 +27,7 @@ from .choices import (
     SourceKind,
     Urgency,
 )
-from .event import Event
+from .event import Event, EventOccurrence
 from .history import EventHistory
 from .outbox import OutboxMessage
 
@@ -58,4 +59,6 @@ __all__ = [
     "Urgency",
     "RecurrencePolicy",
     "RecurrenceAction",
+    "EventOccurrence",
+    "MatchKind",
 ]

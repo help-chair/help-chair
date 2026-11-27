@@ -30,7 +30,7 @@ class EventTransitionsView(APIView):
 
     @extend_schema(
         operation_id="transitionEvent",
-        request=EventTransitionSerializer,
+        request={"application/json": EventTransitionSerializer},
         responses={
             200: EventReadSerializer,
             404: NOT_FOUND,
@@ -57,7 +57,10 @@ class EventTransitionsView(APIView):
 class EventHistoryView(APIView):
     @extend_schema(
         operation_id="listEventHistory",
-        parameters=[OpenApiParameter("limit", int), OpenApiParameter("offset", int)],
+        parameters=[
+            OpenApiParameter("limit", {"type": "integer", "minimum": 1, "maximum": 200}),
+            OpenApiParameter("offset", {"type": "integer", "minimum": 0}),
+        ],
         responses={200: EventHistoryPageSerializer, 404: NOT_FOUND},
     )
     def get(self, request, id):

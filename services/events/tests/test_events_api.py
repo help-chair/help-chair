@@ -131,7 +131,7 @@ def test_blank_ingestion_key_is_rejected(api_client):
     )
 
     assert response.status_code == 422
-    assert "ingestion_key.0" in response.json()["fields"]
+    assert "ingestion_key" in response.json()["fields"]
 
 
 @pytest.mark.django_db

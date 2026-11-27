@@ -9,9 +9,14 @@ transacción y sigue. Si el broker está caído, los eventos se quedan pendiente
 y el siguiente pase los manda.
 
 Publica con NATS a secas y confirma con `flush` antes de marcar cada mensaje:
-eso asegura que el servidor lo recibió. Cuando Eventos levante su stream de
-JetStream (#79), conviene cambiar a `js.publish`, que además confirma que el
-mensaje quedó almacenado.
+eso asegura que el servidor lo recibió.
+
+Falta el paso a `js.publish`, que además confirmaría que el mensaje quedó
+almacenado, y no se puede dar todavía: el único stream de JetStream que existe
+es `EVENTS`, y cubre `events.>`, no `access.>` (ver `services/events/docs/outbox.md`).
+Mientras no haya un stream que cubra nuestros subjects, un evento publicado sin
+nadie escuchando se descarta. Hay que acordar con Eventos de quién es ese stream
+antes de cambiar esta línea.
 """
 
 from __future__ import annotations
@@ -44,9 +49,9 @@ class PublicadorNats:
         )
         return self
 
-    def __call__(self, subject: str, cuerpo: bytes) -> None:
+    def __call__(self, subject: str, cuerpo: bytes, cabeceras: dict[str, str]) -> None:
         async def enviar():
-            await self._conexion.publish(subject, cuerpo)
+            await self._conexion.publish(subject, cuerpo, headers=cabeceras)
             # `flush` espera la confirmación del servidor; `publish` por sí solo
             # no garantiza nada y marcaríamos como publicado algo que se perdió.
             await self._conexion.flush(timeout=self.espera)

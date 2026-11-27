@@ -8,6 +8,11 @@ El sobre es `contracts/messages/event-envelope.json`, que define Eventos. El
 `id` del mensaje viaja como `id` del sobre y es la clave de idempotencia: si un
 pase falla a medias y el siguiente reenvía, el consumidor reconoce el duplicado.
 
+Ese mismo `id` viaja además en la cabecera `Nats-Msg-Id`, que es donde
+JetStream y los consumidores de Eventos buscan la clave para descartar
+duplicados (ver `services/events/docs/outbox.md`). Dentro del sobre no la
+leen, así que mandarla solo ahí no serviría de nada.
+
 **El subject es el propio tipo del evento.** El contrato sugiere
 `<origin>.<type>`, y como nuestros tipos ya empiezan con `access.`, usarlos tal
 cual evita un `access.access.login.exitoso` redundante. Quien consuma se
@@ -28,8 +33,8 @@ from django.utils import timezone
 
 from .models import OutboxMessage
 
-# Recibe (subject, cuerpo en bytes) y lanza una excepción si no pudo publicar.
-Publicador = Callable[[str, bytes], None]
+# Recibe (subject, cuerpo, cabeceras) y lanza una excepción si no pudo publicar.
+Publicador = Callable[[str, bytes, dict[str, str]], None]
 
 LOTE_POR_OMISION = 100
 
@@ -50,6 +55,11 @@ def sobre(mensaje: OutboxMessage) -> dict:
 
 def cuerpo(mensaje: OutboxMessage) -> bytes:
     return json.dumps(sobre(mensaje), ensure_ascii=False).encode("utf-8")
+
+
+def cabeceras(mensaje: OutboxMessage) -> dict[str, str]:
+    """`Nats-Msg-Id` es la clave de deduplicación que leen JetStream y Eventos."""
+    return {"Nats-Msg-Id": str(mensaje.id)}
 
 
 def pendientes(lote: int):
@@ -73,7 +83,7 @@ def publicar_pendientes(publicador: Publicador, lote: int = LOTE_POR_OMISION) ->
     with transaction.atomic():
         for mensaje in pendientes(lote):
             try:
-                publicador(mensaje.type, cuerpo(mensaje))
+                publicador(mensaje.type, cuerpo(mensaje), cabeceras(mensaje))
             except Exception:
                 fallidos = 1
                 break

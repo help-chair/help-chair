@@ -6,7 +6,7 @@ se marque como publicado si el broker no lo confirmó, y que iniciar sesión no
 dependa del broker para nada.
 
 No hace falta NATS ni el paquete `nats-py`: el publicador es cualquier función
-que reciba `(subject, cuerpo)`, así que aquí se le pasa una de mentiras.
+que reciba `(subject, cuerpo, cabeceras)`, así que aquí se le pasa una de mentiras.
 """
 
 import json
@@ -56,12 +56,12 @@ class PublicadorDeMentiras:
 
     def __init__(self, falla: bool = False):
         self.falla = falla
-        self.enviados: list[tuple[str, bytes]] = []
+        self.enviados: list[tuple[str, bytes, dict[str, str]]] = []
 
-    def __call__(self, subject: str, cuerpo: bytes) -> None:
+    def __call__(self, subject: str, cuerpo: bytes, cabeceras: dict[str, str]) -> None:
         if self.falla:
             raise ConnectionError("el broker no responde")
-        self.enviados.append((subject, cuerpo))
+        self.enviados.append((subject, cuerpo, cabeceras))
 
 
 def test_el_sobre_cumple_el_contrato_de_eventos(mensaje, esquema_del_sobre):
@@ -77,9 +77,19 @@ def test_publica_en_el_subject_del_tipo(mensaje):
     publicador = PublicadorDeMentiras()
     outbox.publicar_pendientes(publicador)
 
-    subject, cuerpo = publicador.enviados[0]
+    subject, cuerpo, _ = publicador.enviados[0]
     assert subject == "access.login.exitoso"
     assert json.loads(cuerpo)["payload"]["ip"] == "10.0.0.7"
+
+
+def test_manda_el_id_en_la_cabecera_que_leen_los_consumidores(mensaje):
+    """Eventos deduplica con `Nats-Msg-Id`, no con el `id` de dentro del sobre."""
+    publicador = PublicadorDeMentiras()
+    outbox.publicar_pendientes(publicador)
+
+    _, cuerpo, cabeceras = publicador.enviados[0]
+    assert cabeceras["Nats-Msg-Id"] == str(mensaje.id)
+    assert json.loads(cuerpo)["id"] == cabeceras["Nats-Msg-Id"]
 
 
 def test_marca_lo_publicado_y_no_lo_vuelve_a_mandar(mensaje):

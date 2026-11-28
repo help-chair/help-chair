@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
-import { REQUEST_STATES, STATUS_BADGE, formatDate, getCategory, getStatus } from './data'
+import { APPROVAL_BADGE, REQUEST_STATES, formatDate, getCategory, getStatus } from './data'
 import type { RequestStatus, ServiceRequest } from './types'
 
 interface RequestQueueProps {
@@ -99,6 +99,7 @@ export function RequestQueue({ requests }: RequestQueueProps) {
             <tbody className="divide-y divide-slate-100">
               {filtradas.map((request) => {
                 const estado = getStatus(request.status)
+                const aprobacion = APPROVAL_BADGE[request.approvalStatus]
                 const categoria = getCategory(request.category)
                 return (
                   <tr key={request.id} className="hover:bg-slate-50/80 transition-colors">
@@ -115,7 +116,12 @@ export function RequestQueue({ requests }: RequestQueueProps) {
                       {formatDate(request.createdAt)}
                     </td>
                     <td className="px-6 py-3">
-                      <Badge variant={STATUS_BADGE[request.status]}>{estado.label}</Badge>
+                      <div className="flex flex-wrap gap-1.5">
+                        <Badge variant={estado.badge}>{estado.label}</Badge>
+                        {aprobacion && (
+                          <Badge variant={aprobacion.variant}>{aprobacion.label}</Badge>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 )

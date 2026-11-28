@@ -9,8 +9,9 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import type { SurveyInput } from '@/components/closure/options'
 import { cn } from '@/lib/utils'
-import { CATALOG, INITIAL_REQUESTS, nextRequestId } from './data'
+import { CATALOG, INITIAL_REQUESTS, isActive, nextRequestId } from './data'
 import { RequestForm } from './RequestForm'
 import { RequestList } from './RequestList'
 import { RequestQueue } from './RequestQueue'
@@ -44,6 +45,7 @@ export function RequestsPage({ puedeGestionar = false }: RequestsPageProps) {
   const [view, setView] = useState<View>({ name: 'catalogo' })
   const [requests, setRequests] = useState<ServiceRequest[]>(INITIAL_REQUESTS)
   const [createdId, setCreatedId] = useState<string | null>(null)
+  const [notice, setNotice] = useState<{ requestId: string; message: string } | null>(null)
   const topRef = useRef<HTMLDivElement>(null)
 
   // Al cambiar de sección, vuelve arriba para que se vea el inicio (y el aviso de «¡Listo!»).
@@ -51,15 +53,56 @@ export function RequestsPage({ puedeGestionar = false }: RequestsPageProps) {
     topRef.current?.scrollIntoView?.({ block: 'start' })
   }, [view])
 
-  const inProgress = requests.filter((request) => request.status !== 'completada').length
+  const inProgress = requests.filter(isActive).length
   const awaitingApproval = requests.filter(
-    (request) => request.status === 'aprobacion_pendiente',
+    (request) => request.status === 'nuevo' && request.approvalStatus === 'pendiente',
   ).length
-  const completed = requests.length - inProgress
+  const resolved = requests.filter(
+    (request) => request.status === 'resuelto' || request.status === 'cerrado',
+  ).length
 
   function goTo(next: View) {
     setView(next)
+    setNotice(null)
     if (next.name !== 'mis-peticiones') setCreatedId(null)
+  }
+
+  function updateRequest(id: string, changes: Partial<ServiceRequest>) {
+    setRequests((current) =>
+      current.map((request) => (request.id === id ? { ...request, ...changes } : request)),
+    )
+  }
+
+  // Por ahora se guardan en memoria. Cuando services/requests publique su API, aquí van las
+  // llamadas: `cambiar-estado` (cerrado, reabierto, cancelado + motivo_cancelacion) y la encuesta.
+  function handleSurvey(request: ServiceRequest, input: SurveyInput) {
+    const closes = request.status === 'resuelto'
+    updateRequest(request.id, {
+      survey: { ...input, answeredAt: new Date().toISOString() },
+      ...(closes ? { status: 'cerrado' } : {}),
+    })
+    setNotice({
+      requestId: request.id,
+      message: closes
+        ? '¡Gracias por tu calificación! Cerramos la petición.'
+        : '¡Gracias por tu calificación! La guardamos en la petición.',
+    })
+  }
+
+  function handleReopen(id: string) {
+    updateRequest(id, { status: 'reabierto' })
+    setNotice({
+      requestId: id,
+      message: 'Reabrimos la petición. Soporte la retomará y verás aquí su avance.',
+    })
+  }
+
+  function handleCancel(id: string, reason: string) {
+    updateRequest(id, { status: 'cancelado', cancelReason: reason })
+    setNotice({
+      requestId: id,
+      message: 'Cancelaste la petición. Soporte ya no trabajará en ella.',
+    })
   }
 
   function handleSubmit(service: CatalogService, input: NewRequestInput) {
@@ -70,11 +113,12 @@ export function RequestsPage({ puedeGestionar = false }: RequestsPageProps) {
       serviceName: service.name,
       category: service.category,
       createdAt: new Date().toISOString(),
-      status: service.requiresApproval ? 'aprobacion_pendiente' : 'enviada',
-      requiresApproval: service.requiresApproval,
+      status: 'nuevo',
+      approvalStatus: service.requiresApproval ? 'pendiente' : 'no_requerida',
     }
     setRequests((current) => [created, ...current])
     setCreatedId(created.id)
+    setNotice(null)
     setView({ name: 'mis-peticiones' })
   }
 
@@ -112,7 +156,7 @@ export function RequestsPage({ puedeGestionar = false }: RequestsPageProps) {
           {[
             { label: 'En trámite', value: inProgress, tone: 'text-purple-700' },
             { label: 'Por aprobar', value: awaitingApproval, tone: 'text-amber-800' },
-            { label: 'Completadas', value: completed, tone: 'text-emerald-700' },
+            { label: 'Resueltas', value: resolved, tone: 'text-emerald-700' },
           ].map((stat) => (
             <div key={stat.label} className="rounded-lg border border-border bg-slate-50 p-3">
               <dt className="text-xs font-medium text-slate-500">{stat.label}</dt>
@@ -194,7 +238,14 @@ export function RequestsPage({ puedeGestionar = false }: RequestsPageProps) {
         <RequestList
           requests={requests}
           highlightId={createdId}
+          notice={notice}
           onGoToCatalog={() => goTo({ name: 'catalogo' })}
+          onAnswerSurvey={(id, input) => {
+            const request = requests.find((item) => item.id === id)
+            if (request) handleSurvey(request, input)
+          }}
+          onReopen={handleReopen}
+          onCancel={handleCancel}
         />
       )}
       {view.name === 'cola' && <RequestQueue requests={requests} />}

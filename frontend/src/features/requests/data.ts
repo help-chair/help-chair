@@ -1,16 +1,28 @@
 import {
   AppWindow,
+  Archive,
+  Ban,
   CheckCircle2,
   Hourglass,
   KeyRound,
   Laptop,
   Package,
   Phone,
+  RotateCcw,
   Send,
+  UserCheck,
   type LucideIcon,
 } from 'lucide-react'
 import type { BadgeProps } from '@/components/ui/badge'
-import type { CatalogService, RequestStatus, ServiceCategory, ServiceRequest } from './types'
+import type {
+  ApprovalStatus,
+  CatalogService,
+  RequestStatus,
+  ServiceCategory,
+  ServiceRequest,
+} from './types'
+
+type BadgeVariant = NonNullable<BadgeProps['variant']>
 
 // Datos de ejemplo (mocks) mientras services/requests publica su API.
 
@@ -194,48 +206,95 @@ export const CATALOG: CatalogService[] = [
   },
 ]
 
-/** Pasos de la línea de vida, en orden. */
+/** Estados de la petición en el orden del flujo, con su etiqueta y tono ITIL. */
 export const REQUEST_STATES: {
   id: RequestStatus
   label: string
   description: string
   icon: LucideIcon
+  badge: BadgeVariant
 }[] = [
   {
-    id: 'enviada',
-    label: 'Enviada',
+    id: 'nuevo',
+    label: 'Nueva',
     description: 'La petición quedó registrada.',
     icon: Send,
+    badge: 'info',
   },
   {
-    id: 'aprobacion_pendiente',
-    label: 'Aprobación pendiente',
-    description: 'Un responsable debe autorizarla.',
-    icon: Hourglass,
+    id: 'asignado',
+    label: 'Asignada',
+    description: 'Un agente de soporte ya la tiene.',
+    icon: UserCheck,
+    badge: 'request',
   },
   {
-    id: 'en_provision',
-    label: 'En provisión',
+    id: 'en_proceso',
+    label: 'En proceso',
     description: 'Soporte está preparando el servicio.',
     icon: Package,
+    badge: 'request',
   },
   {
-    id: 'completada',
-    label: 'Completada',
-    description: 'El servicio fue entregado.',
+    id: 'resuelto',
+    label: 'Resuelta',
+    description: 'Soporte la entregó. Confirma y califica la atención.',
     icon: CheckCircle2,
+    badge: 'success',
+  },
+  {
+    id: 'cerrado',
+    label: 'Cerrada',
+    description: 'La petición terminó.',
+    icon: Archive,
+    badge: 'default',
+  },
+  {
+    id: 'reabierto',
+    label: 'Reabierta',
+    description: 'La reabriste; soporte la retomará.',
+    icon: RotateCcw,
+    badge: 'warning',
+  },
+  {
+    id: 'cancelado',
+    label: 'Cancelada',
+    description: 'La petición se canceló.',
+    icon: Ban,
+    badge: 'outline',
   },
 ]
 
-export const STATUS_BADGE: Record<RequestStatus, NonNullable<BadgeProps['variant']>> = {
-  enviada: 'info',
-  aprobacion_pendiente: 'warning',
-  en_provision: 'request',
-  completada: 'success',
-}
-
 export function getStatus(id: RequestStatus) {
   return REQUEST_STATES.find((state) => state.id === id) ?? REQUEST_STATES[0]
+}
+
+/** Paso de aprobación de la línea de vida (solo si el servicio la exige). */
+export const APPROVAL_STEP = {
+  label: 'Aprobación',
+  description: 'Un responsable debe autorizarla.',
+  icon: Hourglass,
+}
+
+/** Etiqueta de aprobación que se muestra junto al estado (solo cuando aporta información). */
+export const APPROVAL_BADGE: Partial<
+  Record<ApprovalStatus, { label: string; variant: BadgeVariant }>
+> = {
+  pendiente: { label: 'Por aprobar', variant: 'warning' },
+  rechazado: { label: 'No aprobada', variant: 'exception' },
+}
+
+/** Estados en los que soporte sigue trabajando (y el solicitante aún puede cancelar). */
+export function isActive(request: Pick<ServiceRequest, 'status' | 'approvalStatus'>) {
+  return (
+    ['nuevo', 'asignado', 'en_proceso', 'reabierto'].includes(request.status) &&
+    request.approvalStatus !== 'rechazado'
+  )
+}
+
+/** El solicitante califica al resolverse o cerrarse, si aún no lo hizo. */
+export function canAnswerSurvey(request: Pick<ServiceRequest, 'status' | 'survey'>) {
+  return (request.status === 'resuelto' || request.status === 'cerrado') && !request.survey
 }
 
 export const INITIAL_REQUESTS: ServiceRequest[] = [
@@ -249,8 +308,8 @@ export const INITIAL_REQUESTS: ServiceRequest[] = [
     description: 'Necesito consultar los reportes de cierre mensual que están en el servidor.',
     details: { servidor: 'srv-reportes-02', nivel: 'Solo lectura' },
     createdAt: '2026-11-14T16:20:00Z',
-    status: 'aprobacion_pendiente',
-    requiresApproval: true,
+    status: 'nuevo',
+    approvalStatus: 'pendiente',
   },
   {
     id: 'REQ-0014',
@@ -262,8 +321,8 @@ export const INITIAL_REQUESTS: ServiceRequest[] = [
     description: 'Lo necesito para el desarrollo del nuevo portal interno.',
     details: { programa: 'Visual Studio Code', inventario: 'PC-0231' },
     createdAt: '2026-11-13T15:05:00Z',
-    status: 'en_provision',
-    requiresApproval: false,
+    status: 'en_proceso',
+    approvalStatus: 'no_requerida',
   },
   {
     id: 'REQ-0013',
@@ -275,8 +334,8 @@ export const INITIAL_REQUESTS: ServiceRequest[] = [
     description: 'Para firmar y editar contratos en PDF con clientes.',
     details: { software: 'Adobe Acrobat Pro' },
     createdAt: '2026-11-12T18:40:00Z',
-    status: 'enviada',
-    requiresApproval: true,
+    status: 'asignado',
+    approvalStatus: 'aprobado',
   },
   {
     id: 'REQ-0012',
@@ -288,8 +347,40 @@ export const INITIAL_REQUESTS: ServiceRequest[] = [
     description: 'Mi monitor actual parpadea y no puedo trabajar bien.',
     details: { periferico: 'Monitor' },
     createdAt: '2026-11-10T14:00:00Z',
-    status: 'completada',
-    requiresApproval: false,
+    status: 'resuelto',
+    approvalStatus: 'no_requerida',
+  },
+  {
+    id: 'REQ-0011',
+    serviceId: 'acc-vpn',
+    serviceName: 'Cuenta de VPN',
+    category: 'accesos',
+    requester: 'Jorge Salinas',
+    department: 'Operaciones',
+    description: 'Voy a trabajar desde casa dos días por semana.',
+    details: {},
+    createdAt: '2026-11-06T17:30:00Z',
+    status: 'cerrado',
+    approvalStatus: 'aprobado',
+    survey: {
+      rating: 5,
+      comment: 'Me la configuraron el mismo día.',
+      answeredAt: '2026-11-07T19:10:00Z',
+    },
+  },
+  {
+    id: 'REQ-0010',
+    serviceId: 'acc-carpeta',
+    serviceName: 'Acceso a carpeta compartida',
+    category: 'accesos',
+    requester: 'Paola Ríos',
+    department: 'Dirección',
+    description: 'Necesito ver los presupuestos del área.',
+    details: { ruta: '\\\\archivos\\direccion\\2026', permiso: 'Solo lectura' },
+    createdAt: '2026-11-05T15:45:00Z',
+    status: 'cancelado',
+    approvalStatus: 'no_requerida',
+    cancelReason: 'La registré por error: era otra carpeta.',
   },
 ]
 

@@ -142,3 +142,25 @@ uv run python manage.py publish_outbox --loop    # worker continuo; termina con 
 - El worker (`publish_outbox --loop`) en el compose y en Helm lo agrega Plataforma (`platform/deploy`).
 - Detalle completo (garantías, plan B y qué debe ofrecer cada receptor REST): [`docs/outbox.md`](docs/outbox.md).
 
+### Consumo de eventos de Accesos
+
+`manage.py consume_access_events` consume de forma durable el stream JetStream configurado en
+`ACCESS_EVENTS_STREAM` (por defecto `ACCESS`) con subject `access.>`. La infraestructura debe
+provisionar ese stream y conservar los mensajes hasta su confirmación. Ejecuta el consumidor
+como proceso worker independiente:
+
+```powershell
+uv run python manage.py consume_access_events
+```
+
+El consumidor confirma un mensaje después de registrarlo en la base de datos. El `id` del sobre
+se guarda con restricción única para que las redeliveries no vuelvan a contar como intentos. Los
+fallos se agrupan por identificador e IP; por defecto, el quinto intento en 300 segundos se
+clasifica como advertencia. `access.cuenta.bloqueada` y `access.password.cambiada` con
+`forzado=true` se registran como excepciones y se enrutan mediante R4. El contrato aún no define
+eventos de login forzado ni de permisos indebidos.
+
+Configuración: `ACCESS_EVENTS_STREAM`, `ACCESS_EVENTS_SUBJECT`, `ACCESS_EVENTS_DURABLE`,
+`ACCESS_EVENTS_BATCH_SIZE`, `ACCESS_EVENTS_FETCH_TIMEOUT_SECONDS`, `LOGIN_FAILED_THRESHOLD` y
+`LOGIN_FAILED_WINDOW_SECONDS`. El servicio no crea ni modifica el stream del broker.
+

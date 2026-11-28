@@ -139,6 +139,28 @@ def test_casos_de_borde(event, expected):
     assert evaluate(event) == expected
 
 
+def test_regla4_conserva_excepcion_de_seguridad_de_accesos():
+    event = evt(
+        Origin.SYSTEM,
+        EventType.EXCEPTION,
+        category=Category.SECURITY,
+        security_exception=True,
+    )
+
+    assert evaluate(event) == Decision(4, Destination.ACCESS, EventType.EXCEPTION)
+
+
+def test_informativo_de_seguridad_no_se_reclasifica_por_regla4():
+    event = evt(
+        Origin.SYSTEM,
+        EventType.INFORMATIVE,
+        category=Category.SECURITY,
+        requires_action=False,
+    )
+
+    assert evaluate(event) == Decision(1, Destination.LOG, EventType.INFORMATIVE)
+
+
 def test_hay_al_menos_un_caso_por_cada_regla():
     """Guardia: las 9 reglas deben estar cubiertas por CASOS_POR_REGLA."""
     cubiertas = {p.values[1].rule for p in CASOS_POR_REGLA}

@@ -1,0 +1,77 @@
+
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://help-chair.com/contracts/messages/requests/event-routed.requests.v1.schema.json",
+  "title": "Mensajes de Eventos hacia Peticiones",
+  "description": "Perfil v1 de recepción de event.routed con destino REQUESTS.",
+  "allOf": [
+    {
+      "$ref": "../event-envelope.json"
+    },
+    {
+      "type": "object",
+      "properties": {
+        "origin": {
+          "const": "events"
+        },
+        "type": {
+          "const": "event.routed"
+        },
+        "version": {
+          "const": 1
+        },
+        "payload": {
+          "type": "object",
+          "required": [
+            "destination",
+            "rule_code"
+          ],
+          "properties": {
+            "destination": {
+              "const": "REQUESTS"
+            },
+            "rule_code": {
+              "enum": ["R5", "R8"]
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "rule_code": {
+                    "const": "R5"
+                  }
+                },
+                "required": ["rule_code"]
+              },
+              "then": {
+                "properties": {
+                  "category": {
+                    "const": "REQUEST"
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "rule_code": {
+                    "const": "R8"
+                  }
+                },
+                "required": ["rule_code"]
+              },
+              "then": {
+                "properties": {
+                  "category": {
+                    "const": "CHANGE"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

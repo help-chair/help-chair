@@ -45,6 +45,13 @@ class RequestContractTests(unittest.TestCase):
     def test_valid_catalog_request(self):
         self.validator.validate(self.example)
 
+    def test_valid_change_request(self):
+        message = copy.deepcopy(self.example)
+        message["payload"]["rule_code"] = "R8"
+        message["payload"]["category"] = "CHANGE"
+
+        self.validator.validate(message)
+
     def test_invalid_destination(self):
         message = copy.deepcopy(self.example)
         message["payload"]["destination"] = "INCIDENTS"
@@ -53,7 +60,7 @@ class RequestContractTests(unittest.TestCase):
 
     def test_invalid_rule(self):
         message = copy.deepcopy(self.example)
-        message["payload"]["rule_code"] = "R8"
+        message["payload"]["rule_code"] = "R9"
 
         self.assertFalse(self.validator.is_valid(message))
 

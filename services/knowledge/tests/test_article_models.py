@@ -7,181 +7,195 @@ from django.db import DataError, IntegrityError, connection, transaction
 from django.db.models.deletion import ProtectedError
 from django.utils import timezone
 
-from articles.models import Articulo, Categoria
+from articles.models import Article, Category
 
 pytestmark = pytest.mark.django_db
 
 
 @pytest.fixture
-def categoria():
-    return Categoria.objects.create(codigo="red", nombre="Red")
+def category():
+    return Category.objects.create(code="red", name="Red")
 
 
 @pytest.fixture
-def publicado(categoria):
-    articulo = Articulo.objects.create()
-    articulo.titulo = "Comprobar la conexión"
-    articulo.contenido = "Contenido sintético de demostración."
-    articulo.categoria = categoria
-    articulo.autor_id = uuid.uuid4()  # Sujeto externo: no se crea ningún usuario local.
-    articulo.publicado_en = timezone.now()
-    articulo.estado = Articulo.Estado.PUBLICADO
-    articulo.full_clean()
-    articulo.save()
-    return articulo
+def published(category):
+    article = Article.objects.create()
+    article.title = "Comprobar la conexión"
+    article.content = "Contenido sintético de demostración."
+    article.category = category
+    article.author_id = uuid.uuid4()  # Sujeto externo: no se crea ningún usuario local.
+    article.published_at = timezone.now()
+    article.status = Article.Status.PUBLISHED
+    article.full_clean()
+    article.save()
+    return article
 
 
-def test_borrador_incompleto_y_publicacion_con_referencia_externa(categoria):
-    articulo = Articulo()
-    articulo.full_clean()
-    articulo.save()
-    articulo.refresh_from_db()
-    assert (articulo.titulo, articulo.contenido, articulo.categoria_id) == ("", "", None)
-    assert articulo.estado == Articulo.Estado.BORRADOR
-    assert articulo.visibilidad == Articulo.Visibilidad.SOPORTE
-    articulo.estado = Articulo.Estado.PUBLICADO
+def test_incomplete_draft_and_publication_with_external_reference(category):
+    article = Article()
+    article.full_clean()
+    article.save()
+    article.refresh_from_db()
+    assert (article.title, article.content, article.category_id) == ("", "", None)
+    assert article.status == Article.Status.DRAFT
+    assert article.visibility == Article.Visibility.SUPPORT
+    article.status = Article.Status.PUBLISHED
     with pytest.raises(ValidationError) as error:
-        articulo.full_clean()
-    assert {"titulo", "contenido", "categoria", "autor_id", "publicado_en"} <= set(
+        article.full_clean()
+    assert {"title", "content", "category", "author_id", "published_at"} <= set(
         error.value.message_dict
     )
 
 
+def test_choice_values_keep_the_contract_spanish_values():
+    assert Article.Status.values == ["borrador", "publicado", "archivado"]
+    assert Article.Visibility.values == ["empresa", "soporte"]
+
+
 @pytest.mark.parametrize(
-    ("cambios", "restriccion"),
+    ("changes", "constraint"),
     [
-        ({"estado": "inventado"}, "kb_articulo_estado_valido"),
-        ({"visibilidad": "publico"}, "kb_articulo_visibilidad_valida"),
-        ({"titulo": ""}, "kb_articulo_publicacion_completa"),
-        ({"titulo": " \t\n"}, "kb_articulo_publicacion_completa"),
-        ({"contenido": ""}, "kb_articulo_publicacion_completa"),
-        ({"contenido": "\t\n"}, "kb_articulo_publicacion_completa"),
-        ({"categoria_id": None}, "kb_articulo_publicacion_completa"),
-        ({"autor_id": None}, "kb_articulo_publicacion_completa"),
-        ({"publicado_en": None}, "kb_articulo_publicacion_completa"),
-        ({"estado": "archivado"}, "kb_articulo_archivo_consistente"),
+        ({"status": "inventado"}, "kb_article_status_valid"),
+        ({"visibility": "publico"}, "kb_article_visibility_valid"),
+        ({"title": ""}, "kb_article_publication_complete"),
+        ({"title": " \t\n"}, "kb_article_publication_complete"),
+        ({"content": ""}, "kb_article_publication_complete"),
+        ({"content": "\t\n"}, "kb_article_publication_complete"),
+        ({"category_id": None}, "kb_article_publication_complete"),
+        ({"author_id": None}, "kb_article_publication_complete"),
+        ({"published_at": None}, "kb_article_publication_complete"),
+        ({"status": "archivado"}, "kb_article_archive_consistent"),
     ],
 )
-def test_sql_rechaza_publicados_invalidos_sin_validacion_de_formulario(
-    publicado, cambios, restriccion
-):
-    with pytest.raises(IntegrityError, match=restriccion), transaction.atomic():
-        Articulo.objects.filter(pk=publicado.pk).update(**cambios)
+def test_sql_rejects_invalid_published_rows_without_form_validation(published, changes, constraint):
+    with pytest.raises(IntegrityError, match=constraint), transaction.atomic():
+        Article.objects.filter(pk=published.pk).update(**changes)
 
 
 @pytest.mark.parametrize(
-    "caso", ["publicacion_anterior", "archivo_anterior", "archivo_sin_estado", "actualizacion"]
+    "case", ["published_before", "archived_before", "archived_without_status", "updated"]
 )
-def test_sql_rechaza_fechas_y_archivo_incoherentes(publicado, caso):
-    antes = publicado.creado_en - timedelta(seconds=1)
-    cambios = {
-        "publicacion_anterior": {"publicado_en": antes},
-        "archivo_anterior": {"estado": "archivado", "archivado_en": publicado.creado_en},
-        "archivo_sin_estado": {"archivado_en": timezone.now()},
-        "actualizacion": {"actualizado_en": antes},
-    }[caso]
-    restriccion = (
-        "kb_articulo_archivo_consistente"
-        if caso == "archivo_sin_estado"
-        else "kb_articulo_fechas_validas"
+def test_sql_rejects_inconsistent_dates_and_archive(published, case):
+    before = published.created_at - timedelta(seconds=1)
+    changes = {
+        "published_before": {"published_at": before},
+        "archived_before": {"status": "archivado", "archived_at": published.created_at},
+        "archived_without_status": {"archived_at": timezone.now()},
+        "updated": {"updated_at": before},
+    }[case]
+    constraint = (
+        "kb_article_archive_consistent"
+        if case == "archived_without_status"
+        else "kb_article_dates_valid"
     )
-    with pytest.raises(IntegrityError, match=restriccion), transaction.atomic():
-        Articulo.objects.filter(pk=publicado.pk).update(**cambios)
+    with pytest.raises(IntegrityError, match=constraint), transaction.atomic():
+        Article.objects.filter(pk=published.pk).update(**changes)
 
 
-@pytest.mark.parametrize("codigo", ["", "Red", "1red", "red-externa", "red\n", " red", "red "])
-def test_categoria_codigo_invalido_en_validacion_y_sql(codigo):
+@pytest.mark.parametrize("code", ["", "Red", "1red", "red-externa", "red\n", " red", "red "])
+def test_invalid_category_code_in_validation_and_sql(code):
     with pytest.raises(ValidationError):
-        Categoria(codigo=codigo, nombre="Red").full_clean()
-    with pytest.raises(IntegrityError, match="kb_categoria_codigo_valido"), transaction.atomic():
-        Categoria.objects.create(codigo=codigo, nombre="Red")
+        Category(code=code, name="Red").full_clean()
+    with pytest.raises(IntegrityError, match="kb_category_code_valid"), transaction.atomic():
+        Category.objects.create(code=code, name="Red")
 
 
-@pytest.mark.parametrize("nombre", ["", " \t\n"])
-def test_categoria_nombre_no_blanco_en_validacion_y_sql(nombre):
+@pytest.mark.parametrize("name", ["", " \t\n"])
+def test_category_name_not_blank_in_validation_and_sql(name):
     with pytest.raises(ValidationError):
-        Categoria(codigo="red", nombre=nombre).full_clean()
-    with pytest.raises(IntegrityError, match="kb_categoria_nombre_no_blanco"), transaction.atomic():
-        Categoria.objects.create(codigo="red", nombre=nombre)
+        Category(code="red", name=name).full_clean()
+    with pytest.raises(IntegrityError, match="kb_category_name_not_blank"), transaction.atomic():
+        Category.objects.create(code="red", name=name)
 
 
-def test_fk_local_impide_categoria_inexistente():
+def test_category_dates_constraint_in_sql():
+    category = Category.objects.create(code="red", name="Red")
+    before = category.created_at - timedelta(seconds=1)
+    with pytest.raises(IntegrityError, match="kb_category_dates_valid"), transaction.atomic():
+        Category.objects.filter(pk=category.pk).update(updated_at=before)
+
+
+def test_local_fk_rejects_missing_category():
     with pytest.raises(IntegrityError), transaction.atomic():
-        Articulo.objects.create(categoria_id="inexistente")
+        Article.objects.create(category_id="inexistente")
         # Las FK diferibles de PostgreSQL también deben comprobarse dentro del savepoint.
         connection.check_constraints()
 
 
-@pytest.mark.parametrize("campo,limite", [("codigo", 50), ("nombre", 100)])
-def test_limites_de_categoria_en_validacion_y_postgresql(campo, limite):
-    datos = {"codigo": "red", "nombre": "Red", campo: "a" * limite}
-    categoria = Categoria(**datos)
-    categoria.full_clean()
-    categoria.save()
-    setattr(categoria, campo, "a" * (limite + 1))
+@pytest.mark.parametrize("field,limit", [("code", 50), ("name", 100)])
+def test_category_limits_in_validation_and_postgresql(field, limit):
+    data = {"code": "red", "name": "Red", field: "a" * limit}
+    category = Category(**data)
+    category.full_clean()
+    category.save()
+    setattr(category, field, "a" * (limit + 1))
     with pytest.raises(ValidationError):
-        categoria.full_clean()
+        category.full_clean()
     if connection.vendor == "postgresql":
         with pytest.raises(DataError), transaction.atomic():
-            Categoria.objects.filter(pk=datos["codigo"]).update(**{campo: "a" * (limite + 1)})
+            Category.objects.filter(pk=data["code"]).update(**{field: "a" * (limit + 1)})
 
 
-def test_limite_del_titulo_acordado(publicado):
-    publicado.titulo = "a" * 200
-    publicado.full_clean()
-    publicado.save()
-    publicado.titulo += "a"
+def test_agreed_title_limit(published):
+    published.title = "a" * 200
+    published.full_clean()
+    published.save()
+    published.title += "a"
     with pytest.raises(ValidationError):
-        publicado.full_clean()
+        published.full_clean()
     if connection.vendor == "postgresql":
         with pytest.raises(DataError), transaction.atomic():
-            Articulo.objects.filter(pk=publicado.pk).update(titulo=publicado.titulo)
+            Article.objects.filter(pk=published.pk).update(title=published.title)
 
 
-def test_archivo_conserva_identidad_y_categoria_protegida(publicado):
-    identidad, contenido, fecha = publicado.pk, publicado.contenido, publicado.publicado_en
+def test_archive_keeps_identity_and_category_is_protected(published):
+    identity, content, date = published.pk, published.content, published.published_at
     with pytest.raises(ProtectedError):
-        publicado.categoria.delete()
-    publicado.estado = Articulo.Estado.ARCHIVADO
-    publicado.archivado_en = timezone.now()
-    publicado.full_clean()
-    publicado.save()
-    publicado.refresh_from_db()
-    assert (publicado.pk, publicado.contenido, publicado.publicado_en) == (
-        identidad,
-        contenido,
-        fecha,
+        published.category.delete()
+    published.status = Article.Status.ARCHIVED
+    published.archived_at = timezone.now()
+    published.full_clean()
+    published.save()
+    published.refresh_from_db()
+    assert (published.pk, published.content, published.published_at) == (
+        identity,
+        content,
+        date,
     )
 
 
-def test_categoria_inactiva_no_borra_publicados_y_se_valida_al_publicar(publicado):
-    Categoria.objects.filter(pk=publicado.categoria_id).update(activa=False)
-    assert Articulo.objects.get(pk=publicado.pk).estado == "publicado"
+def test_inactive_category_keeps_published_and_is_validated_on_publish(published):
+    Category.objects.filter(pk=published.category_id).update(is_active=False)
+    assert Article.objects.get(pk=published.pk).status == "publicado"
     with pytest.raises(ValidationError) as error:
-        publicado.full_clean()
-    assert "categoria" in error.value.message_dict
+        published.full_clean()
+    assert "category" in error.value.message_dict
 
 
-def test_titulos_iguales_no_se_convierten_en_unicidad_no_acordada(publicado):
-    otro = Articulo.objects.create(titulo=publicado.titulo)
-    assert otro.pk != publicado.pk
+def test_equal_titles_do_not_become_an_unagreed_uniqueness(published):
+    other = Article.objects.create(title=published.title)
+    assert other.pk != published.pk
 
 
-def test_fechas_invalidas_muestran_el_campo_en_validacion(publicado):
-    publicado.publicado_en = publicado.creado_en - timedelta(days=1)
+def test_related_name_lists_the_category_articles(published):
+    assert list(published.category.articles.all()) == [published]
+
+
+def test_invalid_dates_report_the_field_in_validation(published):
+    published.published_at = published.created_at - timedelta(days=1)
     with pytest.raises(ValidationError) as error:
-        publicado.full_clean()
-    assert "publicado_en" in error.value.message_dict
+        published.full_clean()
+    assert "published_at" in error.value.message_dict
 
 
-def test_fixture_canonica_se_puede_recargar_sin_duplicados():
+def test_canonical_fixture_reloads_without_duplicates():
     from django.core.management import call_command
 
     call_command("loaddata", "kb_demo", verbosity=0)
-    antes = set(Articulo.objects.values_list("pk", flat=True))
+    before = set(Article.objects.values_list("pk", flat=True))
     call_command("loaddata", "kb_demo", verbosity=0)
-    assert Categoria.objects.count() == 2
-    assert Articulo.objects.count() == 4
-    assert set(Articulo.objects.values_list("pk", flat=True)) == antes
-    for articulo in Articulo.objects.all():
-        articulo.full_clean()
+    assert Category.objects.count() == 2
+    assert Article.objects.count() == 4
+    assert set(Article.objects.values_list("pk", flat=True)) == before
+    for article in Article.objects.all():
+        article.full_clean()

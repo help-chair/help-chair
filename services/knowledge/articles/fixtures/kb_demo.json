@@ -1,64 +1,64 @@
 [
   {
-    "model": "articles.categoria",
+    "model": "articles.category",
     "pk": "red",
     "fields": {
-      "nombre": "Red (demostración)", "activa": true,
-      "creado_en": "2026-11-21T12:00:00Z", "actualizado_en": "2026-11-21T13:00:00Z"
+      "name": "Red (demostración)", "is_active": true,
+      "created_at": "2026-11-21T12:00:00Z", "updated_at": "2026-11-21T13:00:00Z"
     }
   },
   {
-    "model": "articles.categoria",
+    "model": "articles.category",
     "pk": "software",
     "fields": {
-      "nombre": "Software (demostración)", "activa": true,
-      "creado_en": "2026-11-21T12:00:00Z", "actualizado_en": "2026-11-21T13:00:00Z"
+      "name": "Software (demostración)", "is_active": true,
+      "created_at": "2026-11-21T12:00:00Z", "updated_at": "2026-11-21T13:00:00Z"
     }
   },
   {
-    "model": "articles.articulo",
+    "model": "articles.article",
     "pk": "10900000-0000-4000-8000-000000000001",
     "fields": {
-      "titulo": "", "contenido": "", "categoria": null,
-      "estado": "borrador", "visibilidad": "soporte", "autor_id": null,
-      "creado_en": "2026-11-21T12:00:00Z", "actualizado_en": "2026-11-21T13:00:00Z",
-      "publicado_en": null, "archivado_en": null
+      "title": "", "content": "", "category": null,
+      "status": "borrador", "visibility": "soporte", "author_id": null,
+      "created_at": "2026-11-21T12:00:00Z", "updated_at": "2026-11-21T13:00:00Z",
+      "published_at": null, "archived_at": null
     }
   },
   {
-    "model": "articles.articulo",
+    "model": "articles.article",
     "pk": "10900000-0000-4000-8000-000000000002",
     "fields": {
-      "titulo": "Ejemplo de consulta para la empresa",
-      "contenido": "# Datos ficticios\n\nEjemplo para verificar el esquema; no son instrucciones operativas.",
-      "categoria": "red", "estado": "publicado", "visibilidad": "empresa",
-      "autor_id": "00000000-0000-4000-8000-000000000109",
-      "creado_en": "2026-11-21T12:00:00Z", "actualizado_en": "2026-11-21T13:00:00Z",
-      "publicado_en": "2026-11-21T12:30:00Z", "archivado_en": null
+      "title": "Ejemplo de consulta para la empresa",
+      "content": "# Datos ficticios\n\nEjemplo para verificar el esquema; no son instrucciones operativas.",
+      "category": "red", "status": "publicado", "visibility": "empresa",
+      "author_id": "00000000-0000-4000-8000-000000000109",
+      "created_at": "2026-11-21T12:00:00Z", "updated_at": "2026-11-21T13:00:00Z",
+      "published_at": "2026-11-21T12:30:00Z", "archived_at": null
     }
   },
   {
-    "model": "articles.articulo",
+    "model": "articles.article",
     "pk": "10900000-0000-4000-8000-000000000003",
     "fields": {
-      "titulo": "Ejemplo reservado a soporte",
-      "contenido": "Datos ficticios para demostrar audiencia separada del estado.",
-      "categoria": "software", "estado": "publicado", "visibilidad": "soporte",
-      "autor_id": "00000000-0000-4000-8000-000000000109",
-      "creado_en": "2026-11-21T12:00:00Z", "actualizado_en": "2026-11-21T13:00:00Z",
-      "publicado_en": "2026-11-21T12:30:00Z", "archivado_en": null
+      "title": "Ejemplo reservado a soporte",
+      "content": "Datos ficticios para demostrar audiencia separada del estado.",
+      "category": "software", "status": "publicado", "visibility": "soporte",
+      "author_id": "00000000-0000-4000-8000-000000000109",
+      "created_at": "2026-11-21T12:00:00Z", "updated_at": "2026-11-21T13:00:00Z",
+      "published_at": "2026-11-21T12:30:00Z", "archived_at": null
     }
   },
   {
-    "model": "articles.articulo",
+    "model": "articles.article",
     "pk": "10900000-0000-4000-8000-000000000004",
     "fields": {
-      "titulo": "Ejemplo archivado",
-      "contenido": "Contenido ficticio conservado para mantener su referencia.",
-      "categoria": "software", "estado": "archivado", "visibilidad": "soporte",
-      "autor_id": "00000000-0000-4000-8000-000000000109",
-      "creado_en": "2026-11-21T12:00:00Z", "actualizado_en": "2026-11-21T13:00:00Z",
-      "publicado_en": "2026-11-21T12:30:00Z", "archivado_en": "2026-11-21T13:00:00Z"
+      "title": "Ejemplo archivado",
+      "content": "Contenido ficticio conservado para mantener su referencia.",
+      "category": "software", "status": "archivado", "visibility": "soporte",
+      "author_id": "00000000-0000-4000-8000-000000000109",
+      "created_at": "2026-11-21T12:00:00Z", "updated_at": "2026-11-21T13:00:00Z",
+      "published_at": "2026-11-21T12:30:00Z", "archived_at": "2026-11-21T13:00:00Z"
     }
   }
 ]

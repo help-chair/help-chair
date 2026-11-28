@@ -78,6 +78,15 @@ STORAGES = {
 
 REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    # Sin autenticación hasta validar el JWT de Accesos (D-29): ni la sesión del admin ni Basic
+    # Auth identifican a nadie en la API. La autorización vive solo en articles/access.py.
+    "DEFAULT_AUTHENTICATION_CLASSES": [],
+    "DEFAULT_PERMISSION_CLASSES": ["articles.access.ArticlePermission"],
+    # El contrato solo define JSON: otro Content-Type es un 415 y no hay API navegable.
+    "DEFAULT_PARSER_CLASSES": ["rest_framework.parsers.JSONParser"],
+    "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
+    "DEFAULT_PAGINATION_CLASS": "core.pagination.StandardPagination",
+    "EXCEPTION_HANDLER": "core.errors.handle_exception",
 }
 
 SPECTACULAR_SETTINGS = {

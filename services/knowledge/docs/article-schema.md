@@ -17,42 +17,44 @@ El esquema no demuestra por sí solo conformidad exhaustiva o certificación ITI
 
 | Modelo/campo | Tipo / obligatoriedad | Regla o correspondencia prevista para #134/#112 |
 |---|---|---|
-| Categoria.codigo | varchar(50), PK | Código estable minúsculo: `^[a-z][a-z0-9_]{0,49}$`; no enum fijo |
-| Categoria.nombre | varchar(100), no NULL | Nombre con un carácter no blanco |
-| Categoria.activa | boolean, true inicial | Clasificación local, no catálogo externo de Eventos |
-| Categoria.creado_en/actualizado_en | timestamptz | UTC; actualización no anterior a creación |
-| Articulo.id | UUID, PK, uuid4 | `string/uuid`, readOnly; cabe en la referencia textual de Problemas (máx. 64) |
-| titulo | varchar(200), vacío permitido en borrador | No hay unicidad de título |
-| contenido | text, vacío permitido en borrador | Cuerpo canónico Markdown; no se duplica en arrays de pasos |
-| categoria | FK local nullable, PROTECT | Código de categoría en DTO; NULL permitido en borrador |
-| estado | varchar(12), `borrador` inicial | `borrador`, `publicado`, `archivado` |
-| visibilidad | varchar(16), `soporte` inicial | `empresa` o `soporte`; empresa significa autenticados del stack, no internet |
-| autor_id | UUID externo nullable | Sujeto de Accesos, sin FK; no es el usuario staff local |
-| creado_en | timestamptz, default al instanciar | No editable; se conoce antes de guardar para validar fechas |
-| actualizado_en | timestamptz, auto_now | Se actualiza al guardar; QuerySet.update debe gestionarlo expresamente |
-| publicado_en | timestamptz nullable | Última publicación; conservar al archivar/retirar |
-| archivado_en | timestamptz nullable | Presente exactamente cuando estado=archivado |
+| Category.code (`codigo`) | varchar(50), PK | Código estable minúsculo: `^[a-z][a-z0-9_]{0,49}$`; no enum fijo |
+| Category.name (`nombre`) | varchar(100), no NULL | Nombre con un carácter no blanco |
+| Category.is_active (`activa`) | boolean, true inicial | Clasificación local, no catálogo externo de Eventos |
+| Category.created_at/updated_at | timestamptz | UTC; actualización no anterior a creación |
+| Article.id | UUID, PK, uuid4 | `string/uuid`, readOnly; cabe en la referencia textual de Problemas (máx. 64) |
+| title (`titulo`) | varchar(200), vacío permitido en borrador | No hay unicidad de título |
+| content (`contenido`) | text, vacío permitido en borrador | Cuerpo canónico Markdown; no se duplica en arrays de pasos |
+| category (`categoria`) | FK local nullable, PROTECT | Código de categoría en DTO; NULL permitido en borrador |
+| status (`estado`) | varchar(12), `borrador` inicial | `borrador`, `publicado`, `archivado` |
+| visibility (`visibilidad`) | varchar(16), `soporte` inicial | `empresa` o `soporte`; empresa significa autenticados del stack, no internet |
+| author_id (`autor_id`) | UUID externo nullable | Sujeto de Accesos, sin FK; no es el usuario staff local |
+| created_at (`creado_en`) | timestamptz, default al instanciar | No editable; se conoce antes de guardar para validar fechas |
+| updated_at (`actualizado_en`) | timestamptz, auto_now | Se actualiza al guardar; QuerySet.update debe gestionarlo expresamente |
+| published_at (`publicado_en`) | timestamptz nullable | Última publicación; conservar al archivar/retirar |
+| archived_at (`archivado_en`) | timestamptz nullable | Presente exactamente cuando status=`archivado` |
 
 ```mermaid
 erDiagram
-  CATEGORIA |o--o{ ARTICULO : clasifica
-  CATEGORIA {
-    varchar codigo PK
-    varchar nombre
-    boolean activa
+  CATEGORY |o--o{ ARTICLE : clasifica
+  CATEGORY {
+    varchar code PK
+    varchar name
+    boolean is_active
+    timestamptz created_at
+    timestamptz updated_at
   }
-  ARTICULO {
+  ARTICLE {
     uuid id PK
-    varchar categoria_id FK "nullable en borrador"
-    varchar titulo
-    text contenido
-    varchar estado
-    varchar visibilidad
-    uuid autor_id "externo, sin FK"
-    timestamptz creado_en
-    timestamptz actualizado_en
-    timestamptz publicado_en
-    timestamptz archivado_en
+    varchar category_id FK "nullable en borrador"
+    varchar title
+    text content
+    varchar status
+    varchar visibility
+    uuid author_id "externo, sin FK"
+    timestamptz created_at
+    timestamptz updated_at
+    timestamptz published_at
+    timestamptz archived_at
   }
 ```
 
@@ -61,9 +63,9 @@ no blancos, categoría existente, autor y fecha de publicación. Son CHECK SQL,
 además de validación de modelo/admin. Se comprueba el orden de las fechas:
 creación ≤ actualización/publicación/archivo y publicación ≤ archivo si existen.
 La expresión regular PostgreSQL `\s` cubre la clase de espacios; las pruebas
-incluyen espacios, tabuladores, saltos de línea y `codigo="red\n"` por ORM directo.
+incluyen espacios, tabuladores, saltos de línea y `code="red\n"` por ORM directo.
 
-El índice compuesto `(estado, visibilidad, actualizado_en DESC, id)` prepara
+El índice compuesto `kb_article_query_idx` `(status, visibility, updated_at DESC, id)` prepara
 consulta ordenada; no implementa búsqueda ni autorización. Las otras garantías
 son PK, FK local, checks y NOT NULL. La categoría referenciada no se borra
 (PROTECT). Su código es de solo lectura en admin tras crearla.
@@ -77,13 +79,56 @@ ni otra BD para validar un UUID externo.
 
 El admin registra ambos modelos, filtra estado/audiencia/categoría y permite
 demostrar datos válidos e inválidos. No sustituye permisos/JWT de negocio.
-`autor_id` se introduce como referencia externa: nunca se copia `request.user.pk`.
+`author_id` se introduce como referencia externa: nunca se copia `request.user.pk`.
 Una vez asignado, el autor es de solo lectura. El alta exige un borrador;
 al editarlo y elegir publicado/archivado el formulario asigna las fechas del
 servidor. Estas fechas son de solo lectura, no valores enviados por el cliente.
 No permite eliminar artículos, porque otros servicios podrían referenciarlos;
 se conserva UUID/contenido/última publicación al archivarlos. No se implementa
-todavía una máquina de transiciones, revisión, historial editorial o CRUD REST.
+todavía una máquina de transiciones, revisión ni historial editorial. El CRUD REST de
+artículos (#274) crea y edita solo borradores: ver el README del servicio.
+
+## Identificadores en inglés (migración 0002)
+
+El código usa identificadores en inglés (estándar del proyecto); la API pública conserva
+los nombres del contrato en español y los serializers los mapean con `source=`. Las
+`verbose_name`, etiquetas de choices y mensajes de validación siguen en español, y los
+valores guardados no cambian (`borrador`, `publicado`, `archivado`, `empresa`, `soporte`).
+
+| Antes | Ahora |
+|---|---|
+| `Categoria` (`articles_categoria`) | `Category` (`articles_category`) |
+| `codigo`, `nombre`, `activa` | `code`, `name`, `is_active` |
+| `Articulo` (`articles_articulo`) | `Article` (`articles_article`) |
+| `titulo`, `contenido`, `categoria` (`categoria_id`) | `title`, `content`, `category` (`category_id`) |
+| `estado`, `visibilidad`, `autor_id` | `status`, `visibility`, `author_id` |
+| `creado_en`, `actualizado_en`, `publicado_en`, `archivado_en` | `created_at`, `updated_at`, `published_at`, `archived_at` |
+| `Articulo.Estado`: `BORRADOR`, `PUBLICADO`, `ARCHIVADO` | `Article.Status`: `DRAFT`, `PUBLISHED`, `ARCHIVED` |
+| `Articulo.Visibilidad`: `EMPRESA`, `SOPORTE` | `Article.Visibility`: `COMPANY`, `SUPPORT` |
+| `related_name="articulos"` | `related_name="articles"` |
+| `kb_categoria_codigo_valido`, `kb_categoria_nombre_no_blanco`, `kb_categoria_fechas_validas` | `kb_category_code_valid`, `kb_category_name_not_blank`, `kb_category_dates_valid` |
+| `kb_articulo_estado_valido`, `kb_articulo_visibilidad_valida` | `kb_article_status_valid`, `kb_article_visibility_valid` |
+| `kb_articulo_publicacion_completa`, `kb_articulo_archivo_consistente`, `kb_articulo_fechas_validas` | `kb_article_publication_complete`, `kb_article_archive_consistent`, `kb_article_dates_valid` |
+| índice `kb_articulo_consulta_idx` | índice `kb_article_query_idx` |
+
+`0002_english_identifiers` solo emite renombres en SQL (`ALTER TABLE ... RENAME`,
+`RENAME CONSTRAINT`, `ALTER INDEX ... RENAME`): no borra ni recrea tablas, columnas,
+restricciones o índices. PostgreSQL actualiza las columnas renombradas dentro de cada
+CHECK e índice; Django no lo hace en su estado, por eso cada restricción usa
+`SeparateDatabaseAndState` (renombre en la BD, condición nueva en el estado). El resto
+de la migración (`verbose_name` en español, `ordering`) son metadatos sin SQL. Los nombres
+autogenerados de PK, FK e índices de la FK conservan su nombre anterior; Django los
+localiza por introspección, no por nombre. `0001_initial` no se modifica.
+
+Los permisos de auth no se renombran: en una BD migrada desde `0001` quedan huérfanos los
+anteriores (`add_articulo`, `view_categoria`...) junto a los nuevos (`add_article`,
+`view_category`...) que crea `post_migrate`. No afecta a superusuarios y hoy ningún usuario
+staff tiene permisos específicos; si hiciera falta, se pueden limpiar después desde el admin
+o el shell de Django.
+
+La fixture `kb_demo.json` usa los nombres nuevos de modelo y campo con los mismos PK y
+valores. El validador del contrato compara contra la fixture fijada al commit `4f8573d`
+mediante `git show`, por lo que no depende de esta versión.
 
 ## Correspondencia documental con el contrato publicado para revisión
 
@@ -96,16 +141,16 @@ de su API ni a aceptación de cada decisión por todos los consumidores.
 
 | Modelo o garantía | Correspondencia en OpenAPI v0 | Límite del contraste |
 |---|---|---|
-| Articulo.id, UUID estable | ArticuloBase.id y parámetro ArticuloId: string/uuid; lectura readOnly | Compatible con referencia textual externa; no crea FK entre servicios |
-| Categoria.codigo, PK local de hasta 50 caracteres | CodigoCategoria y campo categoria como código, no objeto ni ID de Eventos | Patrón con final absoluto; catálogo dinámico, sin enum fijo |
-| categoria nullable con FK local/PROTECT | Campo requerido en lectura pero nullable en borrador/archivado; no null en ArticuloPublicado | El esquema JSON no demuestra existencia, actividad o PROTECT en BD |
-| titulo hasta 200, contenido Markdown; borrador incompleto | ArticuloCrear/Actualizar y ArticuloBase permiten texto vacío; Publicado exige carácter no blanco | No hay título único, resumen obligatorio ni arrays de pasos duplicados |
-| estado borrador/publicado/archivado | oneOf ArticuloBorrador/Publicado/Archivado; estado de lectura readOnly | Crear no acepta estado; PATCH no lo acepta; transiciones siguen fuera del runtime entregado |
-| visibilidad empresa/soporte independiente de estado | Enum compartido en escritura/lectura; empresa significa autenticados del stack | No acredita autorización o delegación entre servicios |
-| autor_id UUID externo nullable | Nullable en lectura general; obligatorio no null en Publicado; no aceptado en escritura | La API futura lo deriva de sub validado; no del usuario staff local |
-| creado_en/actualizado_en no null | date-time readOnly, campos requeridos en lectura | UTC y orden temporal se verifican por reglas/modelo, no solo por formato JSON |
-| publicado_en nullable y obligatorio si publicado | ArticuloPublicado lo exige no null; otros estados conservan posibilidad de null o última publicación | No inventa publicación histórica de un borrador o archivado |
-| archivado_en exactamente cuando archivado | No null en ArticuloArchivado; null en Borrador/Publicado | La unicidad de estado y los CHECK se prueban también en PostgreSQL |
+| Article.id, UUID estable | ArticuloBase.id y parámetro ArticuloId: string/uuid; lectura readOnly | Compatible con referencia textual externa; no crea FK entre servicios |
+| Category.code, PK local de hasta 50 caracteres | CodigoCategoria y campo categoria como código, no objeto ni ID de Eventos | Patrón con final absoluto; catálogo dinámico, sin enum fijo |
+| category nullable con FK local/PROTECT | Campo requerido en lectura pero nullable en borrador/archivado; no null en ArticuloPublicado | El esquema JSON no demuestra existencia, actividad o PROTECT en BD |
+| title hasta 200, content Markdown; borrador incompleto | ArticuloCrear/Actualizar y ArticuloBase permiten texto vacío; Publicado exige carácter no blanco | No hay título único, resumen obligatorio ni arrays de pasos duplicados |
+| status borrador/publicado/archivado | oneOf ArticuloBorrador/Publicado/Archivado; estado de lectura readOnly | Crear no acepta estado; PATCH no lo acepta; transiciones siguen fuera del runtime entregado |
+| visibility empresa/soporte independiente de status | Enum compartido en escritura/lectura; empresa significa autenticados del stack | No acredita autorización o delegación entre servicios |
+| author_id UUID externo nullable | Nullable en lectura general; obligatorio no null en Publicado; no aceptado en escritura | La API futura lo deriva de sub validado; no del usuario staff local |
+| created_at/updated_at no null | date-time readOnly, campos requeridos en lectura | UTC y orden temporal se verifican por reglas/modelo, no solo por formato JSON |
+| published_at nullable y obligatorio si publicado | ArticuloPublicado lo exige no null; otros estados conservan posibilidad de null o última publicación | No inventa publicación histórica de un borrador o archivado |
+| archived_at exactamente cuando archivado | No null en ArticuloArchivado; null en Borrador/Publicado | La unicidad de estado y los CHECK se prueban también en PostgreSQL |
 | Publicación completa y fechas coherentes | Variante Publicado restringe campos; descripción conserva reglas de fechas | Categoría activa se valida en full_clean/admin; no hay CHECK entre tablas ni servicio de transición implementado |
 | Datos canónicos | Cuatro ejemplos de lectura reproducen kb_demo.json de 4f8573d | Son datos sintéticos de dominio; Creado/Editado son proyecciones previstas de API |
 
@@ -115,7 +160,9 @@ al mismo artículo. No se añade error_conocido_id inverso ni copia de identidad
 La validación contractual ya registrada comprueba cuatro proyecciones de fixture;
 ni esa validación ni Prism demuestran reglas de BD, JWT, ranking o integración.
 
-Las cinco operaciones de negocio del PR #230 son previstas. Las rutas health
+De las cinco operaciones de negocio del PR #230, #274 implementa listar (sin `q`), crear,
+consultar y editar borradores; la búsqueda `q` y `consultarSoluciones` siguen previstas para
+#275, y los permisos dependen del JWT de Accesos (D-29). Las rutas health
 sí existen, pero SELECT 1 no demuestra migraciones aplicadas. Conservar las
 decisiones abiertas de permisos, prefijo, errores, paginación y aplicabilidad;
 no convertir este contraste en un acuerdo aprobado.
@@ -137,6 +184,7 @@ Desde `services/knowledge`, con Python 3.12 y dependencias del lock:
 # .env.example solo documenta nombres vacíos y no se copia ni se carga.
 uv run --frozen python manage.py migrate --plan
 uv run --frozen python manage.py sqlmigrate articles 0001
+uv run --frozen python manage.py sqlmigrate articles 0002  # solo renombres
 make migrate
 uv run --frozen python manage.py showmigrations articles
 make migrate  # debe informar que no hay migraciones pendientes

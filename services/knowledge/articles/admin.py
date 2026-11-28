@@ -2,64 +2,64 @@ from django.contrib import admin
 from django.forms import ModelForm
 from django.utils import timezone
 
-from .models import Articulo, Categoria
+from .models import Article, Category
 
 
-class ArticuloAdminForm(ModelForm):
+class ArticleAdminForm(ModelForm):
     class Meta:
-        model = Articulo
-        fields = ("titulo", "contenido", "categoria", "estado", "visibilidad", "autor_id")
+        model = Article
+        fields = ("title", "content", "category", "status", "visibility", "author_id")
 
     def clean(self):
-        datos = super().clean()
-        estado = datos.get("estado")
-        if self.instance._state.adding and estado != Articulo.Estado.BORRADOR:
-            self.add_error("estado", "Crea primero un borrador y luego completa su publicación.")
-        elif estado:
-            ahora = timezone.now()
-            if estado == Articulo.Estado.PUBLICADO and self.instance.estado != estado:
-                self.instance.publicado_en = ahora
-            if estado == Articulo.Estado.ARCHIVADO:
-                if self.instance.estado != estado:
-                    self.instance.archivado_en = ahora
+        data = super().clean()
+        status = data.get("status")
+        if self.instance._state.adding and status != Article.Status.DRAFT:
+            self.add_error("status", "Crea primero un borrador y luego completa su publicación.")
+        elif status:
+            now = timezone.now()
+            if status == Article.Status.PUBLISHED and self.instance.status != status:
+                self.instance.published_at = now
+            if status == Article.Status.ARCHIVED:
+                if self.instance.status != status:
+                    self.instance.archived_at = now
             else:
-                self.instance.archivado_en = None
-        return datos
+                self.instance.archived_at = None
+        return data
 
 
-@admin.register(Categoria)
-class CategoriaAdmin(admin.ModelAdmin):
-    list_display = ("codigo", "nombre", "activa")
-    list_filter = ("activa",)
-    search_fields = ("codigo", "nombre")
+@admin.register(Category)
+class CategoryAdmin(admin.ModelAdmin):
+    list_display = ("code", "name", "is_active")
+    list_filter = ("is_active",)
+    search_fields = ("code", "name")
 
     def get_readonly_fields(self, request, obj=None):
-        return ("codigo", "creado_en", "actualizado_en") if obj else ("creado_en", "actualizado_en")
+        return ("code", "created_at", "updated_at") if obj else ("created_at", "updated_at")
 
 
-@admin.register(Articulo)
-class ArticuloAdmin(admin.ModelAdmin):
-    form = ArticuloAdminForm
-    list_display = ("titulo", "id", "estado", "visibilidad", "categoria", "actualizado_en")
-    list_filter = ("estado", "visibilidad", "categoria")
-    search_fields = ("titulo", "contenido")
-    readonly_fields = ("id", "creado_en", "actualizado_en", "publicado_en", "archivado_en")
+@admin.register(Article)
+class ArticleAdmin(admin.ModelAdmin):
+    form = ArticleAdminForm
+    list_display = ("title", "id", "status", "visibility", "category", "updated_at")
+    list_filter = ("status", "visibility", "category")
+    search_fields = ("title", "content")
+    readonly_fields = ("id", "created_at", "updated_at", "published_at", "archived_at")
     fields = (
         "id",
-        "titulo",
-        "contenido",
-        "categoria",
-        "estado",
-        "visibilidad",
-        "autor_id",
-        "creado_en",
-        "actualizado_en",
-        "publicado_en",
-        "archivado_en",
+        "title",
+        "content",
+        "category",
+        "status",
+        "visibility",
+        "author_id",
+        "created_at",
+        "updated_at",
+        "published_at",
+        "archived_at",
     )
 
     def get_readonly_fields(self, request, obj=None):
-        return self.readonly_fields + (("autor_id",) if obj and obj.autor_id else ())
+        return self.readonly_fields + (("author_id",) if obj and obj.author_id else ())
 
     def has_delete_permission(self, request, obj=None):
         # No podemos saber qué otros servicios conservan una referencia a este UUID.

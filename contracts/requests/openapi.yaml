@@ -1,0 +1,773 @@
+openapi: 3.0.3
+info:
+  title: Help Chair - requests
+  version: 1.0.0
+  description: API del servicio requests (contrato en contracts/requests/).
+paths:
+  /api/requests/v1/peticiones/:
+    get:
+      operationId: peticiones_list
+      parameters:
+      - in: query
+        name: asignado_a_id
+        schema:
+          type: string
+        description: Filtrar peticiones por ID (Accesos) del agente asignado.
+      - in: query
+        name: estado
+        schema:
+          type: string
+          enum:
+          - asignado
+          - cancelado
+          - cerrado
+          - en_proceso
+          - nuevo
+          - reabierto
+          - resuelto
+        description: Filtrar peticiones por estado.
+      - in: query
+        name: estado_aprobacion
+        schema:
+          type: string
+          enum:
+          - aprobado
+          - no_requerida
+          - pendiente
+          - rechazado
+        description: Filtrar solicitudes de cambio por estado de aprobación.
+      - in: query
+        name: solicitante_id
+        schema:
+          type: string
+        description: Filtrar peticiones por ID (Accesos) del usuario solicitante.
+      - in: query
+        name: tipo
+        schema:
+          type: string
+          enum:
+          - cambio
+          - servicio
+        description: Filtrar peticiones por tipo (servicio o cambio).
+      tags:
+      - peticiones
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ServiceRequest'
+          description: ''
+        '400':
+          description: Datos o parámetros de consulta inválidos.
+    post:
+      operationId: peticiones_create
+      tags:
+      - peticiones
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceRequest'
+          description: ''
+        '400':
+          description: Datos o parámetros de consulta inválidos.
+  /api/requests/v1/peticiones/{id}/:
+    get:
+      operationId: peticiones_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: Un Cadena UUID que identifique este service request.
+        required: true
+      tags:
+      - peticiones
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceRequest'
+          description: ''
+        '404':
+          description: Recurso no encontrado.
+    put:
+      operationId: peticiones_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: Un Cadena UUID que identifique este service request.
+        required: true
+      tags:
+      - peticiones
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceRequest'
+          description: ''
+        '400':
+          description: Datos o parámetros de consulta inválidos.
+        '404':
+          description: Recurso no encontrado.
+    patch:
+      operationId: peticiones_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: Un Cadena UUID que identifique este service request.
+        required: true
+      tags:
+      - peticiones
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedServiceRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceRequest'
+          description: ''
+        '400':
+          description: Datos o parámetros de consulta inválidos.
+        '404':
+          description: Recurso no encontrado.
+    delete:
+      operationId: peticiones_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: Un Cadena UUID que identifique este service request.
+        required: true
+      tags:
+      - peticiones
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+        '404':
+          description: Recurso no encontrado.
+  /api/requests/v1/peticiones/{id}/aprobar/:
+    post:
+      operationId: peticiones_aprobar_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: Un Cadena UUID que identifique este service request.
+        required: true
+      tags:
+      - peticiones
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApproveChange'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceRequest'
+          description: ''
+        '400':
+          description: Datos o parámetros de consulta inválidos.
+        '404':
+          description: Recurso no encontrado.
+  /api/requests/v1/peticiones/{id}/asignar/:
+    post:
+      operationId: peticiones_asignar_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: Un Cadena UUID que identifique este service request.
+        required: true
+      tags:
+      - peticiones
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceRequest'
+          description: ''
+        '400':
+          description: Datos o parámetros de consulta inválidos.
+        '404':
+          description: Recurso no encontrado.
+  /api/requests/v1/peticiones/{id}/cambiar-estado/:
+    post:
+      operationId: peticiones_cambiar_estado_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: Un Cadena UUID que identifique este service request.
+        required: true
+      tags:
+      - peticiones
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StatusChange'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceRequest'
+          description: ''
+        '400':
+          description: Datos o parámetros de consulta inválidos.
+        '404':
+          description: Recurso no encontrado.
+  /api/requests/v1/peticiones/{id}/encuesta/:
+    post:
+      operationId: peticiones_encuesta_create
+      description: El solicitante califica la atención (1 a 5) cuando la petición
+        está resuelta o cerrada. Si estaba resuelta, la petición pasa a cerrada.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: Un Cadena UUID que identifique este service request.
+        required: true
+      tags:
+      - peticiones
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SatisfactionSurvey'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SatisfactionSurvey'
+          description: ''
+        '400':
+          description: Datos o parámetros de consulta inválidos.
+        '404':
+          description: Recurso no encontrado.
+        '409':
+          description: La petición ya tiene una encuesta respondida.
+  /api/requests/v1/peticiones/{id}/rechazar/:
+    post:
+      operationId: peticiones_rechazar_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: Un Cadena UUID que identifique este service request.
+        required: true
+      tags:
+      - peticiones
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RejectChange'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceRequest'
+          description: ''
+        '400':
+          description: Datos o parámetros de consulta inválidos.
+        '404':
+          description: Recurso no encontrado.
+  /api/requests/v1/servicios/:
+    get:
+      operationId: servicios_list
+      parameters:
+      - in: query
+        name: incluir_inactivos
+        schema:
+          type: boolean
+        description: Si es true, incluye servicios desactivados en el listado.
+      tags:
+      - servicios
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CatalogItem'
+          description: ''
+        '400':
+          description: Datos o parámetros de consulta inválidos.
+    post:
+      operationId: servicios_create
+      tags:
+      - servicios
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CatalogItem'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CatalogItem'
+          description: ''
+        '400':
+          description: Datos o parámetros de consulta inválidos.
+  /api/requests/v1/servicios/{id}/:
+    get:
+      operationId: servicios_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: Un valor de entero único que identifique este catalog item.
+        required: true
+      tags:
+      - servicios
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CatalogItem'
+          description: ''
+        '404':
+          description: Recurso no encontrado.
+    put:
+      operationId: servicios_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: Un valor de entero único que identifique este catalog item.
+        required: true
+      tags:
+      - servicios
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CatalogItem'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CatalogItem'
+          description: ''
+        '400':
+          description: Datos o parámetros de consulta inválidos.
+        '404':
+          description: Recurso no encontrado.
+    patch:
+      operationId: servicios_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: Un valor de entero único que identifique este catalog item.
+        required: true
+      tags:
+      - servicios
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedCatalogItem'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CatalogItem'
+          description: ''
+        '400':
+          description: Datos o parámetros de consulta inválidos.
+        '404':
+          description: Recurso no encontrado.
+    delete:
+      operationId: servicios_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: Un valor de entero único que identifique este catalog item.
+        required: true
+      tags:
+      - servicios
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+        '404':
+          description: Recurso no encontrado.
+components:
+  schemas:
+    ApproveChange:
+      type: object
+      properties:
+        aprobador_id:
+          type: string
+          maxLength: 64
+      required:
+      - aprobador_id
+    AssignRequest:
+      type: object
+      properties:
+        asignado_a_id:
+          type: string
+          maxLength: 64
+      required:
+      - asignado_a_id
+    CatalogItem:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        nombre:
+          type: string
+          maxLength: 120
+        descripcion:
+          type: string
+          default: ''
+        activo:
+          type: boolean
+          default: true
+        creado_en:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - creado_en
+      - id
+      - nombre
+    EstadoEnum:
+      enum:
+      - nuevo
+      - asignado
+      - en_proceso
+      - resuelto
+      - cerrado
+      - reabierto
+      - cancelado
+      type: string
+      description: |-
+        * `nuevo` - Nuevo
+        * `asignado` - Asignado
+        * `en_proceso` - En proceso
+        * `resuelto` - Resuelto
+        * `cerrado` - Cerrado
+        * `reabierto` - Reabierto
+        * `cancelado` - Cancelado
+    PatchedCatalogItem:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        nombre:
+          type: string
+          maxLength: 120
+        descripcion:
+          type: string
+          default: ''
+        activo:
+          type: boolean
+          default: true
+        creado_en:
+          type: string
+          format: date-time
+          readOnly: true
+    PatchedServiceRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        tipo:
+          allOf:
+          - $ref: '#/components/schemas/TipoEnum'
+          default: servicio
+        servicio:
+          type: integer
+        titulo:
+          type: string
+          maxLength: 150
+        descripcion:
+          type: string
+        estado:
+          type: string
+          readOnly: true
+        estado_aprobacion:
+          type: string
+          readOnly: true
+        aprobador_id:
+          type: string
+          maxLength: 64
+        aprobada_en:
+          type: string
+          format: date-time
+          readOnly: true
+        motivo_rechazo:
+          type: string
+          readOnly: true
+        solicitante_id:
+          type: string
+          maxLength: 64
+        asignado_a_id:
+          type: string
+          readOnly: true
+        evento_id:
+          type: string
+          default: ''
+          maxLength: 64
+        motivo_cancelacion:
+          type: string
+          readOnly: true
+        creada:
+          type: string
+          format: date-time
+          readOnly: true
+        actualizada:
+          type: string
+          format: date-time
+          readOnly: true
+        cerrada_en:
+          type: string
+          format: date-time
+          readOnly: true
+        encuesta:
+          allOf:
+          - $ref: '#/components/schemas/SatisfactionSurvey'
+          readOnly: true
+          nullable: true
+    RejectChange:
+      type: object
+      properties:
+        aprobador_id:
+          type: string
+          maxLength: 64
+        motivo_rechazo:
+          type: string
+          maxLength: 255
+      required:
+      - aprobador_id
+      - motivo_rechazo
+    SatisfactionSurvey:
+      type: object
+      properties:
+        calificacion:
+          type: integer
+          maximum: 5
+          minimum: 1
+        comentario:
+          type: string
+          maxLength: 500
+        respondida_en:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - calificacion
+      - respondida_en
+    ServiceRequest:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        tipo:
+          allOf:
+          - $ref: '#/components/schemas/TipoEnum'
+          default: servicio
+        servicio:
+          type: integer
+        titulo:
+          type: string
+          maxLength: 150
+        descripcion:
+          type: string
+        estado:
+          type: string
+          readOnly: true
+        estado_aprobacion:
+          type: string
+          readOnly: true
+        aprobador_id:
+          type: string
+          maxLength: 64
+        aprobada_en:
+          type: string
+          format: date-time
+          readOnly: true
+        motivo_rechazo:
+          type: string
+          readOnly: true
+        solicitante_id:
+          type: string
+          maxLength: 64
+        asignado_a_id:
+          type: string
+          readOnly: true
+        evento_id:
+          type: string
+          default: ''
+          maxLength: 64
+        motivo_cancelacion:
+          type: string
+          readOnly: true
+        creada:
+          type: string
+          format: date-time
+          readOnly: true
+        actualizada:
+          type: string
+          format: date-time
+          readOnly: true
+        cerrada_en:
+          type: string
+          format: date-time
+          readOnly: true
+        encuesta:
+          allOf:
+          - $ref: '#/components/schemas/SatisfactionSurvey'
+          readOnly: true
+          nullable: true
+      required:
+      - actualizada
+      - aprobada_en
+      - asignado_a_id
+      - cerrada_en
+      - creada
+      - encuesta
+      - estado
+      - estado_aprobacion
+      - id
+      - motivo_cancelacion
+      - motivo_rechazo
+      - servicio
+      - solicitante_id
+      - titulo
+    StatusChange:
+      type: object
+      properties:
+        estado:
+          $ref: '#/components/schemas/EstadoEnum'
+        motivo_cancelacion:
+          type: string
+          maxLength: 255
+      required:
+      - estado
+    TipoEnum:
+      enum:
+      - servicio
+      - cambio
+      type: string
+      description: |-
+        * `servicio` - Servicio
+        * `cambio` - Cambio
+  securitySchemes:
+    jwtAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

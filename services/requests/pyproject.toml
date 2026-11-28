@@ -12,6 +12,7 @@ dependencies = [
     "gunicorn>=22.0",
     "psycopg[binary]>=3.2",
     "whitenoise>=6.7",
+    "nats-py>=2.17.0",
 ]
 
 [dependency-groups]
@@ -47,3 +48,20 @@ extend-exclude = ["migrations", ".venv", "staticfiles"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "DJ"]
+
+# Lo usa el CI de GitHub Actions (`pip install -e ".[dev]"`); debe coincidir con el
+# grupo `dev` de arriba, que es el que usan uv, el Makefile y Jenkins.
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.8",
+    "pytest>=8.0",
+    "pytest-django>=4.8",
+    "pytest-cov>=5.0",
+    "factory-boy>=3.3",
+    "schemathesis>=3.30",
+    "openapi-spec-validator>=0.7",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["config*", "core*", "peticiones*"]

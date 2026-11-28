@@ -1,0 +1,52 @@
+name: Requests CI
+
+on:
+  pull_request:
+    paths:
+      - "services/requests/**"
+      - "contracts/requests/**"
+      - ".github/workflows/requests-ci.yml"
+  push:
+    branches:
+      - develop
+      - main
+    paths:
+      - "services/requests/**"
+      - "contracts/requests/**"
+
+jobs:
+  test-and-contract:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/requests
+    env:
+      # En CI no hay .env: sin SECRET_KEY, Django no arranca (manage.py falla con
+      # AppRegistryNotReady). Es una llave solo para pruebas, igual que en Jenkins.
+      SECRET_KEY: ci-solo-para-pruebas-no-usar-en-despliegue
+      DEBUG: "false"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Run linter (ruff)
+        run: |
+          ruff check .
+          ruff format --check .
+
+      - name: Check pending migrations
+        run: python manage.py makemigrations --check --dry-run
+
+      - name: Run Django and OpenAPI contract tests
+        run: pytest

@@ -35,6 +35,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "drf_spectacular",
     "core",
+    "peticiones",
 ]
 
 MIDDLEWARE = [
@@ -85,14 +86,36 @@ STORAGES = {
     "staticfiles": {"BACKEND": "whitenoise.storage.CompressedStaticFilesStorage"},
 }
 
+JWT_AUTH_ENABLED = env.bool("JWT_AUTH_ENABLED", default=False)
+JWT_PUBLIC_KEY = env("JWT_PUBLIC_KEY", default="").replace("\\n", "\n")
+JWT_SIGNING_KEY = env("JWT_SIGNING_KEY", default=SECRET_KEY)
+
+SIMPLE_JWT = {
+    "ALGORITHM": "RS256" if JWT_PUBLIC_KEY else "HS256",
+    "SIGNING_KEY": JWT_SIGNING_KEY,
+    "VERIFYING_KEY": JWT_PUBLIC_KEY or None,
+    "USER_ID_CLAIM": "sub",
+    "ISSUER": env("JWT_ISSUER", default="help-chair-access"),
+    "TOKEN_USER_CLASS": "rest_framework_simplejwt.models.TokenUser",
+}
+
 REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "peticiones.permissions.OptionalAccessJWTAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "peticiones.permissions.RequestsServicePermission",
+    ],
+    "DEFAULT_PARSER_CLASSES": [
+        "rest_framework.parsers.JSONParser",
+    ],
 }
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "Help Chair - requests",
     "DESCRIPTION": "API del servicio requests (contrato en contracts/requests/).",
-    "VERSION": "0.1.0",
+    "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
 }
 
@@ -103,3 +126,6 @@ LOGGING = {
     "handlers": {"console": {"class": "logging.StreamHandler", "formatter": "json"}},
     "root": {"handlers": ["console"], "level": env("LOG_LEVEL", default="INFO").upper()},
 }
+
+BROKER_URL = env("BROKER_URL", default="")
+BROKER_EVENTS_SUBJECT = env("BROKER_EVENTS_SUBJECT", default="events.routed.requests")

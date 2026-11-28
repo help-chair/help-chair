@@ -24,52 +24,20 @@
           "type": "object",
           "required": [
             "destination",
-            "rule_code"
+            "rule_code",
+            "category"
           ],
           "properties": {
             "destination": {
               "const": "REQUESTS"
             },
             "rule_code": {
-              "enum": ["R5", "R8"]
-            }
-          },
-          "allOf": [
-            {
-              "if": {
-                "properties": {
-                  "rule_code": {
-                    "const": "R5"
-                  }
-                },
-                "required": ["rule_code"]
-              },
-              "then": {
-                "properties": {
-                  "category": {
-                    "const": "REQUEST"
-                  }
-                }
-              }
+              "const": "R5"
             },
-            {
-              "if": {
-                "properties": {
-                  "rule_code": {
-                    "const": "R8"
-                  }
-                },
-                "required": ["rule_code"]
-              },
-              "then": {
-                "properties": {
-                  "category": {
-                    "const": "CHANGE"
-                  }
-                }
-              }
+            "category": {
+              "const": "REQUEST"
             }
-          ]
+          }
         }
       }
     }

@@ -1,3 +1,4 @@
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import (
@@ -8,15 +9,22 @@ from drf_spectacular.utils import (
 )
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 
 from .models import CatalogItem, ServiceRequest
+from .permissions import (
+    REQUESTER_STATUS_CHANGES,
+    can_attend,
+    jwt_enabled,
+    token_user_id,
+)
 from .serializers import (
     ApproveChangeSerializer,
     AssignRequestSerializer,
     CatalogItemSerializer,
     RejectChangeSerializer,
+    SatisfactionSurveySerializer,
     ServiceRequestSerializer,
     StatusChangeSerializer,
 )
@@ -30,6 +38,9 @@ ASSIGNABLE_STATUSES = (
 
 ERROR_400 = OpenApiResponse(description="Datos o parámetros de consulta inválidos.")
 ERROR_404 = OpenApiResponse(description="Recurso no encontrado.")
+ERROR_409 = OpenApiResponse(description="La petición ya tiene una encuesta respondida.")
+
+SURVEY_STATUSES = (ServiceRequest.Status.RESOLVED, ServiceRequest.Status.CLOSED)
 
 
 @extend_schema_view(
@@ -46,9 +57,7 @@ ERROR_404 = OpenApiResponse(description="Recurso no encontrado.")
     ),
     create=extend_schema(responses={201: CatalogItemSerializer, 400: ERROR_400}),
     retrieve=extend_schema(responses={200: CatalogItemSerializer, 404: ERROR_404}),
-    update=extend_schema(
-        responses={200: CatalogItemSerializer, 400: ERROR_400, 404: ERROR_404}
-    ),
+    update=extend_schema(responses={200: CatalogItemSerializer, 400: ERROR_400, 404: ERROR_404}),
     partial_update=extend_schema(
         responses={200: CatalogItemSerializer, 400: ERROR_400, 404: ERROR_404}
     ),
@@ -104,35 +113,36 @@ class CatalogItemViewSet(viewsets.ModelViewSet):
             ),
             OpenApiParameter(
                 name="asignado_a_id",
-                type=OpenApiTypes.INT,
+                type=OpenApiTypes.STR,
                 location=OpenApiParameter.QUERY,
-                description="Filtrar peticiones por ID del agente asignado.",
+                description="Filtrar peticiones por ID (Accesos) del agente asignado.",
             ),
             OpenApiParameter(
                 name="solicitante_id",
-                type=OpenApiTypes.INT,
+                type=OpenApiTypes.STR,
                 location=OpenApiParameter.QUERY,
-                description="Filtrar peticiones por ID del usuario solicitante.",
+                description="Filtrar peticiones por ID (Accesos) del usuario solicitante.",
             ),
         ],
         responses={200: ServiceRequestSerializer(many=True), 400: ERROR_400},
     ),
     create=extend_schema(responses={201: ServiceRequestSerializer, 400: ERROR_400}),
     retrieve=extend_schema(responses={200: ServiceRequestSerializer, 404: ERROR_404}),
-    update=extend_schema(
-        responses={200: ServiceRequestSerializer, 400: ERROR_400, 404: ERROR_404}
-    ),
+    update=extend_schema(responses={200: ServiceRequestSerializer, 400: ERROR_400, 404: ERROR_404}),
     partial_update=extend_schema(
         responses={200: ServiceRequestSerializer, 400: ERROR_400, 404: ERROR_404}
     ),
     destroy=extend_schema(responses={204: None, 404: ERROR_404}),
 )
 class ServiceRequestViewSet(viewsets.ModelViewSet):
-    queryset = ServiceRequest.objects.all()
+    queryset = ServiceRequest.objects.select_related("survey")
     serializer_class = ServiceRequestSerializer
 
     def get_queryset(self):
         queryset = super().get_queryset()
+        # El usuario final solo ve sus peticiones; las demás responden 404.
+        if not can_attend(self.request):
+            queryset = queryset.filter(requester_id=token_user_id(self.request))
         params = self.request.query_params
 
         status_param = params.get("estado")
@@ -150,9 +160,7 @@ class ServiceRequestViewSet(viewsets.ModelViewSet):
         approval_param = params.get("estado_aprobacion")
         if approval_param:
             if approval_param not in ServiceRequest.ApprovalStatus.values:
-                raise ValidationError(
-                    {"estado_aprobacion": "Estado de aprobación no válido."}
-                )
+                raise ValidationError({"estado_aprobacion": "Estado de aprobación no válido."})
             queryset = queryset.filter(approval_status=approval_param)
 
         filter_map = {
@@ -161,15 +169,17 @@ class ServiceRequestViewSet(viewsets.ModelViewSet):
         }
         for query_key, model_field in filter_map.items():
             raw_value = params.get(query_key)
-            if raw_value is not None and raw_value != "":
-                try:
-                    queryset = queryset.filter(**{model_field: int(raw_value)})
-                except ValueError:
-                    raise ValidationError(
-                        {query_key: "Debe ser un número entero válido."}
-                    ) from None
+            if raw_value:
+                queryset = queryset.filter(**{model_field: raw_value})
 
         return queryset
+
+    def perform_create(self, serializer):
+        # Con JWT, el usuario final siempre crea a su nombre: el solicitante sale del token.
+        if jwt_enabled() and not can_attend(self.request):
+            serializer.save(requester_id=token_user_id(self.request))
+        else:
+            serializer.save()
 
     @extend_schema(
         request=StatusChangeSerializer,
@@ -181,6 +191,11 @@ class ServiceRequestViewSet(viewsets.ModelViewSet):
         serializer = StatusChangeSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         next_status = serializer.validated_data["estado"]
+
+        if not can_attend(request) and next_status not in REQUESTER_STATUS_CHANGES:
+            raise PermissionDenied(
+                "Como solicitante solo puedes cancelar, cerrar o reabrir tu petición."
+            )
 
         if (
             service_request.requires_approval
@@ -199,23 +214,62 @@ class ServiceRequestViewSet(viewsets.ModelViewSet):
 
         if not service_request.can_transition_to(next_status):
             return Response(
-                {
-                    "detail": (
-                        f"No se puede pasar de {service_request.status} a {next_status}."
-                    )
-                },
+                {"detail": (f"No se puede pasar de {service_request.status} a {next_status}.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         service_request.status = next_status
         if next_status == ServiceRequest.Status.CANCELLED:
-            service_request.cancellation_reason = serializer.validated_data[
-                "motivo_cancelacion"
-            ]
+            service_request.cancellation_reason = serializer.validated_data["motivo_cancelacion"]
         if next_status == ServiceRequest.Status.CLOSED:
             service_request.closed_at = timezone.now()
         service_request.save()
         return Response(ServiceRequestSerializer(service_request).data)
+
+    @extend_schema(
+        request=SatisfactionSurveySerializer,
+        responses={
+            201: SatisfactionSurveySerializer,
+            400: ERROR_400,
+            404: ERROR_404,
+            409: ERROR_409,
+        },
+        description=(
+            "El solicitante califica la atención (1 a 5) cuando la petición está resuelta "
+            "o cerrada. Si estaba resuelta, la petición pasa a cerrada."
+        ),
+    )
+    @action(detail=True, methods=["post"], url_path="encuesta")
+    def survey(self, request, pk=None):
+        service_request = self.get_object()
+        if jwt_enabled() and service_request.requester_id != token_user_id(request):
+            raise PermissionDenied("Solo quien hizo la petición puede calificarla.")
+
+        serializer = SatisfactionSurveySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        if service_request.status not in SURVEY_STATUSES:
+            return Response(
+                {"detail": "Solo se puede calificar una petición resuelta o cerrada."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        respondent_id = token_user_id(request) if jwt_enabled() else service_request.requester_id
+        try:
+            with transaction.atomic():
+                survey = serializer.save(
+                    service_request=service_request, respondent_id=respondent_id
+                )
+                if service_request.status == ServiceRequest.Status.RESOLVED:
+                    service_request.status = ServiceRequest.Status.CLOSED
+                    service_request.closed_at = timezone.now()
+                    service_request.save(update_fields=["status", "closed_at", "updated_at"])
+        except IntegrityError:
+            return Response(
+                {"detail": "Esta petición ya tiene una encuesta respondida."},
+                status=status.HTTP_409_CONFLICT,
+            )
+        return Response(SatisfactionSurveySerializer(survey).data, status=status.HTTP_201_CREATED)
 
     @extend_schema(
         request=AssignRequestSerializer,
@@ -251,7 +305,7 @@ class ServiceRequestViewSet(viewsets.ModelViewSet):
         service_request = self.get_object()
         serializer = ApproveChangeSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        approver_id = serializer.validated_data["aprobador_id"]
+        approver_id = _approver_from_token(request, serializer.validated_data["aprobador_id"])
 
         if not service_request.requires_approval:
             return Response(
@@ -270,10 +324,7 @@ class ServiceRequestViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        if (
-            service_request.approver_id is not None
-            and service_request.approver_id != approver_id
-        ):
+        if service_request.approver_id and service_request.approver_id != approver_id:
             return Response(
                 {"detail": "El usuario no corresponde al aprobador designado para este cambio."},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -294,7 +345,7 @@ class ServiceRequestViewSet(viewsets.ModelViewSet):
         service_request = self.get_object()
         serializer = RejectChangeSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        approver_id = serializer.validated_data["aprobador_id"]
+        approver_id = _approver_from_token(request, serializer.validated_data["aprobador_id"])
 
         if not service_request.requires_approval:
             return Response(
@@ -313,10 +364,7 @@ class ServiceRequestViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        if (
-            service_request.approver_id is not None
-            and service_request.approver_id != approver_id
-        ):
+        if service_request.approver_id and service_request.approver_id != approver_id:
             return Response(
                 {"detail": "El usuario no corresponde al aprobador designado para este cambio."},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -330,3 +378,10 @@ class ServiceRequestViewSet(viewsets.ModelViewSet):
         service_request.closed_at = timezone.now()
         service_request.save()
         return Response(ServiceRequestSerializer(service_request).data)
+
+
+def _approver_from_token(request, approver_id: str) -> str:
+    """Con JWT, nadie aprueba ni rechaza en nombre de otra persona."""
+    if jwt_enabled() and approver_id != token_user_id(request):
+        raise PermissionDenied("Solo puedes aprobar o rechazar con tu propio usuario.")
+    return approver_id

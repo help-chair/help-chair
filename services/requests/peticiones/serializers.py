@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 
-from .models import CatalogItem, ServiceRequest
+from .models import CatalogItem, SatisfactionSurvey, ServiceRequest
 
 
 class CatalogItemSerializer(serializers.ModelSerializer):
@@ -27,6 +27,18 @@ class CatalogItemSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "creado_en"]
 
 
+class SatisfactionSurveySerializer(serializers.ModelSerializer):
+    calificacion = serializers.IntegerField(source="rating", min_value=1, max_value=5)
+    comentario = serializers.CharField(
+        source="comment", required=False, allow_blank=True, max_length=500
+    )
+    respondida_en = serializers.DateTimeField(source="answered_at", read_only=True)
+
+    class Meta:
+        model = SatisfactionSurvey
+        fields = ["calificacion", "comentario", "respondida_en"]
+
+
 class ServiceRequestSerializer(serializers.ModelSerializer):
     tipo = serializers.ChoiceField(
         source="request_type",
@@ -38,27 +50,24 @@ class ServiceRequestSerializer(serializers.ModelSerializer):
         source="service", queryset=CatalogItem.objects.all()
     )
     titulo = serializers.CharField(source="title", max_length=150)
-    descripcion = serializers.CharField(
-        source="description", required=False, allow_blank=True
-    )
+    descripcion = serializers.CharField(source="description", required=False, allow_blank=True)
     estado = serializers.CharField(source="status", read_only=True)
     estado_aprobacion = serializers.CharField(source="approval_status", read_only=True)
-    aprobador_id = serializers.IntegerField(
-        source="approver_id", required=False, allow_null=True, min_value=1
+    aprobador_id = serializers.CharField(
+        source="approver_id", required=False, allow_blank=True, max_length=64
     )
     aprobada_en = serializers.DateTimeField(source="approved_at", read_only=True)
     motivo_rechazo = serializers.CharField(source="rejection_reason", read_only=True)
-    solicitante_id = serializers.IntegerField(source="requester_id", min_value=0)
-    asignado_a_id = serializers.IntegerField(source="assignee_id", read_only=True)
+    solicitante_id = serializers.CharField(source="requester_id", max_length=64)
+    asignado_a_id = serializers.CharField(source="assignee_id", read_only=True)
     evento_id = serializers.CharField(
         source="event_id", required=False, allow_blank=True, default="", max_length=64
     )
-    motivo_cancelacion = serializers.CharField(
-        source="cancellation_reason", read_only=True
-    )
+    motivo_cancelacion = serializers.CharField(source="cancellation_reason", read_only=True)
     creada = serializers.DateTimeField(source="created_at", read_only=True)
     actualizada = serializers.DateTimeField(source="updated_at", read_only=True)
     cerrada_en = serializers.DateTimeField(source="closed_at", read_only=True)
+    encuesta = SatisfactionSurveySerializer(source="survey", read_only=True, allow_null=True)
 
     class Meta:
         model = ServiceRequest
@@ -80,6 +89,7 @@ class ServiceRequestSerializer(serializers.ModelSerializer):
             "creada",
             "actualizada",
             "cerrada_en",
+            "encuesta",
         ]
 
     def validate_servicio(self, service_item: CatalogItem) -> CatalogItem:
@@ -88,9 +98,7 @@ class ServiceRequestSerializer(serializers.ModelSerializer):
         return service_item
 
     def create(self, validated_data):
-        request_type = validated_data.get(
-            "request_type", ServiceRequest.RequestType.SERVICE
-        )
+        request_type = validated_data.get("request_type", ServiceRequest.RequestType.SERVICE)
         if request_type == ServiceRequest.RequestType.CHANGE:
             validated_data["approval_status"] = ServiceRequest.ApprovalStatus.PENDING
         else:
@@ -100,27 +108,23 @@ class ServiceRequestSerializer(serializers.ModelSerializer):
 
 class StatusChangeSerializer(serializers.Serializer):
     estado = serializers.ChoiceField(choices=ServiceRequest.Status.choices)
-    motivo_cancelacion = serializers.CharField(
-        required=False, allow_blank=True, max_length=255
-    )
+    motivo_cancelacion = serializers.CharField(required=False, allow_blank=True, max_length=255)
 
     def validate(self, attrs):
         is_cancelling = attrs["estado"] == ServiceRequest.Status.CANCELLED
         if is_cancelling and not attrs.get("motivo_cancelacion"):
-            raise serializers.ValidationError(
-                {"motivo_cancelacion": "Es obligatorio al cancelar."}
-            )
+            raise serializers.ValidationError({"motivo_cancelacion": "Es obligatorio al cancelar."})
         return attrs
 
 
 class AssignRequestSerializer(serializers.Serializer):
-    asignado_a_id = serializers.IntegerField(min_value=1)
+    asignado_a_id = serializers.CharField(max_length=64)
 
 
 class ApproveChangeSerializer(serializers.Serializer):
-    aprobador_id = serializers.IntegerField(min_value=1)
+    aprobador_id = serializers.CharField(max_length=64)
 
 
 class RejectChangeSerializer(serializers.Serializer):
-    aprobador_id = serializers.IntegerField(min_value=1)
+    aprobador_id = serializers.CharField(max_length=64)
     motivo_rechazo = serializers.CharField(max_length=255)

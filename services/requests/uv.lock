@@ -294,6 +294,17 @@ dependencies = [
     { name = "whitenoise" },
 ]
 
+[package.optional-dependencies]
+dev = [
+    { name = "factory-boy" },
+    { name = "openapi-spec-validator" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "pytest-django" },
+    { name = "ruff" },
+    { name = "schemathesis" },
+]
+
 [package.dev-dependencies]
 dev = [
     { name = "factory-boy" },
@@ -313,11 +324,19 @@ requires-dist = [
     { name = "djangorestframework", specifier = ">=3.15" },
     { name = "djangorestframework-simplejwt", specifier = ">=5.3" },
     { name = "drf-spectacular", specifier = ">=0.27" },
+    { name = "factory-boy", marker = "extra == 'dev'", specifier = ">=3.3" },
     { name = "gunicorn", specifier = ">=22.0" },
     { name = "nats-py", specifier = ">=2.17.0" },
+    { name = "openapi-spec-validator", marker = "extra == 'dev'", specifier = ">=0.7" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
+    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=5.0" },
+    { name = "pytest-django", marker = "extra == 'dev'", specifier = ">=4.8" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.8" },
+    { name = "schemathesis", marker = "extra == 'dev'", specifier = ">=3.30" },
     { name = "whitenoise", specifier = ">=6.7" },
 ]
+provides-extras = ["dev"]
 
 [package.metadata.requires-dev]
 dev = [

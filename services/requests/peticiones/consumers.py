@@ -9,28 +9,13 @@ from .models import CatalogItem, ServiceRequest
 logger = logging.getLogger(__name__)
 
 DEFAULT_SERVICE_NAME = "Atención automática de eventos"
-SYSTEM_REQUESTER_ID = 0
+# Peticiones creadas por eventos de sistema (sin usuario que las reporte).
+SYSTEM_REQUESTER_ID = ""
 TARGET_DESTINATION = "REQUESTS"
 
 
 class InvalidEventError(ValueError):
     """El mensaje recibido desde el broker no cumple con el esquema oficial."""
-
-
-def _parse_positive_int(value: Any, field_name: str) -> int | None:
-    if value is None or value == "":
-        return None
-    if isinstance(value, bool):
-        raise InvalidEventError(f"El campo '{field_name}' debe ser un entero válido.")
-    try:
-        parsed = int(value)
-    except (TypeError, ValueError) as exc:
-        raise InvalidEventError(
-            f"El campo '{field_name}' debe ser un entero válido."
-        ) from exc
-    if parsed <= 0:
-        raise InvalidEventError(f"El campo '{field_name}' debe ser mayor a cero.")
-    return parsed
 
 
 def _resolve_catalog_item(service_code: str | None) -> CatalogItem:
@@ -63,9 +48,7 @@ def process_routed_event(envelope: dict[str, Any]) -> tuple[ServiceRequest | Non
 
     envelope_type = str(envelope.get("type") or "").strip()
     if envelope_type != "event.routed":
-        raise InvalidEventError(
-            f"Tipo de sobre no soportado para Peticiones: '{envelope_type}'."
-        )
+        raise InvalidEventError(f"Tipo de sobre no soportado para Peticiones: '{envelope_type}'.")
 
     payload = envelope.get("payload")
     if not isinstance(payload, dict):
@@ -115,12 +98,9 @@ def process_routed_event(envelope: dict[str, Any]) -> tuple[ServiceRequest | Non
         )
     description = "\n".join(description_parts)
 
+    # `reporter_ref` es la referencia (texto) al usuario de Accesos, o null si es de sistema.
     reporter_ref = payload.get("reporter_ref")
-    requester_id = (
-        _parse_positive_int(reporter_ref, "reporter_ref")
-        if reporter_ref is not None
-        else SYSTEM_REQUESTER_ID
-    )
+    requester_id = str(reporter_ref).strip()[:64] if reporter_ref else SYSTEM_REQUESTER_ID
 
     service_code = payload.get("service_code")
     catalog_item = _resolve_catalog_item(str(service_code) if service_code else None)

@@ -1,5 +1,6 @@
 import uuid
 
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
 
@@ -50,9 +51,7 @@ class ServiceRequest(models.Model):
     request_type = models.CharField(
         max_length=20, choices=RequestType.choices, default=RequestType.SERVICE
     )
-    service = models.ForeignKey(
-        CatalogItem, on_delete=models.PROTECT, related_name="requests"
-    )
+    service = models.ForeignKey(CatalogItem, on_delete=models.PROTECT, related_name="requests")
     title = models.CharField(max_length=150)
     description = models.TextField(blank=True)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.NEW)
@@ -62,12 +61,14 @@ class ServiceRequest(models.Model):
         choices=ApprovalStatus.choices,
         default=ApprovalStatus.NOT_REQUIRED,
     )
-    approver_id = models.BigIntegerField(null=True, blank=True)
+    # Referencias a usuarios de Accesos: su id es un UUID, así que se guardan como texto
+    # (igual que Incidencias y Eventos). Vacío = sin definir.
+    approver_id = models.CharField(max_length=64, blank=True, default="")
     approved_at = models.DateTimeField(null=True, blank=True)
     rejection_reason = models.CharField(max_length=255, blank=True)
 
-    requester_id = models.BigIntegerField()
-    assignee_id = models.BigIntegerField(null=True, blank=True)
+    requester_id = models.CharField(max_length=64, blank=True, default="")
+    assignee_id = models.CharField(max_length=64, blank=True, default="")
     event_id = models.CharField(max_length=64, blank=True, default="", db_index=True)
 
     cancellation_reason = models.CharField(max_length=255, blank=True)
@@ -106,3 +107,32 @@ class ServiceRequest(models.Model):
         ):
             return False
         return True
+
+
+class SatisfactionSurvey(models.Model):
+    """Encuesta de satisfacción (CSAT) que responde el solicitante al cierre.
+
+    Una por petición. Si la petición estaba resuelta, responderla la cierra.
+    """
+
+    service_request = models.OneToOneField(
+        ServiceRequest, on_delete=models.CASCADE, related_name="survey"
+    )
+    rating = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(5)]
+    )
+    comment = models.TextField(max_length=500, blank=True)
+    # Referencia (UUID) al usuario de Accesos que respondió.
+    respondent_id = models.CharField(max_length=64, blank=True, default="")
+    answered_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(rating__gte=1, rating__lte=5),
+                name="survey_rating_between_1_and_5",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.rating}/5 · {self.service_request_id}"

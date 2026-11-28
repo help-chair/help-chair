@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import CatalogItem, ServiceRequest
+from .models import CatalogItem, SatisfactionSurvey, ServiceRequest
 
 
 @admin.register(CatalogItem)
@@ -24,3 +24,9 @@ class ServiceRequestAdmin(admin.ModelAdmin):
     ]
     list_filter = ["status", "request_type", "approval_status", "service"]
     search_fields = ["title", "description", "event_id"]
+
+
+@admin.register(SatisfactionSurvey)
+class SatisfactionSurveyAdmin(admin.ModelAdmin):
+    list_display = ["service_request", "rating", "respondent_id", "answered_at"]
+    list_filter = ["rating"]

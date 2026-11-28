@@ -1,0 +1,34 @@
+
+{
+  "id": "2a1b3c4d-5e6f-4789-8abc-123456789abc",
+  "type": "event.routed",
+  "version": 1,
+  "origin": "events",
+  "timestamp": "2026-11-28T16:00:01Z",
+  "occurred_at": "2026-11-28T16:00:00Z",
+  "correlation_id": null,
+  "payload": {
+    "event_id": "3b2c4d5e-6f70-489a-9bcd-234567890abc",
+    "destination": "REQUESTS",
+    "rule_code": "R8",
+    "event_type": "INFORMATION",
+    "category": "CHANGE",
+    "state": "NEW",
+    "priority": "P3",
+    "impact": "LOW",
+    "urgency": "LOW",
+    "service_code": "configuracion",
+    "title": "Solicitud de cambio de configuración",
+    "message": "Se solicita modificar la configuración de una herramienta interna",
+    "action_required": true,
+    "occurrence_count": 1,
+    "fingerprint": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+    "first_seen_at": "2026-11-28T16:00:00Z",
+    "last_seen_at": "2026-11-28T16:00:00Z",
+    "reporter_ref": null,
+    "payload": {
+      "change_type": "configuration",
+      "requested_action": "update"
+    }
+  }
+}

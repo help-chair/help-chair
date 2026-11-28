@@ -1,16 +1,24 @@
-import { Check } from 'lucide-react'
+import { Check, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { REQUEST_STATES } from './data'
-import type { RequestStatus } from './types'
+import { APPROVAL_STEP, getStatus } from './data'
+import type { ApprovalStatus, RequestStatus } from './types'
 
 interface RequestLifecycleProps {
   status: RequestStatus
-  /** Si el servicio no requiere aprobación, se omite ese paso. */
-  requiresApproval: boolean
+  /** Con `no_requerida` se omite el paso de aprobación. */
+  approvalStatus: ApprovalStatus
   className?: string
 }
 
 type StepState = 'done' | 'current' | 'pending'
+
+interface Step {
+  id: string
+  label: string
+  description: string
+  icon: LucideIcon
+  state: StepState
+}
 
 const SR_STATE_LABEL: Record<StepState, string> = {
   done: 'completado',
@@ -18,12 +26,50 @@ const SR_STATE_LABEL: Record<StepState, string> = {
   pending: 'pendiente',
 }
 
-/** Línea de vida de la petición: Enviada → Aprobación pendiente → En provisión → Completada. */
-export function RequestLifecycle({ status, requiresApproval, className }: RequestLifecycleProps) {
-  const steps = REQUEST_STATES.filter(
-    (step) => requiresApproval || step.id !== 'aprobacion_pendiente',
-  )
-  const currentIndex = steps.findIndex((step) => step.id === status)
+/** Camino principal del contrato; reabierto y cancelado no son pasos sino desvíos. */
+const MAIN_PATH: RequestStatus[] = ['nuevo', 'asignado', 'en_proceso', 'resuelto', 'cerrado']
+
+function buildSteps(status: RequestStatus, approvalStatus: ApprovalStatus): Step[] {
+  // Una petición reabierta vuelve a manos de soporte: se muestra en «Asignada».
+  const position = status === 'reabierto' ? 1 : MAIN_PATH.indexOf(status)
+  // Mientras sea nueva y su servicio exija aprobación, el paso actual es «Aprobación».
+  const atApproval =
+    status === 'nuevo' && (approvalStatus === 'pendiente' || approvalStatus === 'aprobado')
+
+  const steps: Step[] = MAIN_PATH.map((id, index) => {
+    const info = getStatus(id)
+    const state: StepState =
+      status === 'cerrado' || index < position || (atApproval && index === 0)
+        ? 'done'
+        : index === position
+          ? 'current'
+          : 'pending'
+    const description =
+      status === 'reabierto' && index === position
+        ? getStatus('reabierto').description
+        : info.description
+    return { id, label: info.label, description, icon: info.icon, state }
+  })
+
+  if (approvalStatus !== 'no_requerida') {
+    const approval: Step = {
+      id: 'aprobacion',
+      label: APPROVAL_STEP.label,
+      icon: APPROVAL_STEP.icon,
+      description:
+        approvalStatus === 'aprobado'
+          ? 'Ya está aprobada; soporte la asignará pronto.'
+          : APPROVAL_STEP.description,
+      state: atApproval ? 'current' : approvalStatus === 'aprobado' ? 'done' : 'pending',
+    }
+    steps.splice(1, 0, approval)
+  }
+  return steps
+}
+
+/** Línea de vida: Nueva → (Aprobación) → Asignada → En proceso → Resuelta → Cerrada. */
+export function RequestLifecycle({ status, approvalStatus, className }: RequestLifecycleProps) {
+  const steps = buildSteps(status, approvalStatus)
 
   return (
     <ol
@@ -31,28 +77,20 @@ export function RequestLifecycle({ status, requiresApproval, className }: Reques
       className={cn('flex flex-col gap-3 sm:flex-row sm:gap-0', className)}
     >
       {steps.map((step, index) => {
-        const state: StepState =
-          index < currentIndex || status === 'completada'
-            ? 'done'
-            : index === currentIndex
-              ? 'current'
-              : 'pending'
         const Icon = step.icon
-
+        const next = steps[index + 1]
         return (
           <li
             key={step.id}
-            aria-current={state === 'current' ? 'step' : undefined}
+            aria-current={step.state === 'current' ? 'step' : undefined}
             className="relative flex items-center gap-3 sm:flex-1 sm:flex-col sm:gap-2 sm:text-center"
           >
-            {index < steps.length - 1 && (
+            {next && (
               <span
                 aria-hidden="true"
                 className={cn(
                   'absolute top-4 left-1/2 ml-5 hidden h-0.5 w-[calc(100%-2.5rem)] rounded-full sm:block',
-                  index < currentIndex || status === 'completada'
-                    ? 'bg-itil-request'
-                    : 'bg-slate-200',
+                  next.state === 'pending' ? 'bg-slate-200' : 'bg-itil-request',
                 )}
               />
             )}
@@ -60,15 +98,15 @@ export function RequestLifecycle({ status, requiresApproval, className }: Reques
               aria-hidden="true"
               className={cn(
                 'flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 text-xs font-semibold',
-                state === 'done' && 'border-itil-request bg-itil-request text-white',
-                state === 'current' &&
+                step.state === 'done' && 'border-itil-request bg-itil-request text-white',
+                step.state === 'current' &&
                   'border-itil-request bg-white text-itil-request ring-4 ring-purple-100',
-                state === 'pending' && 'border-slate-200 bg-white text-slate-400',
+                step.state === 'pending' && 'border-slate-200 bg-white text-slate-400',
               )}
             >
-              {state === 'done' ? (
+              {step.state === 'done' ? (
                 <Check size={16} />
-              ) : state === 'current' ? (
+              ) : step.state === 'current' ? (
                 <Icon size={16} />
               ) : (
                 index + 1
@@ -78,13 +116,13 @@ export function RequestLifecycle({ status, requiresApproval, className }: Reques
               <span
                 className={cn(
                   'block text-xs font-semibold',
-                  state === 'pending' ? 'text-slate-400' : 'text-slate-800',
+                  step.state === 'pending' ? 'text-slate-400' : 'text-slate-800',
                 )}
               >
                 {step.label}
-                <span className="sr-only"> ({SR_STATE_LABEL[state]})</span>
+                <span className="sr-only"> ({SR_STATE_LABEL[step.state]})</span>
               </span>
-              {state === 'current' && (
+              {step.state === 'current' && (
                 <span className="block text-xs text-slate-500">{step.description}</span>
               )}
             </span>

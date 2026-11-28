@@ -8,10 +8,16 @@ from drf_spectacular.utils import (
 )
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 
 from .models import CatalogItem, ServiceRequest
+from .permissions import (
+    REQUESTER_STATUS_CHANGES,
+    can_attend,
+    jwt_enabled,
+    token_user_id,
+)
 from .serializers import (
     ApproveChangeSerializer,
     AssignRequestSerializer,
@@ -129,6 +135,9 @@ class ServiceRequestViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = super().get_queryset()
+        # El usuario final solo ve sus peticiones; las demás responden 404.
+        if not can_attend(self.request):
+            queryset = queryset.filter(requester_id=token_user_id(self.request))
         params = self.request.query_params
 
         status_param = params.get("estado")
@@ -160,6 +169,13 @@ class ServiceRequestViewSet(viewsets.ModelViewSet):
 
         return queryset
 
+    def perform_create(self, serializer):
+        # Con JWT, el usuario final siempre crea a su nombre: el solicitante sale del token.
+        if jwt_enabled() and not can_attend(self.request):
+            serializer.save(requester_id=token_user_id(self.request))
+        else:
+            serializer.save()
+
     @extend_schema(
         request=StatusChangeSerializer,
         responses={200: ServiceRequestSerializer, 400: ERROR_400, 404: ERROR_404},
@@ -170,6 +186,11 @@ class ServiceRequestViewSet(viewsets.ModelViewSet):
         serializer = StatusChangeSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         next_status = serializer.validated_data["estado"]
+
+        if not can_attend(request) and next_status not in REQUESTER_STATUS_CHANGES:
+            raise PermissionDenied(
+                "Como solicitante solo puedes cancelar, cerrar o reabrir tu petición."
+            )
 
         if (
             service_request.requires_approval
@@ -234,7 +255,7 @@ class ServiceRequestViewSet(viewsets.ModelViewSet):
         service_request = self.get_object()
         serializer = ApproveChangeSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        approver_id = serializer.validated_data["aprobador_id"]
+        approver_id = _approver_from_token(request, serializer.validated_data["aprobador_id"])
 
         if not service_request.requires_approval:
             return Response(
@@ -274,7 +295,7 @@ class ServiceRequestViewSet(viewsets.ModelViewSet):
         service_request = self.get_object()
         serializer = RejectChangeSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        approver_id = serializer.validated_data["aprobador_id"]
+        approver_id = _approver_from_token(request, serializer.validated_data["aprobador_id"])
 
         if not service_request.requires_approval:
             return Response(
@@ -307,3 +328,10 @@ class ServiceRequestViewSet(viewsets.ModelViewSet):
         service_request.closed_at = timezone.now()
         service_request.save()
         return Response(ServiceRequestSerializer(service_request).data)
+
+
+def _approver_from_token(request, approver_id: str) -> str:
+    """Con JWT, nadie aprueba ni rechaza en nombre de otra persona."""
+    if jwt_enabled() and approver_id != token_user_id(request):
+        raise PermissionDenied("Solo puedes aprobar o rechazar con tu propio usuario.")
+    return approver_id

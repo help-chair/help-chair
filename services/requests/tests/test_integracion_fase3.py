@@ -9,13 +9,29 @@ from peticiones.models import CatalogItem, ServiceRequest
 API_BASE = "/api/requests/v1"
 
 
+# Permisos por rol tal como los carga Accesos (`services/access`, `make seed`).
+ROLE_PERMISSIONS = {
+    "administrador": [
+        "tickets:ver",
+        "tickets:atender",
+        "tickets:escalar",
+        "empresa:configurar",
+        "usuarios:administrar",
+    ],
+    "agente_n2": ["tickets:ver", "tickets:atender", "tickets:escalar"],
+    "agente_n1": ["tickets:ver", "tickets:atender"],
+    "usuario_final": ["tickets:ver"],
+}
+
+
 def _build_access_jwt(
-    user_id: int = 10, role: str = "agente", empresa: str = "empresa-demo"
+    user_id: str = "agente-10", role: str = "agente_n1", empresa: str = "empresa-demo"
 ) -> str:
     token = AccessToken()
     token["sub"] = str(user_id)
     token["iss"] = "help-chair-access"
     token["rol"] = role
+    token["permisos"] = ROLE_PERMISSIONS.get(role, [])
     token["empresa"] = empresa
     return str(token)
 
@@ -116,8 +132,8 @@ def test_jwt_authentication_from_access_service(client):
     unauth_res = client.get(f"{API_BASE}/peticiones/")
     assert unauth_res.status_code == 401
 
-    # Usuario solicitante puede listar y crear peticiones, pero no editar catálogo (403)
-    solicitante_token = _build_access_jwt(user_id=15, role="usuario")
+    # El usuario final puede listar, pero no editar el catálogo (403)
+    solicitante_token = _build_access_jwt(user_id="usuario-15", role="usuario_final")
     auth_user = {"HTTP_AUTHORIZATION": f"Bearer {solicitante_token}"}
 
     list_res = client.get(f"{API_BASE}/peticiones/", **auth_user)
@@ -131,15 +147,22 @@ def test_jwt_authentication_from_access_service(client):
     )
     assert forbidden_catalog.status_code == 403
 
-    # Agente/admin sí puede crear servicios en el catálogo (201)
-    agent_token = _build_access_jwt(user_id=20, role="agente")
-    auth_agent = {"HTTP_AUTHORIZATION": f"Bearer {agent_token}"}
+    # Un agente atiende peticiones, pero el catálogo lo configura el administrador
+    agent_token = _build_access_jwt(user_id="agente-20", role="agente_n1")
+    agent_catalog = client.post(
+        f"{API_BASE}/servicios/",
+        {"nombre": "Alta de equipo"},
+        content_type="application/json",
+        HTTP_AUTHORIZATION=f"Bearer {agent_token}",
+    )
+    assert agent_catalog.status_code == 403
 
+    admin_token = _build_access_jwt(user_id="admin-1", role="administrador")
     allowed_catalog = client.post(
         f"{API_BASE}/servicios/",
         {"nombre": "Alta de equipo"},
         content_type="application/json",
-        **auth_agent,
+        HTTP_AUTHORIZATION=f"Bearer {admin_token}",
     )
     assert allowed_catalog.status_code == 201
 

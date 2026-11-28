@@ -21,6 +21,7 @@ from .deduplication import (
     find_open_event_by_fingerprint,
     similar_event_count,
 )
+from .dispatch import schedule_dispatch
 from .fingerprint import compute_fingerprint
 from .lifecycle import auto_close_informational, record_history
 from .priority import priority_context, resolve_sla
@@ -87,7 +88,7 @@ def _add_occurrence(
         )
     count = similar_event_count(event)
     watch_warning(event, previous_count=count - 1, current_count=count)  # regla 3
-    # schedule_dispatch(event.pk)  # si cruzó el umbral, la regla 7 lo enruta a Problemas
+    schedule_dispatch(event.pk)  # si cruzó el umbral, la regla 7 lo enruta a Problemas
     return event
 
 
@@ -253,4 +254,5 @@ def register_event(
     count = similar_event_count(event)
     watch_warning(event, previous_count=count - 1, current_count=count)  # regla 3
     dispatch_security_event(event, security_exception=security_exception)
+    schedule_dispatch(event.pk)  # reglas 4 a 9: no hace nada si el evento ya se cerró (R1)
     return event, True

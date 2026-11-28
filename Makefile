@@ -11,7 +11,8 @@ CLUSTER_DIR  := platform/deploy/cluster/scripts
 export PODMAN_COMPOSE_WARNING_LOGS ?= false
 
 .PHONY: help up down logs ps build reset health setup-all test-all lint-all hooks \
-        kube-build kube-up kube-down kube-reset helm-check compose-check deploy-check testing-up testing-down
+        kube-build kube-up kube-down kube-reset helm-check compose-check deploy-check \
+				testing-up testing-down
 
 help: ## Muestra esta ayuda
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-12s %s\n", $$1, $$2}'

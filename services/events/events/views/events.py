@@ -66,7 +66,7 @@ class EventListCreateView(APIView):
         ],
     )
     def get(self, request):
-        queryset = Event.objects.select_related("service").all()
+        queryset = Event.objects.select_related("service").prefetch_related("routings")
 
         enum_filters = {
             "state": dict(EventState.choices),
@@ -181,7 +181,10 @@ class EventDetailView(APIView):
         },
     )
     def get(self, request, id):
-        event = get_object_or_404(Event.objects.select_related("service", "source"), id=id)
+        event = get_object_or_404(
+            Event.objects.select_related("service", "source").prefetch_related("routings"),
+            id=id,
+        )
         return Response(EventDetailSerializer(event).data)
 
     @extend_schema(

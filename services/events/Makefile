@@ -24,7 +24,7 @@ else
 endif
 
 .DEFAULT_GOAL := help
-.PHONY: help setup run migrate makemigrations test lint format build seed openapi contracts-check lock clean
+.PHONY: help setup run migrate makemigrations test lint format build seed openapi contracts-check lock clean worker test-integration
 
 help: ## Muestra esta ayuda
 	@echo "Servicio $(SERVICE) · modo: $(MODE)"
@@ -70,8 +70,14 @@ openapi: ## Exporta el contrato a contracts/$(SERVICE)/openapi.yaml
 	@mkdir -p ../../contracts/$(SERVICE)
 	$(PYTHON) manage.py spectacular --file ../../contracts/$(SERVICE)/openapi.yaml --validate
 
+worker: ## Entrega las salidas pendientes (modo deferred) en bucle
+	$(PYTHON) manage.py retry_routing --loop
+
 contracts-check:
 	$(RUN) openapi-spec-validator ../../contracts/events/openapi.yaml
+
+test-integration: ## Pruebas contra los servicios de podman compose (make up antes)
+	INTEGRATION=1 $(PYTHON) -m pytest -m integration --no-cov
 
 lock: ## (requiere uv) Actualiza uv.lock y regenera requirements*.txt
 	uv lock -q

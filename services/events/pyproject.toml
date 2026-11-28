@@ -13,6 +13,7 @@ dependencies = [
     "psycopg[binary]>=3.2",
     "whitenoise>=6.7",
     "nats-py>=2.6",
+    "httpx>=0.29.0",
 ]
 
 [dependency-groups]
@@ -36,7 +37,8 @@ package = false
 DJANGO_SETTINGS_MODULE = "config.settings"
 python_files = ["test_*.py"]
 testpaths = ["tests"]
-addopts = "-q --cov=. --cov-report=term-missing:skip-covered --cov-fail-under=60"
+addopts = "-q -m 'not integration' --cov=. --cov-report=term-missing:skip-covered --cov-fail-under=60"
+markers = ["integration: requieren `podman compose up` (no corren en make test)"]
 filterwarnings = ["ignore:No directory at:UserWarning"]
 
 [tool.coverage.run]

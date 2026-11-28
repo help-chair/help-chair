@@ -59,14 +59,31 @@ services:
     <<: *django
     build: ../../../services/events
     image: ghcr.io/help-chair/hc-events:dev
-    environment:
+    environment: &events-env
       <<: *django-env
       SERVICE_NAME: events
       PORT: "8001"
       DATABASE_URL: postgresql://events:events@events-db:5432/events
+      ACCESS_URL: http://access:8002
+      REQUESTS_URL: http://requests:8003
+      INCIDENTS_URL: http://incidents:8004
+      PROBLEMS_URL: http://problems:8005
+      SERVICE_ACCOUNT_EMAIL: events-service@local.test   # solo desarrollo
+      SERVICE_ACCOUNT_PASSWORD: "solo-desarrollo-local"
     ports: ["127.0.0.1:8001:8001"]
     depends_on:
       events-db:
+        condition: service_healthy
+
+  events-worker:
+    <<: *django
+    image: ghcr.io/help-chair/hc-events:dev
+    environment: *events-env
+    command: ["python", "manage.py", "retry_routing", "--loop", "--interval", "5"]
+    healthcheck:
+      disable: true
+    depends_on:
+      events:
         condition: service_healthy
 
   events-db:

@@ -185,3 +185,22 @@ LOGGING = {
     "handlers": {"console": {"class": "logging.StreamHandler", "formatter": "json"}},
     "root": {"handlers": ["console"], "level": env("LOG_LEVEL", default="INFO").upper()},
 }
+
+
+DESTINATION_URLS = {
+    "ACCESS": env("ACCESS_URL", default=""),
+    "REQUESTS": env("REQUESTS_URL", default=""),
+    "INCIDENTS": env("INCIDENTS_URL", default=""),
+    "PROBLEMS": env("PROBLEMS_URL", default=""),
+}
+DESTINATION_TIMEOUT = env.float("DESTINATION_TIMEOUT", default=5.0)
+DESTINATION_RETRIES = env.int("DESTINATION_RETRIES", default=2)
+DESTINATION_BACKOFF = env.float("DESTINATION_BACKOFF", default=0.5)
+ROUTING_MAX_ATTEMPTS = env.int("ROUTING_MAX_ATTEMPTS", default=5)
+# inline: envía al registrar · deferred: solo registra y envía `retry_routing` · off: no enruta
+ROUTING_DISPATCH_MODE = env("ROUTING_DISPATCH_MODE", default="deferred")
+ROUTING_RETRY_DELAY = env.int("ROUTING_RETRY_DELAY", default=30)  # segundos entre intentos
+# JWT de servicio: fijo (pruebas) o cuenta de servicio en Accesos. Nunca en el repo.
+SERVICE_JWT = env("SERVICE_JWT", default="")
+SERVICE_ACCOUNT_EMAIL = env("SERVICE_ACCOUNT_EMAIL", default="")
+SERVICE_ACCOUNT_PASSWORD = env("SERVICE_ACCOUNT_PASSWORD", default="")

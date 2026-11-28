@@ -15,6 +15,23 @@ from ..models.choices import ClosureCode, Destination
 from .common import nullable_text
 
 
+def _routings(instance):
+    """Envíos del evento, del más antiguo al más reciente. Usa el prefetch si existe."""
+    return sorted(instance.routings.all(), key=lambda r: (r.created_at, r.pk))
+
+
+def _routing_entry(r):
+    return {
+        "destination": r.destination,
+        "rule_code": r.rule_code,
+        "status": r.status,
+        "remote_id": r.remote_id or None,
+        "attempts": r.attempts,
+        "last_error": r.last_error or None,
+        "sent_at": r.sent_at.isoformat() if r.sent_at else None,
+    }
+
+
 class BusinessServiceSerializer(serializers.ModelSerializer):
     description = serializers.CharField(
         read_only=True, allow_null=True, allow_blank=True, required=False
@@ -188,7 +205,8 @@ class EventListItemSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         data = super().to_representation(instance)
         data["service_code"] = instance.service.code if instance.service else None
-        data["destination"] = None
+        routings = _routings(instance)
+        data["destination"] = routings[-1].destination if routings else None
         data["assigned_to_ref"] = nullable_text(instance.assigned_to_ref)
         data["priority"] = nullable_text(instance.priority)
         return data
@@ -208,12 +226,9 @@ class EventDetailSerializer(EventReadSerializer):
     class Meta(EventReadSerializer.Meta):
         fields = [*EventReadSerializer.Meta.fields, "service", "routing"]
 
-    def get_routing(self, obj):
-        return []
-
     def to_representation(self, instance):
         data = super().to_representation(instance)
-        data["routing"] = []
+        data["routing"] = [_routing_entry(r) for r in _routings(instance)]
         if instance.service is None:
             data.pop("service", None)
         return data

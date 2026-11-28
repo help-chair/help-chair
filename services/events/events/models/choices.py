@@ -141,3 +141,9 @@ class MatchKind(models.TextChoices):
     NEW = "NEW", "Evento Nuevo"
     EXACT = "EXACT", "Misma huella"
     FUZZY = "FUZZY", "Similitud"
+
+
+class RoutingStatus(models.TextChoices):
+    SENT = "SENT", "Enviado"
+    PENDING = "PENDING", "Pendiente"
+    TRIAGE = "TRIAGE", "Triage manual"

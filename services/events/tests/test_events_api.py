@@ -189,13 +189,18 @@ def test_list_filters_pagination_and_detail(api_client, service):
     body = listing.json()
     assert body["count"] == 1
     assert len(body["results"]) == 1
-    assert body["results"][0]["destination"] is None
+    assert body["results"][0]["destination"] == "INCIDENTS"  # regla 9: triage manual
 
     event_id = first.json()["id"]
     detail = api_client.get(f"/api/v1/events/{event_id}")
     assert detail.status_code == 200
     assert detail.json()["service"]["code"] == service.code
-    assert detail.json()["routing"] == []
+
+    routing = detail.json()["routing"]
+    assert len(routing) == 1
+    assert routing[0]["destination"] == "INCIDENTS"
+    assert routing[0]["rule_code"] == "R9"
+    assert routing[0]["status"] == "PENDING"
 
     no_service_id = second.json()["id"]
     no_service = api_client.get(f"/api/v1/events/{no_service_id}")
@@ -245,3 +250,17 @@ def test_internal_service_accepts_optional_gateway_credentials(api_client, heade
     response = api_client.get("/api/v1/events", **headers)
 
     assert response.status_code == 200
+
+
+@pytest.mark.django_db
+def test_list_does_not_query_routings_per_event(api_client, django_assert_max_num_queries):
+    from events.models import EventRouting
+    from tests.factories import make_event
+
+    for _ in range(5):
+        event = make_event()
+        EventRouting.objects.create(event=event, destination="INCIDENTS", rule_code="R9")
+
+    # count + página + prefetch de routings: no debe crecer con el número de eventos
+    with django_assert_max_num_queries(5):
+        assert api_client.get("/api/v1/events").status_code == 200

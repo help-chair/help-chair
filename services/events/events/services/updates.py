@@ -4,6 +4,7 @@ from django.db import transaction
 
 from ..models import TERMINAL_STATES, ActorType, ChangeType
 from ..priority import resolve_priority
+from .dispatch import schedule_dispatch
 from .lifecycle import EventConflict, assign_event, lock_event, record_history
 from .priority import priority_context, resolve_sla
 
@@ -104,6 +105,8 @@ def update_event(event, data: dict, *, actor_ref=""):
             actor_ref=actor_ref,
             description=data["note"],
         )
+    if any(key in data for key in ("category", "impact", "urgency")):
+        schedule_dispatch(event.pk)
     return event
 
 

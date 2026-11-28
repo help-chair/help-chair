@@ -46,9 +46,11 @@ class RequestContractTests(unittest.TestCase):
         self.validator.validate(self.example)
 
     def test_valid_change_request(self):
-        message = copy.deepcopy(self.example)
-        message["payload"]["rule_code"] = "R8"
-        message["payload"]["category"] = "CHANGE"
+        message = json.loads(
+            (ROOT / "examples/change-request.json").read_text(
+                encoding="utf-8"
+            )
+        )
 
         self.validator.validate(message)
 

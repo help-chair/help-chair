@@ -3,53 +3,48 @@
 
 ## Descripción
 
-Esta carpeta contiene el contrato de los mensajes que el servicio de Peticiones recibe desde Eventos mediante NATS.
+Esta carpeta contiene los contratos de los mensajes que Peticiones recibe desde Eventos mediante NATS.
 
-Se utiliza el esquema común definido en `contracts/messages/event-envelope.json` para mantener el mismo formato de comunicación entre los servicios de Help Chair.
+Se utiliza el esquema común de `contracts/messages/event-envelope.json` para mantener el mismo formato de comunicación entre los servicios.
 
 ## Mensajes recibidos
 
-Por ahora se documenta el mensaje `event.routed`, publicado por Eventos cuando una solicitud debe dirigirse a Peticiones.
-
-El mensaje utiliza el siguiente subject:
+Peticiones recibe mensajes `event.routed` publicados por Eventos mediante el subject:
 
 `events.routed.requests`
 
-Para Peticiones se contempla la regla R5, correspondiente a solicitudes del catálogo de servicios.
+Actualmente se contemplan dos reglas:
 
-## Estructura del mensaje
+- R5: solicitudes relacionadas con el catálogo de servicios.
+- R8: solicitudes relacionadas con cambios.
 
-Cada mensaje contiene:
+Ambas utilizan el destino `REQUESTS`.
 
-- `id`: identificador único del mensaje.
-- `type`: tipo de evento recibido.
-- `version`: versión del contrato.
-- `origin`: servicio que publica el mensaje.
-- `timestamp`: fecha de publicación.
-- `occurred_at`: fecha del evento.
-- `correlation_id`: identificador opcional de seguimiento.
-- `payload`: información de la solicitud.
+## Estructura
 
-El identificador `id` permite controlar el procesamiento duplicado de mensajes.
+Los mensajes incluyen un identificador, tipo, versión, servicio de origen, fechas y un payload con la información correspondiente.
+
+El campo `id` permite identificar mensajes repetidos y evitar procesarlos más de una vez.
 
 ## Archivos
 
-- `event-routed.requests.v1.schema.json`: contrato de recepción.
-- `examples/catalog-request.json`: ejemplo de una solicitud de catálogo.
+- `event-routed.requests.v1.schema.json`: esquema de recepción de mensajes.
+- `examples/catalog-request.json`: ejemplo de la regla R5.
+- `examples/change-request.json`: ejemplo de la regla R8.
+- `test_contract.py`: pruebas de validación del contrato.
 
-## Validaciones pendientes
+## Pruebas
 
-Se debe comprobar que el consumidor de Peticiones:
+Las pruebas comprueban que los mensajes respeten el esquema, que el destino sea Peticiones y que cada regla tenga su categoría correspondiente.
 
-1. Reciba correctamente los mensajes desde NATS.
-2. Procese únicamente los mensajes destinados a Requests.
-3. Evite procesar dos veces un mismo mensaje.
-4. Maneje los errores sin perder información.
+Para ejecutarlas desde la raíz del repositorio, con las dependencias `jsonschema` y `referencing` instaladas:
 
-Estas comprobaciones se realizarán cuando el consumidor esté integrado y disponible para las pruebas.
+`python -m unittest discover -s contracts/messages/requests -p "test_contract.py" -v`
+
+Estas pruebas validan el contrato JSON. La recepción real mediante NATS y el control de mensajes duplicados deberán comprobarse con el servicio funcionando.
 
 ## Integración
 
-Este contrato documenta la recepción de mensajes. No modifica el funcionamiento de Eventos ni agrega nuevos tipos de mensajes.
+Los contratos utilizan el formato común de Eventos y no modifican el código de otros servicios.
 
-Los cambios deben revisarse con los responsables de los contratos antes de integrarse a develop.
+Cualquier cambio en los esquemas debe revisarse con los responsables de los contratos antes de integrarse a develop.

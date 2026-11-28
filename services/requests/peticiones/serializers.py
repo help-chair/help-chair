@@ -41,13 +41,13 @@ class ServiceRequestSerializer(serializers.ModelSerializer):
     descripcion = serializers.CharField(source="description", required=False, allow_blank=True)
     estado = serializers.CharField(source="status", read_only=True)
     estado_aprobacion = serializers.CharField(source="approval_status", read_only=True)
-    aprobador_id = serializers.IntegerField(
-        source="approver_id", required=False, allow_null=True, min_value=1
+    aprobador_id = serializers.CharField(
+        source="approver_id", required=False, allow_blank=True, max_length=64
     )
     aprobada_en = serializers.DateTimeField(source="approved_at", read_only=True)
     motivo_rechazo = serializers.CharField(source="rejection_reason", read_only=True)
-    solicitante_id = serializers.IntegerField(source="requester_id", min_value=0)
-    asignado_a_id = serializers.IntegerField(source="assignee_id", read_only=True)
+    solicitante_id = serializers.CharField(source="requester_id", max_length=64)
+    asignado_a_id = serializers.CharField(source="assignee_id", read_only=True)
     evento_id = serializers.CharField(
         source="event_id", required=False, allow_blank=True, default="", max_length=64
     )
@@ -104,13 +104,13 @@ class StatusChangeSerializer(serializers.Serializer):
 
 
 class AssignRequestSerializer(serializers.Serializer):
-    asignado_a_id = serializers.IntegerField(min_value=1)
+    asignado_a_id = serializers.CharField(max_length=64)
 
 
 class ApproveChangeSerializer(serializers.Serializer):
-    aprobador_id = serializers.IntegerField(min_value=1)
+    aprobador_id = serializers.CharField(max_length=64)
 
 
 class RejectChangeSerializer(serializers.Serializer):
-    aprobador_id = serializers.IntegerField(min_value=1)
+    aprobador_id = serializers.CharField(max_length=64)
     motivo_rechazo = serializers.CharField(max_length=255)

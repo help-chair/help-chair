@@ -36,7 +36,7 @@ def test_e2e_event_to_closed_and_reopened_lifecycle(client):
             "service_code": "Acceso VPN",
             "title": "Alta de VPN desde evento automático",
             "message": "Usuario nuevo requiere acceso remoto",
-            "reporter_ref": 42,
+            "reporter_ref": "42",
         },
     }
 
@@ -50,7 +50,7 @@ def test_e2e_event_to_closed_and_reopened_lifecycle(client):
     # 1. nuevo -> asignado
     res_assign = client.post(
         f"{API_BASE}/peticiones/{req_id}/asignar/",
-        {"asignado_a_id": 7},
+        {"asignado_a_id": "7"},
         content_type="application/json",
     )
     assert res_assign.status_code == 200
@@ -88,7 +88,7 @@ def test_e2e_event_to_closed_and_reopened_lifecycle(client):
     second_req = ServiceRequest.objects.create(
         service=created_request.service,
         title="Petición con reapertura",
-        requester_id=42,
+        requester_id="42",
         status=ServiceRequest.Status.RESOLVED,
     )
     res_reopen = client.post(
@@ -101,7 +101,7 @@ def test_e2e_event_to_closed_and_reopened_lifecycle(client):
 
     res_reassign = client.post(
         f"{API_BASE}/peticiones/{second_req.id}/asignar/",
-        {"asignado_a_id": 8},
+        {"asignado_a_id": "8"},
         content_type="application/json",
     )
     assert res_reassign.status_code == 200

@@ -68,7 +68,7 @@ def test_process_routed_event_creates_request_with_matching_service():
     assert service_request is not None
     assert service_request.event_id == "7c9e6679-7425-40de-944b-e07fc1f90ae7"
     assert service_request.service == catalog_item
-    assert service_request.requester_id == 42
+    assert service_request.requester_id == "42"
     assert service_request.status == ServiceRequest.Status.NEW
     assert service_request.approval_status == ServiceRequest.ApprovalStatus.NOT_REQUIRED
 

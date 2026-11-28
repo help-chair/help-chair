@@ -60,12 +60,14 @@ class ServiceRequest(models.Model):
         choices=ApprovalStatus.choices,
         default=ApprovalStatus.NOT_REQUIRED,
     )
-    approver_id = models.BigIntegerField(null=True, blank=True)
+    # Referencias a usuarios de Accesos: su id es un UUID, así que se guardan como texto
+    # (igual que Incidencias y Eventos). Vacío = sin definir.
+    approver_id = models.CharField(max_length=64, blank=True, default="")
     approved_at = models.DateTimeField(null=True, blank=True)
     rejection_reason = models.CharField(max_length=255, blank=True)
 
-    requester_id = models.BigIntegerField()
-    assignee_id = models.BigIntegerField(null=True, blank=True)
+    requester_id = models.CharField(max_length=64, blank=True, default="")
+    assignee_id = models.CharField(max_length=64, blank=True, default="")
     event_id = models.CharField(max_length=64, blank=True, default="", db_index=True)
 
     cancellation_reason = models.CharField(max_length=255, blank=True)

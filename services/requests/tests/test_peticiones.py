@@ -15,7 +15,7 @@ def service_request(catalog_item):
     return ServiceRequest.objects.create(
         service=catalog_item,
         title="Necesito un correo nuevo",
-        requester_id=1,
+        requester_id="1",
     )
 
 
@@ -77,16 +77,16 @@ def test_close_sets_closed_at(client, service_request):
 
 
 def test_assign_moves_to_assigned(client, service_request):
-    response = _post(client, service_request, "asignar", {"asignado_a_id": 5})
+    response = _post(client, service_request, "asignar", {"asignado_a_id": "5"})
     assert response.status_code == 200
-    assert response.json()["asignado_a_id"] == 5
+    assert response.json()["asignado_a_id"] == "5"
     assert response.json()["estado"] == "asignado"
 
 
 def test_cannot_assign_when_closed(client, service_request):
     service_request.status = ServiceRequest.Status.CLOSED
     service_request.save()
-    response = _post(client, service_request, "asignar", {"asignado_a_id": 5})
+    response = _post(client, service_request, "asignar", {"asignado_a_id": "5"})
     assert response.status_code == 400
 
 
@@ -97,8 +97,8 @@ def test_change_enablement_approval_flow(client, catalog_item):
             "tipo": "cambio",
             "servicio": catalog_item.id,
             "titulo": "Actualizar certificado TLS",
-            "solicitante_id": 3,
-            "aprobador_id": 10,
+            "solicitante_id": "3",
+            "aprobador_id": "10",
         },
         content_type="application/json",
     )
@@ -110,16 +110,16 @@ def test_change_enablement_approval_flow(client, catalog_item):
     request_obj = ServiceRequest.objects.get(id=created["id"])
 
     # Asignar antes de aprobar funciona, pero pasar a en_proceso se bloquea
-    assert _post(client, request_obj, "asignar", {"asignado_a_id": 7}).status_code == 200
+    assert _post(client, request_obj, "asignar", {"asignado_a_id": "7"}).status_code == 200
     blocked_res = _post(client, request_obj, "cambiar-estado", {"estado": "en_proceso"})
     assert blocked_res.status_code == 400
 
     # Un aprobador distinto al designado es rechazado
-    wrong_approver = _post(client, request_obj, "aprobar", {"aprobador_id": 99})
+    wrong_approver = _post(client, request_obj, "aprobar", {"aprobador_id": "99"})
     assert wrong_approver.status_code == 400
 
     # El aprobador designado aprueba el cambio
-    approved_res = _post(client, request_obj, "aprobar", {"aprobador_id": 10})
+    approved_res = _post(client, request_obj, "aprobar", {"aprobador_id": "10"})
     assert approved_res.status_code == 200
     assert approved_res.json()["estado_aprobacion"] == "aprobado"
     assert approved_res.json()["aprobada_en"] is not None
@@ -135,8 +135,8 @@ def test_change_enablement_rejection_cancels_request(client, catalog_item):
             "tipo": "cambio",
             "servicio": catalog_item.id,
             "titulo": "Cambio en firewall de producción",
-            "solicitante_id": 4,
-            "aprobador_id": 10,
+            "solicitante_id": "4",
+            "aprobador_id": "10",
         },
         content_type="application/json",
     )
@@ -146,7 +146,7 @@ def test_change_enablement_rejection_cancels_request(client, catalog_item):
         client,
         request_obj,
         "rechazar",
-        {"aprobador_id": 10, "motivo_rechazo": "Falta ventana de mantenimiento"},
+        {"aprobador_id": "10", "motivo_rechazo": "Falta ventana de mantenimiento"},
     )
     assert reject_res.status_code == 200
     data = reject_res.json()
@@ -159,8 +159,8 @@ def test_filter_requests(client, catalog_item, service_request):
     ServiceRequest.objects.create(
         service=catalog_item,
         title="Acceso VPN",
-        requester_id=2,
-        assignee_id=9,
+        requester_id="2",
+        assignee_id="9",
         status=ServiceRequest.Status.ASSIGNED,
     )
 
@@ -179,9 +179,19 @@ def test_filter_requests(client, catalog_item, service_request):
     assert by_requester.json()[0]["id"] == str(service_request.id)
 
 
-def test_filter_requests_invalid_id(client):
-    response = client.get(f"{API_BASE}/peticiones/?asignado_a_id=no-es-numero")
-    assert response.status_code == 400
+@pytest.mark.django_db
+def test_filter_requests_by_access_uuid(client):
+    """Los ids de Accesos son UUID: el filtro acepta texto y no exige números."""
+    catalog_item = CatalogItem.objects.create(name="Correo")
+    agent = "3f2a9c4e-8d1b-4b5a-9e2f-1c7d6a5b4e3f"
+    ServiceRequest.objects.create(
+        service=catalog_item, title="Buzón", requester_id="u-1", assignee_id=agent
+    )
+
+    response = client.get(f"{API_BASE}/peticiones/?asignado_a_id={agent}")
+    assert response.status_code == 200
+    assert len(response.json()) == 1
+    assert client.get(f"{API_BASE}/peticiones/?asignado_a_id=otro").json() == []
 
 
 def test_create_and_edit_catalog_item(db, client):
@@ -219,7 +229,7 @@ def test_cannot_create_request_with_inactive_service(client, catalog_item):
         {
             "servicio": catalog_item.id,
             "titulo": "Intento en servicio inactivo",
-            "solicitante_id": 1,
+            "solicitante_id": "1",
         },
         content_type="application/json",
     )

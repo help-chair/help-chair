@@ -51,8 +51,8 @@ class Command(BaseCommand):
                 "title": "Alta de correo para nuevo ingreso de soporte",
                 "description": "Solicitado durante onboarding del área de operaciones.",
                 "status": ServiceRequest.Status.NEW,
-                "requester_id": 101,
-                "assignee_id": None,
+                "requester_id": "usuario-demo-101",
+                "assignee_id": "",
                 "closed_at": None,
             },
             {
@@ -63,8 +63,8 @@ class Command(BaseCommand):
                 "title": "Acceso VPN para guardia nocturna",
                 "description": "Requiere conexión al clúster de testing.",
                 "status": ServiceRequest.Status.IN_PROGRESS,
-                "requester_id": 102,
-                "assignee_id": 201,
+                "requester_id": "usuario-demo-102",
+                "assignee_id": "agente-demo-201",
                 "closed_at": None,
             },
             {
@@ -75,8 +75,8 @@ class Command(BaseCommand):
                 "title": "Configuración de Podman Desktop en equipo de QA",
                 "description": "Instalado y validado con el usuario.",
                 "status": ServiceRequest.Status.CLOSED,
-                "requester_id": 103,
-                "assignee_id": 202,
+                "requester_id": "usuario-demo-103",
+                "assignee_id": "agente-demo-202",
                 "closed_at": timezone.now(),
             },
         ]

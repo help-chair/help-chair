@@ -102,15 +102,15 @@ class CatalogItemViewSet(viewsets.ModelViewSet):
             ),
             OpenApiParameter(
                 name="asignado_a_id",
-                type=OpenApiTypes.INT,
+                type=OpenApiTypes.STR,
                 location=OpenApiParameter.QUERY,
-                description="Filtrar peticiones por ID del agente asignado.",
+                description="Filtrar peticiones por ID (Accesos) del agente asignado.",
             ),
             OpenApiParameter(
                 name="solicitante_id",
-                type=OpenApiTypes.INT,
+                type=OpenApiTypes.STR,
                 location=OpenApiParameter.QUERY,
-                description="Filtrar peticiones por ID del usuario solicitante.",
+                description="Filtrar peticiones por ID (Accesos) del usuario solicitante.",
             ),
         ],
         responses={200: ServiceRequestSerializer(many=True), 400: ERROR_400},
@@ -155,13 +155,8 @@ class ServiceRequestViewSet(viewsets.ModelViewSet):
         }
         for query_key, model_field in filter_map.items():
             raw_value = params.get(query_key)
-            if raw_value is not None and raw_value != "":
-                try:
-                    queryset = queryset.filter(**{model_field: int(raw_value)})
-                except ValueError:
-                    raise ValidationError(
-                        {query_key: "Debe ser un número entero válido."}
-                    ) from None
+            if raw_value:
+                queryset = queryset.filter(**{model_field: raw_value})
 
         return queryset
 
@@ -258,7 +253,7 @@ class ServiceRequestViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        if service_request.approver_id is not None and service_request.approver_id != approver_id:
+        if service_request.approver_id and service_request.approver_id != approver_id:
             return Response(
                 {"detail": "El usuario no corresponde al aprobador designado para este cambio."},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -298,7 +293,7 @@ class ServiceRequestViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        if service_request.approver_id is not None and service_request.approver_id != approver_id:
+        if service_request.approver_id and service_request.approver_id != approver_id:
             return Response(
                 {"detail": "El usuario no corresponde al aprobador designado para este cambio."},
                 status=status.HTTP_400_BAD_REQUEST,

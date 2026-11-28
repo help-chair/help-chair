@@ -11,8 +11,8 @@ paths:
       - in: query
         name: asignado_a_id
         schema:
-          type: integer
-        description: Filtrar peticiones por ID del agente asignado.
+          type: string
+        description: Filtrar peticiones por ID (Accesos) del agente asignado.
       - in: query
         name: estado
         schema:
@@ -39,8 +39,8 @@ paths:
       - in: query
         name: solicitante_id
         schema:
-          type: integer
-        description: Filtrar peticiones por ID del usuario solicitante.
+          type: string
+        description: Filtrar peticiones por ID (Accesos) del usuario solicitante.
       - in: query
         name: tipo
         schema:
@@ -468,16 +468,16 @@ components:
       type: object
       properties:
         aprobador_id:
-          type: integer
-          minimum: 1
+          type: string
+          maxLength: 64
       required:
       - aprobador_id
     AssignRequest:
       type: object
       properties:
         asignado_a_id:
-          type: integer
-          minimum: 1
+          type: string
+          maxLength: 64
       required:
       - asignado_a_id
     CatalogItem:
@@ -565,9 +565,8 @@ components:
           type: string
           readOnly: true
         aprobador_id:
-          type: integer
-          minimum: 1
-          nullable: true
+          type: string
+          maxLength: 64
         aprobada_en:
           type: string
           format: date-time
@@ -576,10 +575,10 @@ components:
           type: string
           readOnly: true
         solicitante_id:
-          type: integer
-          minimum: 0
+          type: string
+          maxLength: 64
         asignado_a_id:
-          type: integer
+          type: string
           readOnly: true
         evento_id:
           type: string
@@ -604,8 +603,8 @@ components:
       type: object
       properties:
         aprobador_id:
-          type: integer
-          minimum: 1
+          type: string
+          maxLength: 64
         motivo_rechazo:
           type: string
           maxLength: 255
@@ -637,9 +636,8 @@ components:
           type: string
           readOnly: true
         aprobador_id:
-          type: integer
-          minimum: 1
-          nullable: true
+          type: string
+          maxLength: 64
         aprobada_en:
           type: string
           format: date-time
@@ -648,10 +646,10 @@ components:
           type: string
           readOnly: true
         solicitante_id:
-          type: integer
-          minimum: 0
+          type: string
+          maxLength: 64
         asignado_a_id:
-          type: integer
+          type: string
           readOnly: true
         evento_id:
           type: string

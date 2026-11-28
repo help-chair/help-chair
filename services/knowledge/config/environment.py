@@ -51,3 +51,24 @@ def database_config():
         "DATABASE_CONNECT_TIMEOUT", 5
     )
     return config
+
+
+def identity_config():
+    url = required("JWKS_URL")
+    try:
+        parts = urlsplit(url)
+        if (
+            parts.scheme not in {"http", "https"}
+            or not parts.hostname
+            or parts.username is not None
+            or parts.password is not None
+            or parts.query
+            or parts.fragment
+            or not parts.path.endswith("/.well-known/jwks.json")
+            or parts.port == 0
+            or any(c.isspace() for c in url)
+        ):
+            raise ValueError
+    except ValueError:
+        raise ImproperlyConfigured("JWKS_URL") from None
+    return {"url": url, "issuer": required("JWT_ISSUER"), "company": required("EMPRESA_ID")}

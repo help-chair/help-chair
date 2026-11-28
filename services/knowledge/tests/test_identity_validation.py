@@ -136,7 +136,10 @@ def test_invalid_claims(context, private_key, field, value):
 def assert_rejected(token):
     response = invoke(token)
     assert response.status_code == 401
-    assert str(response.data["detail"]) == "Identidad de Accesos no válida."
+    assert response.data == {
+        "codigo": "no_autenticado",
+        "detalle": "Identidad de Accesos no válida.",
+    }
     assert response["WWW-Authenticate"] == "Bearer"
 
 

@@ -1,0 +1,33 @@
+
+{
+  "id": "1e1f7c7d-8e35-427a-8b9b-8fc9b3f040d1",
+  "type": "event.routed",
+  "version": 1,
+  "origin": "events",
+  "timestamp": "2026-11-28T15:01:01Z",
+  "occurred_at": "2026-11-28T15:01:00Z",
+  "correlation_id": null,
+  "payload": {
+    "event_id": "1d22f895-df61-4624-a9da-f6ac60b2908a",
+    "destination": "REQUESTS",
+    "rule_code": "R5",
+    "event_type": "INFORMATION",
+    "category": "REQUEST",
+    "state": "NEW",
+    "priority": "P3",
+    "impact": "LOW",
+    "urgency": "LOW",
+    "service_code": "accesos",
+    "title": "Solicitud de acceso a herramienta interna",
+    "message": "Solicitud estándar del catálogo",
+    "action_required": true,
+    "occurrence_count": 1,
+    "fingerprint": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+    "first_seen_at": "2026-11-28T15:01:00Z",
+    "last_seen_at": "2026-11-28T15:01:00Z",
+    "reporter_ref": null,
+    "payload": {
+      "catalog_item": "acceso-herramienta"
+    }
+  }
+}

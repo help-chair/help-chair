@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 
-from .models import CatalogItem, ServiceRequest
+from .models import CatalogItem, SatisfactionSurvey, ServiceRequest
 
 
 class CatalogItemSerializer(serializers.ModelSerializer):
@@ -25,6 +25,18 @@ class CatalogItemSerializer(serializers.ModelSerializer):
         model = CatalogItem
         fields = ["id", "nombre", "descripcion", "activo", "creado_en"]
         read_only_fields = ["id", "creado_en"]
+
+
+class SatisfactionSurveySerializer(serializers.ModelSerializer):
+    calificacion = serializers.IntegerField(source="rating", min_value=1, max_value=5)
+    comentario = serializers.CharField(
+        source="comment", required=False, allow_blank=True, max_length=500
+    )
+    respondida_en = serializers.DateTimeField(source="answered_at", read_only=True)
+
+    class Meta:
+        model = SatisfactionSurvey
+        fields = ["calificacion", "comentario", "respondida_en"]
 
 
 class ServiceRequestSerializer(serializers.ModelSerializer):
@@ -55,6 +67,7 @@ class ServiceRequestSerializer(serializers.ModelSerializer):
     creada = serializers.DateTimeField(source="created_at", read_only=True)
     actualizada = serializers.DateTimeField(source="updated_at", read_only=True)
     cerrada_en = serializers.DateTimeField(source="closed_at", read_only=True)
+    encuesta = SatisfactionSurveySerializer(source="survey", read_only=True, allow_null=True)
 
     class Meta:
         model = ServiceRequest
@@ -76,6 +89,7 @@ class ServiceRequestSerializer(serializers.ModelSerializer):
             "creada",
             "actualizada",
             "cerrada_en",
+            "encuesta",
         ]
 
     def validate_servicio(self, service_item: CatalogItem) -> CatalogItem:

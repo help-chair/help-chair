@@ -285,6 +285,42 @@ paths:
           description: Datos o parámetros de consulta inválidos.
         '404':
           description: Recurso no encontrado.
+  /api/requests/v1/peticiones/{id}/encuesta/:
+    post:
+      operationId: peticiones_encuesta_create
+      description: El solicitante califica la atención (1 a 5) cuando la petición
+        está resuelta o cerrada. Si estaba resuelta, la petición pasa a cerrada.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: Un Cadena UUID que identifique este service request.
+        required: true
+      tags:
+      - peticiones
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SatisfactionSurvey'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SatisfactionSurvey'
+          description: ''
+        '400':
+          description: Datos o parámetros de consulta inválidos.
+        '404':
+          description: Recurso no encontrado.
+        '409':
+          description: La petición ya tiene una encuesta respondida.
   /api/requests/v1/peticiones/{id}/rechazar/:
     post:
       operationId: peticiones_rechazar_create
@@ -599,6 +635,11 @@ components:
           type: string
           format: date-time
           readOnly: true
+        encuesta:
+          allOf:
+          - $ref: '#/components/schemas/SatisfactionSurvey'
+          readOnly: true
+          nullable: true
     RejectChange:
       type: object
       properties:
@@ -611,6 +652,23 @@ components:
       required:
       - aprobador_id
       - motivo_rechazo
+    SatisfactionSurvey:
+      type: object
+      properties:
+        calificacion:
+          type: integer
+          maximum: 5
+          minimum: 1
+        comentario:
+          type: string
+          maxLength: 500
+        respondida_en:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - calificacion
+      - respondida_en
     ServiceRequest:
       type: object
       properties:
@@ -670,12 +728,18 @@ components:
           type: string
           format: date-time
           readOnly: true
+        encuesta:
+          allOf:
+          - $ref: '#/components/schemas/SatisfactionSurvey'
+          readOnly: true
+          nullable: true
       required:
       - actualizada
       - aprobada_en
       - asignado_a_id
       - cerrada_en
       - creada
+      - encuesta
       - estado
       - estado_aprobacion
       - id

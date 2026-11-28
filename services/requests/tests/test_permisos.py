@@ -134,3 +134,22 @@ def test_only_admin_approves_and_only_as_themselves(client, catalog_item):
     assert approved.status_code == 200
     assert approved.json()["estado_aprobacion"] == "aprobado"
     assert approved.json()["aprobador_id"] == ADMIN
+
+
+def test_only_the_requester_answers_the_survey(client, catalog_item):
+    resolved = ServiceRequest.objects.create(
+        service=catalog_item,
+        title="Licencia",
+        requester_id=ANA,
+        status=ServiceRequest.Status.RESOLVED,
+    )
+    url = f"/peticiones/{resolved.id}/encuesta/"
+
+    as_agent = post(client, url, {"calificacion": 5}, auth(AGENT, "agente_n1"))
+    assert as_agent.status_code == 403
+    as_luis = post(client, url, {"calificacion": 1}, auth(LUIS, "usuario_final"))
+    assert as_luis.status_code == 404
+
+    answered = post(client, url, {"calificacion": 5}, auth(ANA, "usuario_final"))
+    assert answered.status_code == 201
+    assert resolved.survey.respondent_id == ANA

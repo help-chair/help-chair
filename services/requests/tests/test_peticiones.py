@@ -234,3 +234,50 @@ def test_cannot_create_request_with_inactive_service(client, catalog_item):
         content_type="application/json",
     )
     assert response.status_code == 400
+
+
+def _resolved_request(status=ServiceRequest.Status.RESOLVED):
+    catalog_item = CatalogItem.objects.create(name="Periféricos")
+    return ServiceRequest.objects.create(
+        service=catalog_item, title="Monitor nuevo", requester_id="ana", status=status
+    )
+
+
+@pytest.mark.django_db
+def test_survey_on_resolved_request_closes_it(client):
+    service_request = _resolved_request()
+
+    response = _post(
+        client, service_request, "encuesta", {"calificacion": 4, "comentario": "Muy rápido"}
+    )
+
+    assert response.status_code == 201
+    assert response.json()["calificacion"] == 4
+    service_request.refresh_from_db()
+    assert service_request.status == ServiceRequest.Status.CLOSED
+    assert service_request.closed_at is not None
+
+    detail = client.get(f"{API_BASE}/peticiones/{service_request.id}/").json()
+    assert detail["encuesta"]["calificacion"] == 4
+    assert detail["encuesta"]["comentario"] == "Muy rápido"
+
+
+@pytest.mark.django_db
+def test_survey_only_once(client):
+    service_request = _resolved_request(status=ServiceRequest.Status.CLOSED)
+
+    assert _post(client, service_request, "encuesta", {"calificacion": 5}).status_code == 201
+    repeated = _post(client, service_request, "encuesta", {"calificacion": 1})
+
+    assert repeated.status_code == 409
+
+
+@pytest.mark.django_db
+def test_survey_rejects_open_requests_and_out_of_range_ratings(client):
+    service_request = _resolved_request(status=ServiceRequest.Status.IN_PROGRESS)
+    assert _post(client, service_request, "encuesta", {"calificacion": 3}).status_code == 400
+
+    service_request.status = ServiceRequest.Status.RESOLVED
+    service_request.save()
+    assert _post(client, service_request, "encuesta", {"calificacion": 6}).status_code == 400
+    assert client.get(f"{API_BASE}/peticiones/{service_request.id}/").json()["encuesta"] is None

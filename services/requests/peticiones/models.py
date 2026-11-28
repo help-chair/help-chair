@@ -1,5 +1,6 @@
 import uuid
 
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
 
@@ -106,3 +107,32 @@ class ServiceRequest(models.Model):
         ):
             return False
         return True
+
+
+class SatisfactionSurvey(models.Model):
+    """Encuesta de satisfacción (CSAT) que responde el solicitante al cierre.
+
+    Una por petición. Si la petición estaba resuelta, responderla la cierra.
+    """
+
+    service_request = models.OneToOneField(
+        ServiceRequest, on_delete=models.CASCADE, related_name="survey"
+    )
+    rating = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(5)]
+    )
+    comment = models.TextField(max_length=500, blank=True)
+    # Referencia (UUID) al usuario de Accesos que respondió.
+    respondent_id = models.CharField(max_length=64, blank=True, default="")
+    answered_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(rating__gte=1, rating__lte=5),
+                name="survey_rating_between_1_and_5",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.rating}/5 · {self.service_request_id}"

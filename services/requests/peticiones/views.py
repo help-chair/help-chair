@@ -1,3 +1,4 @@
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import (
@@ -23,6 +24,7 @@ from .serializers import (
     AssignRequestSerializer,
     CatalogItemSerializer,
     RejectChangeSerializer,
+    SatisfactionSurveySerializer,
     ServiceRequestSerializer,
     StatusChangeSerializer,
 )
@@ -36,6 +38,9 @@ ASSIGNABLE_STATUSES = (
 
 ERROR_400 = OpenApiResponse(description="Datos o parámetros de consulta inválidos.")
 ERROR_404 = OpenApiResponse(description="Recurso no encontrado.")
+ERROR_409 = OpenApiResponse(description="La petición ya tiene una encuesta respondida.")
+
+SURVEY_STATUSES = (ServiceRequest.Status.RESOLVED, ServiceRequest.Status.CLOSED)
 
 
 @extend_schema_view(
@@ -130,7 +135,7 @@ class CatalogItemViewSet(viewsets.ModelViewSet):
     destroy=extend_schema(responses={204: None, 404: ERROR_404}),
 )
 class ServiceRequestViewSet(viewsets.ModelViewSet):
-    queryset = ServiceRequest.objects.all()
+    queryset = ServiceRequest.objects.select_related("survey")
     serializer_class = ServiceRequestSerializer
 
     def get_queryset(self):
@@ -220,6 +225,51 @@ class ServiceRequestViewSet(viewsets.ModelViewSet):
             service_request.closed_at = timezone.now()
         service_request.save()
         return Response(ServiceRequestSerializer(service_request).data)
+
+    @extend_schema(
+        request=SatisfactionSurveySerializer,
+        responses={
+            201: SatisfactionSurveySerializer,
+            400: ERROR_400,
+            404: ERROR_404,
+            409: ERROR_409,
+        },
+        description=(
+            "El solicitante califica la atención (1 a 5) cuando la petición está resuelta "
+            "o cerrada. Si estaba resuelta, la petición pasa a cerrada."
+        ),
+    )
+    @action(detail=True, methods=["post"], url_path="encuesta")
+    def survey(self, request, pk=None):
+        service_request = self.get_object()
+        if jwt_enabled() and service_request.requester_id != token_user_id(request):
+            raise PermissionDenied("Solo quien hizo la petición puede calificarla.")
+
+        serializer = SatisfactionSurveySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        if service_request.status not in SURVEY_STATUSES:
+            return Response(
+                {"detail": "Solo se puede calificar una petición resuelta o cerrada."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        respondent_id = token_user_id(request) if jwt_enabled() else service_request.requester_id
+        try:
+            with transaction.atomic():
+                survey = serializer.save(
+                    service_request=service_request, respondent_id=respondent_id
+                )
+                if service_request.status == ServiceRequest.Status.RESOLVED:
+                    service_request.status = ServiceRequest.Status.CLOSED
+                    service_request.closed_at = timezone.now()
+                    service_request.save(update_fields=["status", "closed_at", "updated_at"])
+        except IntegrityError:
+            return Response(
+                {"detail": "Esta petición ya tiene una encuesta respondida."},
+                status=status.HTTP_409_CONFLICT,
+            )
+        return Response(SatisfactionSurveySerializer(survey).data, status=status.HTTP_201_CREATED)
 
     @extend_schema(
         request=AssignRequestSerializer,

@@ -35,6 +35,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "drf_spectacular",
     "core",
+    "peticiones",
 ]
 
 MIDDLEWARE = [
@@ -87,6 +88,9 @@ STORAGES = {
 
 REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "DEFAULT_PARSER_CLASSES": [
+        "rest_framework.parsers.JSONParser",
+    ],
 }
 
 SPECTACULAR_SETTINGS = {
@@ -103,3 +107,6 @@ LOGGING = {
     "handlers": {"console": {"class": "logging.StreamHandler", "formatter": "json"}},
     "root": {"handlers": ["console"], "level": env("LOG_LEVEL", default="INFO").upper()},
 }
+
+BROKER_URL = env("BROKER_URL", default="")
+BROKER_EVENTS_SUBJECT = env("BROKER_EVENTS_SUBJECT", default="events.routed.requests")

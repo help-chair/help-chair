@@ -3,7 +3,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://help-chair.com/contracts/messages/requests/event-routed.requests.v1.schema.json",
   "title": "Mensajes de Eventos hacia Peticiones",
-  "description": "Perfil v1 de recepción de event.routed con destino REQUESTS.",
+  "description": "Contrato v1 para mensajes event.routed destinados a Requests.",
   "allOf": [
     {
       "$ref": "../event-envelope.json"
@@ -32,12 +32,45 @@
               "const": "REQUESTS"
             },
             "rule_code": {
-              "const": "R5"
-            },
-            "category": {
-              "const": "REQUEST"
+              "enum": ["R5", "R8"]
             }
-          }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "rule_code": {
+                    "const": "R5"
+                  }
+                },
+                "required": ["rule_code"]
+              },
+              "then": {
+                "properties": {
+                  "category": {
+                    "const": "REQUEST"
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "rule_code": {
+                    "const": "R8"
+                  }
+                },
+                "required": ["rule_code"]
+              },
+              "then": {
+                "properties": {
+                  "category": {
+                    "const": "CHANGE"
+                  }
+                }
+              }
+            }
+          ]
         }
       }
     }

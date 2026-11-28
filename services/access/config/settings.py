@@ -128,6 +128,10 @@ SIMPLE_JWT = {
     "ISSUER": env("JWT_ISSUER", default="help-chair-access"),
 }
 
+# Broker de mensajes (NATS). Lo usa `manage.py publicar_eventos` para vaciar la
+# bandeja de salida; el servicio nunca lo toca al atender una petición.
+BROKER_URL = env("BROKER_URL", default="")
+
 # Modelo de usuario propio: se identifica por correo, como dice el contrato.
 AUTH_USER_MODEL = "core.Usuario"
 

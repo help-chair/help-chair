@@ -96,6 +96,8 @@ markupsafe==3.0.4
     # via werkzeug
 mdurl==0.1.2
     # via markdown-it-py
+nats-py==2.17.0
+    # via hc-access
 nodeenv==1.12.0
     # via pre-commit
 openapi-schema-validator==0.9.0

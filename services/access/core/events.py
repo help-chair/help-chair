@@ -6,7 +6,7 @@ el sobre, en `contracts/messages/event-envelope.json`.
 No se publica directo al broker: se escribe una fila en `OutboxMessage` dentro
 de la misma transacción que el cambio que originó el evento. Así un login nunca
 queda registrado sin su evento, ni se emite un evento de algo que se revirtió.
-Publicar al broker es trabajo de un proceso aparte, que todavía no existe.
+Publicar al broker es trabajo de un proceso aparte: `manage.py publicar_eventos`.
 """
 
 from django.utils import timezone

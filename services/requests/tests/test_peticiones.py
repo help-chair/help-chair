@@ -111,9 +111,7 @@ def test_change_enablement_approval_flow(client, catalog_item):
 
     # Asignar antes de aprobar funciona, pero pasar a en_proceso se bloquea
     assert _post(client, request_obj, "asignar", {"asignado_a_id": 7}).status_code == 200
-    blocked_res = _post(
-        client, request_obj, "cambiar-estado", {"estado": "en_proceso"}
-    )
+    blocked_res = _post(client, request_obj, "cambiar-estado", {"estado": "en_proceso"})
     assert blocked_res.status_code == 400
 
     # Un aprobador distinto al designado es rechazado
@@ -127,10 +125,7 @@ def test_change_enablement_approval_flow(client, catalog_item):
     assert approved_res.json()["aprobada_en"] is not None
 
     # Ahora sí puede pasar a en_proceso -> resuelto -> cerrado
-    assert (
-        _post(client, request_obj, "cambiar-estado", {"estado": "en_proceso"}).status_code
-        == 200
-    )
+    assert _post(client, request_obj, "cambiar-estado", {"estado": "en_proceso"}).status_code == 200
 
 
 def test_change_enablement_rejection_cancels_request(client, catalog_item):

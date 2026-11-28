@@ -48,9 +48,7 @@ class Command(BaseCommand):
         subject = options["subject"]
 
         if not broker_url:
-            raise CommandError(
-                "Define BROKER_URL en el entorno o pásalo con --broker-url."
-            )
+            raise CommandError("Define BROKER_URL en el entorno o pásalo con --broker-url.")
 
         try:
             import nats

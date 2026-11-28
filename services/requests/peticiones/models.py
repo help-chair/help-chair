@@ -50,9 +50,7 @@ class ServiceRequest(models.Model):
     request_type = models.CharField(
         max_length=20, choices=RequestType.choices, default=RequestType.SERVICE
     )
-    service = models.ForeignKey(
-        CatalogItem, on_delete=models.PROTECT, related_name="requests"
-    )
+    service = models.ForeignKey(CatalogItem, on_delete=models.PROTECT, related_name="requests")
     title = models.CharField(max_length=150)
     description = models.TextField(blank=True)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.NEW)

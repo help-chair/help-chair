@@ -17,9 +17,7 @@ from schemathesis.checks import (
 
 from config.wsgi import application
 
-CONTRACT_PATH = (
-    Path(__file__).resolve().parents[3] / "contracts" / "requests" / "openapi.yaml"
-)
+CONTRACT_PATH = Path(__file__).resolve().parents[3] / "contracts" / "requests" / "openapi.yaml"
 
 schema = schemathesis.openapi.from_path(str(CONTRACT_PATH))
 

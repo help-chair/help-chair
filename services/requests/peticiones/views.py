@@ -46,9 +46,7 @@ ERROR_404 = OpenApiResponse(description="Recurso no encontrado.")
     ),
     create=extend_schema(responses={201: CatalogItemSerializer, 400: ERROR_400}),
     retrieve=extend_schema(responses={200: CatalogItemSerializer, 404: ERROR_404}),
-    update=extend_schema(
-        responses={200: CatalogItemSerializer, 400: ERROR_400, 404: ERROR_404}
-    ),
+    update=extend_schema(responses={200: CatalogItemSerializer, 400: ERROR_400, 404: ERROR_404}),
     partial_update=extend_schema(
         responses={200: CatalogItemSerializer, 400: ERROR_400, 404: ERROR_404}
     ),
@@ -119,9 +117,7 @@ class CatalogItemViewSet(viewsets.ModelViewSet):
     ),
     create=extend_schema(responses={201: ServiceRequestSerializer, 400: ERROR_400}),
     retrieve=extend_schema(responses={200: ServiceRequestSerializer, 404: ERROR_404}),
-    update=extend_schema(
-        responses={200: ServiceRequestSerializer, 400: ERROR_400, 404: ERROR_404}
-    ),
+    update=extend_schema(responses={200: ServiceRequestSerializer, 400: ERROR_400, 404: ERROR_404}),
     partial_update=extend_schema(
         responses={200: ServiceRequestSerializer, 400: ERROR_400, 404: ERROR_404}
     ),
@@ -150,9 +146,7 @@ class ServiceRequestViewSet(viewsets.ModelViewSet):
         approval_param = params.get("estado_aprobacion")
         if approval_param:
             if approval_param not in ServiceRequest.ApprovalStatus.values:
-                raise ValidationError(
-                    {"estado_aprobacion": "Estado de aprobación no válido."}
-                )
+                raise ValidationError({"estado_aprobacion": "Estado de aprobación no válido."})
             queryset = queryset.filter(approval_status=approval_param)
 
         filter_map = {
@@ -199,19 +193,13 @@ class ServiceRequestViewSet(viewsets.ModelViewSet):
 
         if not service_request.can_transition_to(next_status):
             return Response(
-                {
-                    "detail": (
-                        f"No se puede pasar de {service_request.status} a {next_status}."
-                    )
-                },
+                {"detail": (f"No se puede pasar de {service_request.status} a {next_status}.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         service_request.status = next_status
         if next_status == ServiceRequest.Status.CANCELLED:
-            service_request.cancellation_reason = serializer.validated_data[
-                "motivo_cancelacion"
-            ]
+            service_request.cancellation_reason = serializer.validated_data["motivo_cancelacion"]
         if next_status == ServiceRequest.Status.CLOSED:
             service_request.closed_at = timezone.now()
         service_request.save()
@@ -270,10 +258,7 @@ class ServiceRequestViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        if (
-            service_request.approver_id is not None
-            and service_request.approver_id != approver_id
-        ):
+        if service_request.approver_id is not None and service_request.approver_id != approver_id:
             return Response(
                 {"detail": "El usuario no corresponde al aprobador designado para este cambio."},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -313,10 +298,7 @@ class ServiceRequestViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        if (
-            service_request.approver_id is not None
-            and service_request.approver_id != approver_id
-        ):
+        if service_request.approver_id is not None and service_request.approver_id != approver_id:
             return Response(
                 {"detail": "El usuario no corresponde al aprobador designado para este cambio."},
                 status=status.HTTP_400_BAD_REQUEST,

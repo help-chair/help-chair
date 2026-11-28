@@ -38,9 +38,7 @@ class ServiceRequestSerializer(serializers.ModelSerializer):
         source="service", queryset=CatalogItem.objects.all()
     )
     titulo = serializers.CharField(source="title", max_length=150)
-    descripcion = serializers.CharField(
-        source="description", required=False, allow_blank=True
-    )
+    descripcion = serializers.CharField(source="description", required=False, allow_blank=True)
     estado = serializers.CharField(source="status", read_only=True)
     estado_aprobacion = serializers.CharField(source="approval_status", read_only=True)
     aprobador_id = serializers.IntegerField(
@@ -53,9 +51,7 @@ class ServiceRequestSerializer(serializers.ModelSerializer):
     evento_id = serializers.CharField(
         source="event_id", required=False, allow_blank=True, default="", max_length=64
     )
-    motivo_cancelacion = serializers.CharField(
-        source="cancellation_reason", read_only=True
-    )
+    motivo_cancelacion = serializers.CharField(source="cancellation_reason", read_only=True)
     creada = serializers.DateTimeField(source="created_at", read_only=True)
     actualizada = serializers.DateTimeField(source="updated_at", read_only=True)
     cerrada_en = serializers.DateTimeField(source="closed_at", read_only=True)
@@ -88,9 +84,7 @@ class ServiceRequestSerializer(serializers.ModelSerializer):
         return service_item
 
     def create(self, validated_data):
-        request_type = validated_data.get(
-            "request_type", ServiceRequest.RequestType.SERVICE
-        )
+        request_type = validated_data.get("request_type", ServiceRequest.RequestType.SERVICE)
         if request_type == ServiceRequest.RequestType.CHANGE:
             validated_data["approval_status"] = ServiceRequest.ApprovalStatus.PENDING
         else:
@@ -100,16 +94,12 @@ class ServiceRequestSerializer(serializers.ModelSerializer):
 
 class StatusChangeSerializer(serializers.Serializer):
     estado = serializers.ChoiceField(choices=ServiceRequest.Status.choices)
-    motivo_cancelacion = serializers.CharField(
-        required=False, allow_blank=True, max_length=255
-    )
+    motivo_cancelacion = serializers.CharField(required=False, allow_blank=True, max_length=255)
 
     def validate(self, attrs):
         is_cancelling = attrs["estado"] == ServiceRequest.Status.CANCELLED
         if is_cancelling and not attrs.get("motivo_cancelacion"):
-            raise serializers.ValidationError(
-                {"motivo_cancelacion": "Es obligatorio al cancelar."}
-            )
+            raise serializers.ValidationError({"motivo_cancelacion": "Es obligatorio al cancelar."})
         return attrs
 
 

@@ -113,9 +113,9 @@ def test_process_routed_event_is_idempotent():
     assert created_2 is False
     assert first is not None and second is not None
     assert first.id == second.id
-    assert ServiceRequest.objects.filter(
-        event_id="99999999-aaaa-bbbb-cccc-dddddddddddd"
-    ).count() == 1
+    assert (
+        ServiceRequest.objects.filter(event_id="99999999-aaaa-bbbb-cccc-dddddddddddd").count() == 1
+    )
 
 
 @pytest.mark.django_db
@@ -145,10 +145,7 @@ def test_handle_raw_message_ignores_noise_and_processes_valid():
     ).encode("utf-8")
     asyncio.run(handle_raw_message(valid_bytes))
     assert (
-        ServiceRequest.objects.filter(
-            event_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
-        ).count()
-        == 1
+        ServiceRequest.objects.filter(event_id="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee").count() == 1
     )
 
 

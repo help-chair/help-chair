@@ -103,6 +103,11 @@ Todo servicio, sin importar el lenguaje, debe:
 3. Trabaja **solo dentro de la carpeta de tu equipo**.
 4. Levanta el entorno local con `platform/deploy` *(en construcción)*.
 
+## Guía de despliegue en testing
+
+Para acceder al entorno de pruebas, desplegar servicios, consultar logs o revertir cambios, revisa el [runbook de testing](docs/runbooks/deploy-testing.md).
+
+
 ## 🛠️ Stack tecnológico
 
 | Área | Tecnología |

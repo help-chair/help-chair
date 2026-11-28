@@ -9,9 +9,9 @@ El esquema, migración inicial y admin ya integrados de #13 se conservan. Django
 admin usa autenticación local de Django; no constituye integración JWT de negocio.
 Los modelos no importan código ni consultan bases de otros servicios. Sus claves
 internas son bigint; las referencias externas son texto de hasta 64 caracteres.
-El CRUD de problemas y su cambio de estado (#271) y el vínculo con incidentes
-(#272) están implementados; errores conocidos (#273), detector N/T y autorización
-de negocio siguen pendientes. No se emiten tokens de Accesos.
+El CRUD de problemas y su cambio de estado (#271), el vínculo con incidentes (#272)
+y la API de errores conocidos (#273) están implementados; el detector N/T y la
+autorización de negocio siguen pendientes. No se emiten tokens de Accesos.
 
 La propuesta parcial [esquema de observaciones #38](docs/recurrence-storage.md)
 añade almacenamiento local; no activa ingesta, deduplicación ni detector.
@@ -97,8 +97,10 @@ admin es local Django; la identidad de negocio corresponde a Accesos.
 | POST | /api/problems/v1/problemas/{id}/estado/ | Cambio de estado según `problems/states.py` |
 | GET, POST | /api/problems/v1/problemas/{id}/incidentes/ | Lista (arreglo sin paginar) y vínculo de incidentes |
 | DELETE | /api/problems/v1/problemas/{id}/incidentes/{incidente_id}/ | Desvincula un incidente |
+| GET, POST | /api/problems/v1/errores-conocidos/ | Lista paginada (filtro `activo`, búsqueda `q`) y alta |
+| GET, PATCH | /api/problems/v1/errores-conocidos/{id}/ | Consulta y actualización parcial (sin PUT ni DELETE) |
 
-### API de problemas (#271, #272)
+### API de problemas (#271, #272, #273)
 
 - **Autenticación pendiente (Fase 3).** La API todavía **no valida el JWT de Accesos**
   que exige el contrato: hoy cualquier solicitud está permitida. La autenticación y
@@ -114,19 +116,29 @@ admin es local Django; la identidad de negocio corresponde a Accesos.
   `core/schemas.py` documenta ese formato (`ErrorSerializer`) en `/api/docs/`.
 - **Paginación y filtros reutilizables.** `core/pagination.py` (`page`, `page_size`
   20 por defecto, máximo 100; página fuera de rango → 404) y `core/filters.py`
-  (filtros validados contra los `TextChoices` del modelo; valor inválido → 400).
+  (`filter_by_choices` contra los `TextChoices` del modelo, `filter_by_boolean` solo
+  acepta `true`/`false` y `search_text` busca sin distinguir mayúsculas; un valor
+  inválido → 400).
 - **Nombres.** Los identificadores del código van en inglés, incluidos modelos y
   campos; rutas, campos JSON, parámetros de consulta, valores de los enums y de
   `codigo`, `operationId` y mensajes al usuario siguen el contrato en español. El
-  mapeo JSON → modelo está en `PROBLEM_JSON_FIELDS` (`problems/serializers.py`) y el
-  de filtros en `LIST_FILTERS` (`problems/views.py`).
+  mapeo JSON → modelo está en `PROBLEM_JSON_FIELDS` y `KNOWN_ERROR_JSON_FIELDS`
+  (`problems/serializers.py`) y el de filtros en `LIST_FILTERS` y
+  `KNOWN_ERROR_BOOLEAN_FILTERS` (`problems/views.py`).
 - **Incidentes vinculados (#272).** El incidente se guarda solo por su ID de texto
   (1–64 caracteres): no se consulta ni valida contra Incidencias y no hay llave
   foránea entre servicios. La restricción única `(problem_id, incident_id)` se
   traduce en 409 `incidente_ya_vinculado`; el mismo incidente sí puede vincularse a
   problemas distintos. Desvincular un incidente no vinculado a ese problema da 404.
+- **Errores conocidos (#273).** El listado va del más reciente al más antiguo; `activo`
+  filtra con `true`/`false` y `q` busca en título, descripción, causa raíz y
+  workaround sin distinguir mayúsculas (un `q` vacío no filtra). En el alta,
+  `problema_id` inexistente responde **400** (no 404), como pide el contrato, y
+  `articulo_kb_id` se guarda como texto sin consultar Knowledge. En PATCH un error
+  conocido no cambia de problema: `problema_id`, `id` y las fechas se ignoran, y si el
+  cuerpo no trae ningún campo modificable responde 400 (`minProperties: 1`).
 - **Pruebas.** `tests/factories.py` (factory_boy) ofrece `ProblemFactory`, coherente
-  con el estado, y `ProblemIncidentFactory`, reutilizables para #273.
+  con el estado, `ProblemIncidentFactory` y `KnownErrorFactory`.
 
 La política confirmada por Pablo exige PostgreSQL y entorno real incluso en local
 /tests; las indicaciones anteriores de #205 sobre .env/defaults/SQLite se sustituyen
@@ -291,8 +303,10 @@ Code identifiers (models, fields, tables) are English since migration 0002, whic
 only renames tables/columns and keeps the data; the contract JSON keeps its Spanish
 names through serializer `source=` mappings, and enum values are unchanged. Local
 admin authentication does not implement Access JWT or business authorization.
-Problem CRUD and state transitions (#271) and incident links by text ID (#272) are
-implemented; known errors (#273) and the N/T detector belong to subsequent increments. The API
+Problem CRUD and state transitions (#271), incident links by text ID (#272) and the
+known errors API (#273: `activo` filter, case-insensitive `q` search, 400 for an
+unknown `problema_id`, PATCH never moves it to another problem) are implemented;
+the N/T detector belongs to a subsequent increment. The API
 does **not** validate Access JWTs yet (Phase 3): authentication/permissions live
 only in `REST_FRAMEWORK` in `config/settings.py` (`AllowAny`, marked TODO).
 

@@ -3,7 +3,7 @@
 import factory
 from django.utils import timezone
 
-from problems.models import Problem, ProblemIncident
+from problems.models import KnownError, Problem, ProblemIncident
 from problems.states import ROOT_CAUSE_REQUIRED_STATES
 
 # Estados a los que solo se llega habiendo documentado la causa raíz.
@@ -38,3 +38,18 @@ class ProblemIncidentFactory(factory.django.DjangoModelFactory):
 
     problem = factory.SubFactory(ProblemFactory)
     incident_id = factory.Sequence(lambda n: f"INC-{n}")
+
+
+class KnownErrorFactory(factory.django.DjangoModelFactory):
+    """Error conocido activo de un problema en ``error_conocido``; sin artículo KB por defecto."""
+
+    class Meta:
+        model = KnownError
+
+    problem = factory.SubFactory(ProblemFactory, status=Problem.Status.KNOWN_ERROR)
+    title = factory.Sequence(lambda n: f"Error conocido {n}")
+    description = factory.LazyAttribute(lambda o: f"Descripción de {o.title.lower()}.")
+    root_cause = "Causa raíz documentada."
+    workaround = "Solución temporal documentada."
+    kb_article_id = ""
+    is_active = True
